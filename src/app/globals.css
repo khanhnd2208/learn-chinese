@@ -1,0 +1,163 @@
+@import "tailwindcss";
+
+/* Học Hán Ngữ — Paper & Ink design system (seal 學 as guiding light) */
+
+:root {
+	--background: #f7f4ef;
+	--background-secondary: #efe9e0;
+	--surface: #fffcf8;
+	--surface-secondary: #f3ede4;
+	--surface-hover: #fff1eb;
+	--surface-container: #fceae3;
+	--surface-dim: #e7d7d0;
+	--foreground: #221a16;
+	--foreground-secondary: #4a3f38;
+	--muted: #8a7b72;
+	--border: #ddd2c4;
+	--accent: #9e0027;
+	--accent-bright: #c41e3a;
+	--accent-hover: #e8364f;
+	--accent-subtle: #fdf0f2;
+	--accent-foreground: #ffffff;
+	--ink: #1a1a1a;
+	--gold: #b8860b;
+	--success: #17573e;
+	--success-subtle: #b1f0ce;
+	--warning: #b45309;
+	--error: #ba1a1a;
+	--sidebar-width: 240px;
+}
+
+.dark {
+	--background: #0f0e0d;
+	--background-secondary: #171514;
+	--surface: #1c1a18;
+	--surface-secondary: #242120;
+	--surface-hover: #2c2926;
+	--surface-container: #382e2a;
+	--surface-dim: #2c2926;
+	--foreground: #ffede6;
+	--foreground-secondary: #c9bfb3;
+	--muted: #8a8278;
+	--border: #3a3530;
+	--accent: #e8364f;
+	--accent-bright: #c41e3a;
+	--accent-hover: #ff4d66;
+	--accent-subtle: #2a1518;
+	--accent-foreground: #ffdada;
+	--ink: #f5f0e8;
+	--success: #95d4b3;
+	--success-subtle: #0e5138;
+}
+
+@theme inline {
+	--color-background: var(--background);
+	--color-background-secondary: var(--background-secondary);
+	--color-surface: var(--surface);
+	--color-surface-secondary: var(--surface-secondary);
+	--color-surface-hover: var(--surface-hover);
+	--color-surface-container: var(--surface-container);
+	--color-surface-dim: var(--surface-dim);
+	--color-foreground: var(--foreground);
+	--color-foreground-secondary: var(--foreground-secondary);
+	--color-muted: var(--muted);
+	--color-border: var(--border);
+	--color-accent: var(--accent);
+	--color-accent-bright: var(--accent-bright);
+	--color-accent-hover: var(--accent-hover);
+	--color-accent-subtle: var(--accent-subtle);
+	--color-accent-foreground: var(--accent-foreground);
+	--color-ink: var(--ink);
+	--color-gold: var(--gold);
+	--color-success: var(--success);
+	--color-success-subtle: var(--success-subtle);
+	--color-warning: var(--warning);
+	--color-error: var(--error);
+}
+
+body {
+	background: var(--background);
+	color: var(--foreground);
+	font-family: var(--font-sans), system-ui, sans-serif;
+	-webkit-font-smoothing: antialiased;
+}
+
+/* Subtle paper grain texture */
+body::before {
+	content: '';
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: 0;
+	opacity: 0.35;
+	background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+.hanzi-display,
+.hanzi-lg {
+	font-family: var(--font-hanzi), "PingFang SC", "Noto Sans SC", sans-serif;
+}
+
+.material-symbols-outlined {
+	font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+	font-size: 24px;
+	line-height: 1;
+}
+
+.material-symbols-outlined.filled {
+	font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Scrollbar — notebook style */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: var(--border);
+	border-radius: 4px;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+	display: none;
+}
+.hide-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+}
+
+.pb-safe {
+	padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.tap-highlight-transparent {
+	-webkit-tap-highlight-color: transparent;
+}
+
+/* Reusable component recipes */
+@utility btn-primary {
+	@apply inline-flex items-center justify-center gap-2 rounded-full bg-accent px-4 py-2 text-xs font-bold uppercase tracking-widest text-accent-foreground transition-colors hover:bg-accent-hover;
+}
+
+@utility btn-secondary {
+	@apply inline-flex items-center justify-center gap-2 rounded-full border border-border bg-transparent px-4 py-2 text-xs font-bold uppercase tracking-widest text-foreground-secondary transition-colors hover:border-accent hover:text-accent;
+}
+
+@utility card-paper {
+	@apply rounded-xl border border-border bg-surface transition-colors hover:border-accent;
+}
+
+@utility label-caps {
+	@apply text-[10px] font-bold uppercase tracking-[0.15em] text-muted;
+}
+
+@utility nav-pill-active {
+	@apply mx-4 flex items-center gap-4 rounded-full bg-accent px-4 py-2 text-sm font-extrabold text-accent-foreground;
+}
+
+@utility nav-pill {
+	@apply mx-4 flex items-center gap-4 rounded-full px-4 py-2 text-sm font-extrabold text-foreground-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-accent;
+}

@@ -1,0 +1,58 @@
+Design a complete, professional UI/UX system for "Learn Chinese" — a Vietnamese-language web app for learning Mandarin Chinese vocabulary.
+
+PRIORITY SCREENS (design all 12, but polish these first):
+1. Word Card with 5 tabs (Tổng quan, Ví dụ, Cấu tạo chữ, Cách dùng, Luyện tập) — this is the core learning unit
+2. Home dashboard with stat tiles and quick actions
+3. Practice session (multiple choice + text input questions)
+4. SRS Review flow
+5. Mobile responsive variants with bottom navigation
+
+BRAND & AESTHETIC:
+- "Ink & Vermillion" — warm cream paper backgrounds (#f7f4ef), vermillion red accent (#c41e3a)
+- Feels like a premium study notebook, NOT gamified like Duolingo
+- East Asian scholarly warmth: rice paper, seal stamp red, warm ink black text
+- Flat design with tonal layers and 1px warm borders — NO drop shadows, NO glassmorphism
+- Wordmark: "Learn" in black + "Chinese" in vermillion. Sub-label: "HỌC HÁN NGỮ"
+
+TYPOGRAPHY:
+- Vietnamese/Latin UI: Source Sans 3
+- Chinese characters: Noto Sans SC — ALWAYS the largest element on learning screens (36-48px)
+- Pinyin in vermillion, bold, below hanzi
+- Micro labels: uppercase, wide tracking, muted color
+
+LAYOUT:
+- Desktop: fixed 240px left sidebar with 6 nav items
+- Mobile: bottom tab bar OR hamburger drawer (design both options)
+- Content max-widths: 672px (word card), 896px (sets), 1152px (home/dashboard)
+- Pill-shaped buttons (rounded-full) for all CTAs
+
+LANGUAGE:
+- ALL UI labels in Vietnamese (Trang chủ, Bộ từ, Ôn tập, Luyện nghe, Tiến bộ, etc.)
+- Chinese content only for vocabulary (simplified characters)
+- Keep "Learn Chinese", "Hanzi Lab", "Vocabulary Mastery" in English as brand terms
+
+INTERACTION PATTERNS:
+- One primary vermillion CTA per screen maximum
+- Stat tiles with large numbers + micro uppercase labels
+- Word progress badges: new (gray), learning (red tint), familiar (blue), strong (green), mastered (gold), weak (amber)
+- Practice: progress bar, instant feedback (green correct / red wrong with explanation)
+- SpeakButton: circular audio play for TTS
+- Empty states: friendly Vietnamese copy + single CTA, no heavy illustrations
+
+WHAT TO IMPROVE vs current app:
+- Add proper mobile navigation (currently desktop-only sidebar)
+- Add dark mode toggle (tokens defined, not yet in UI)
+- Design app icon / favicon (vermillion seal on cream)
+- Consistent use of design tokens (not mixed rose/emerald Tailwind classes)
+- Loading skeletons and polished empty states
+- Sidebar icons for each nav item
+
+DO NOT:
+- Use pure white backgrounds
+- Use multiple competing accent colors
+- Use English for navigation labels
+- Make UI childish or overly gamified
+- Add heavy shadows or gradients
+- Copy Duolingo green or Pleco orange
+
+Generate light mode as default. Also provide dark mode variant using warm dark tones (#0f0e0d background, #e8364f accent).
