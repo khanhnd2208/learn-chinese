@@ -35,8 +35,8 @@ export function apiSuccess<T>(data: T, status = 200): NextResponse {
  * Standard error response.
  * All API routes MUST use this format: `{ ok: false, error: string }`
  */
-export function apiError(message: string, status = 400): NextResponse {
-	return NextResponse.json({ ok: false, error: message }, { status });
+export function apiError(message: string, status = 400, code?: string): NextResponse {
+	return NextResponse.json({ ok: false, error: message, ...(code ? { code } : {}) }, { status });
 }
 
 import { AppError } from '@/lib/appError';
@@ -50,7 +50,7 @@ export { AppError };
  */
 function handleCaughtError(error: unknown): NextResponse {
 	if (error instanceof AppError) {
-		return apiError(error.message, error.status);
+		return apiError(error.message, error.status, error.code);
 	}
 	console.error('[API Error]', error);
 	return apiError('Internal server error', 500);

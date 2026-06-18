@@ -54,6 +54,71 @@ enum CnAnswerSource {
   integrated
 }
 
+enum CnHanziAiContentStatus {
+  empty
+  ready
+  needs_review
+  blocked
+}
+
+enum CnHanziAiCandidateStatus {
+  candidate
+  accepted
+  rejected
+  superseded
+}
+
+enum CnHanziAiRevisionKind {
+  ai_initial
+  ai_regenerate
+  admin_edit
+  schema_migration
+}
+
+enum CnHanziAiJobKind {
+  initial
+  admin_regenerate
+  schema_migration
+}
+
+enum CnHanziAiJobStatus {
+  pending
+  running
+  succeeded
+  failed
+  candidate_ready
+}
+
+enum CnHanziAiFailureCategory {
+  transient_provider
+  content_validation
+  curated_conflict
+  configuration
+  unknown
+}
+
+enum CnHanziAiAttemptKind {
+  initial
+  repair
+}
+
+enum CnHanziAiAttemptStatus {
+  succeeded
+  failed
+  timeout
+}
+
+enum CnHanziAiReportStatus {
+  open
+  resolved
+  dismissed
+}
+
+enum CnHanziAiDependencyType {
+  word
+  hanzi
+}
+
 enum CnErrorType {
   sai_nghia
   sai_pinyin
@@ -86,6 +151,10 @@ model CnHanzi {
   mnemonicVi     String          @default("")
   similarGroupId String?
   status         CnContentStatus @default(draft)
+  systemCheckedFields  String[] @default([])
+  expertVerifiedFields String[] @default([])
+  verifiedAt           DateTime?
+  verifiedById         String?
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
   similarGroup   CnSimilarGroup? @relation(fields: [similarGroupId], references: [id], onDelete: SetNull)
@@ -104,6 +173,10 @@ model CnWord {
   mnemonicVi   String          @default("")
   hskLevel     Int?
   status       CnContentStatus @default(draft)
+  systemCheckedFields  String[] @default([])
+  expertVerifiedFields String[] @default([])
+  verifiedAt           DateTime?
+  verifiedById         String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   chars        CnWordChar[]
@@ -254,4 +327,173 @@ model CnUserComponentProgress {
   updatedAt     DateTime @updatedAt
   @@unique([userId, componentKey])
   @@index([userId])
+}
+
+model CnHanziAiAnalysis {
+  id                       String                 @id @default(cuid())
+  inputTerm                String
+  normalizedTerm           String                 @unique
+  contentStatus            CnHanziAiContentStatus @default(empty)
+  currentRevisionId        String?                @unique
+  contentVersion           Int                    @default(1)
+  editedByHuman            Boolean                @default(false)
+  generationLeaseToken     String?
+  generationLeaseAt        DateTime?
+  contentFailureCount      Int                    @default(0)
+  transientFailureCount    Int                    @default(0)
+  nextRetryAt              DateTime?
+  hardFactsHash            String                 @default("")
+  allFactsHash             String                 @default("")
+  sourceFactsChangedAt     DateTime?
+  openReportCount          Int                    @default(0)
+  reviewedAt               DateTime?
+  reviewedById             String?
+  blockedAt                DateTime?
+  blockedById              String?
+  lastErrorCode            String?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+
+  currentRevision CnHanziAiAnalysisRevision? @relation("CurrentHanziAiRevision", fields: [currentRevisionId], references: [id], onDelete: SetNull)
+  revisions       CnHanziAiAnalysisRevision[] @relation("HanziAiAnalysisRevisions")
+  jobs            CnHanziAiGenerationJob[]
+  reports         CnHanziAiReport[]
+  dependencies    CnHanziAiFactDependency[]
+
+  @@index([contentStatus, updatedAt])
+  @@index([generationLeaseAt])
+}
+
+model CnHanziAiAnalysisRevision {
+  id                 String                     @id @default(cuid())
+  analysisId         String
+  revisionNumber     Int
+  candidateStatus    CnHanziAiCandidateStatus
+  kind               CnHanziAiRevisionKind
+  resultJson         Json
+  schemaVersion      Int
+  promptVersion      String
+  provider           String
+  model              String
+  baseRevisionId     String?
+  baseContentVersion Int?
+  hardFactsHash      String                     @default("")
+  allFactsHash       String                     @default("")
+  knownFactsJson     Json?
+  createdById        String?
+  createdAt          DateTime                   @default(now())
+
+  analysis          CnHanziAiAnalysis  @relation("HanziAiAnalysisRevisions", fields: [analysisId], references: [id], onDelete: Cascade)
+  currentForAnalysis CnHanziAiAnalysis? @relation("CurrentHanziAiRevision")
+  generatedByJobs    CnHanziAiGenerationJob[]   @relation("HanziAiJobCandidate")
+
+  @@unique([analysisId, revisionNumber])
+  @@index([analysisId, candidateStatus, createdAt], map: "CnHanziAiRevision_candidate_idx")
+}
+
+model CnHanziAiGenerationJob {
+  id                 String                   @id @default(cuid())
+  analysisId         String
+  requestedById      String
+  kind               CnHanziAiJobKind
+  status             CnHanziAiJobStatus      @default(pending)
+  quotaChargeable    Boolean                  @default(true)
+  failureCategory    CnHanziAiFailureCategory?
+  failureCode        String?
+  internalErrorId    String?
+  baseRevisionId     String?
+  baseContentVersion Int?
+  hardFactsHash      String                   @default("")
+  candidateRevisionId String?
+  startedAt          DateTime?
+  completedAt        DateTime?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  analysis          CnHanziAiAnalysis         @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  candidateRevision CnHanziAiAnalysisRevision? @relation("HanziAiJobCandidate", fields: [candidateRevisionId], references: [id], onDelete: SetNull)
+  attempts           CnHanziAiProviderAttempt[]
+
+  @@index([analysisId, status, createdAt], map: "CnHanziAiJob_status_idx")
+  @@index([requestedById, createdAt])
+}
+
+model CnHanziAiProviderAttempt {
+  id               String                       @id @default(cuid())
+  jobId            String
+  kind             CnHanziAiAttemptKind
+  status           CnHanziAiAttemptStatus
+  provider         String
+  model            String
+  inputTokens      Int?
+  outputTokens     Int?
+  estimatedCostUsd Decimal?                     @db.Decimal(12, 8)
+  latencyMs        Int
+  providerRequestId String?
+  errorCode        String?
+  rawOutput        String?
+  createdAt        DateTime                     @default(now())
+
+  job CnHanziAiGenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, createdAt])
+  @@index([provider, model, createdAt], map: "CnHanziAiAttempt_provider_idx")
+}
+
+model CnHanziAiFactDependency {
+  id           String                    @id @default(cuid())
+  analysisId   String
+  sourceType   CnHanziAiDependencyType
+  sourceId     String
+  createdAt    DateTime                  @default(now())
+
+  analysis CnHanziAiAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@unique([analysisId, sourceType, sourceId], map: "CnHanziAiDependency_unique")
+  @@index([sourceType, sourceId])
+}
+
+model CnHanziAiReport {
+  id           String                   @id @default(cuid())
+  analysisId   String
+  userId       String
+  reason       String
+  note         String                   @default("")
+  status       CnHanziAiReportStatus    @default(open)
+  resolvedAt   DateTime?
+  resolvedById String?
+  createdAt    DateTime                 @default(now())
+  updatedAt    DateTime                 @updatedAt
+
+  analysis CnHanziAiAnalysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+
+  @@unique([analysisId, userId])
+  @@index([status, updatedAt])
+}
+
+model CnHanziAiDailyQuota {
+  id                String   @id @default(cuid())
+  userId            String
+  dayKey            String
+  generationCount   Int      @default(0)
+  reportActionCount Int      @default(0)
+  updatedAt         DateTime @updatedAt
+  createdAt         DateTime @default(now())
+
+  @@unique([userId, dayKey])
+}
+
+model CnHanziAiProviderHealth {
+  id                          String   @id @default(cuid())
+  provider                    String
+  model                       String
+  transientWindowStartedAt    DateTime?
+  consecutiveTransientFailures Int    @default(0)
+  openUntil                   DateTime?
+  lastSuccessAt               DateTime?
+  lastErrorCode               String?
+  updatedAt                   DateTime @updatedAt
+  createdAt                   DateTime @default(now())
+
+  @@unique([provider, model])
 }

@@ -26,10 +26,36 @@ Chạy production:
 
 ```bash
 npm start   # port 3001
-# hoặc PM2:
-pm2 start npm --name learn-chinese -- start
+# hoặc PM2 (bắt buộc instances=1, fork — xem ecosystem.config.cjs):
+pm2 start ecosystem.config.cjs
 pm2 save
 ```
+
+Không bật PM2 cluster mode cho phiên bản này. Giữ `instances=1`, `exec_mode=fork`; trước khi scale nhiều process phải chuyển rate limiter theo phút sang Redis/PostgreSQL.
+
+Reverse proxy cần cho phép request Hanzi AI chạy tối đa 90 giây. Với Nginx đặt `proxy_read_timeout 90s;` và `proxy_send_timeout 90s;`.
+
+### Migration Hanzi AI (2026-06-18)
+
+Migration `20260618400000_hanzi_ai_analysis` thêm bảng revision/job/quota và cột verification trên `CnWord`/`CnHanzi`.
+
+```bash
+npx prisma migrate deploy
+```
+
+Nếu DB dev đã `db push` trước khi có migration này:
+
+```bash
+npx prisma migrate resolve --applied 20260618400000_hanzi_ai_analysis
+```
+
+Retention raw provider output (30 ngày):
+
+```bash
+npx tsx scripts/purge-hanzi-ai-attempts.ts
+```
+
+Hoặc gọi `POST /api/admin/hanzi-ai` với `{ "action": "purge_attempts" }` (admin).
 
 ## Cập nhật (mỗi lần deploy)
 
@@ -46,6 +72,8 @@ Sau khi pull, `deploy.sh` chạy `prisma migrate deploy`. Cần có trên prod:
 
 - `20260618200000_srs_pedagogy_improvements` — channel intro, mark-known, sticking point, answer source
 - `20260618300000_srs_set_activation` — `CnWordSet.srsActive` + backfill bộ có progress
+
+- `20260618400000_hanzi_ai_analysis` — Hanzi AI revisions, jobs, quota, provider health, verification fields
 
 ## Database — SRS features trước đó
 
@@ -74,6 +102,8 @@ npx prisma migrate deploy   # kỳ vọng: already up to date
 | `AUTH_TRUST_HOST` | `true` sau reverse proxy |
 | `DATABASE_URL` | PostgreSQL connection string |
 | `MONGODB_URI` | MongoDB cho NextAuth |
+| `DEEPSEEK_API_KEY` | API key server-side cho Hanzi Lab |
+| `HANZI_AI_MODEL` | Mặc định `deepseek-v4-flash` |
 
 ## Kiểm tra sau deploy
 

@@ -418,6 +418,49 @@ Hien trang can luu y: code hien co da doc `.xlsx/.xls` cho admin content import,
    - Co cach revert content import gan nhat hoac restore tu export Excel/DB backup.
    - Migration rollback plan/toi thieu la backup + redeploy previous version.
 
+## P0 - Hanzi AI smoke test
+
+### Phan tich va cache
+
+1. Chua dang nhap goi `GET /api/hanzi/analysis?term=学习` hoac `POST /api/hanzi/analyze`.
+   - Ky vong: 401 Unauthorized.
+2. Dang nhap, term hop le `学习` (1-4 chu Han), lan dau `POST /api/hanzi/analyze`.
+   - Ky vong: 200 ready hoac 202 generating + `Retry-After: 2`; khong ghi `CnWordProgress`/SRS.
+3. Cung term, goi lai `GET /api/hanzi/analysis?term=学习`.
+   - Ky vong: cache hit, khong tao job moi; GET khong mutate DB.
+4. Term khong hop le: `学习中文`, co khoang trang, co so.
+   - Ky vong: 400 validation.
+5. Polling `GET /api/hanzi/analysis/[id]` khi generating.
+   - Ky vong: 202 + Retry-After; client chi 1 timer, cleanup khi unmount.
+
+### Quota, lease va failure
+
+6. User thuong goi generate >5 lan/phut.
+   - Ky vong: 429 rate limit.
+7. User het daily quota (20 lan/ngay, timezone Asia/Ho_Chi_Minh).
+   - Ky vong: 429, khong tao job.
+8. Regenerate that bai khi da co ban ready.
+   - Ky vong: `currentRevisionId` giu nguyen; chi job/candidate bi anh huong.
+9. Accept candidate voi `expectedContentVersion` sai.
+   - Ky vong: 409 STALE_CANDIDATE.
+
+### Curated invalidation
+
+10. Admin publish/import word hoac hanzi lien quan term dang co AI analysis.
+    - Ky vong: reconcile trong cung transaction import; hard fact doi -> `needs_review`; chi all-fact doi -> van `ready` + soft stale tren GET.
+
+### Admin governance
+
+11. Admin xem list/detail, diff candidate, raw attempt output (plain text).
+12. Admin block/unblock, edit revision, resolve report.
+13. `POST /api/admin/hanzi-ai` action `purge_attempts` xoa attempt >30 ngay.
+
+### Deploy
+
+14. PM2 `instances=1`, `exec_mode=fork` (xem `ecosystem.config.cjs`).
+15. Nginx `proxy_read_timeout 90s` cho route Hanzi AI.
+16. VPS smoke: POST analyze, disconnect client @30s, poll -> job van complete (manual).
+
 ## Lenh xac minh nen chay moi lan
 
 ```bash

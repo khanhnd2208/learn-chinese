@@ -58,14 +58,6 @@ function parseStatus(val: string | undefined): 'draft' | 'published' {
 	return val?.trim().toLowerCase() === 'published' ? 'published' : 'draft';
 }
 
-function parseExampleSentences(raw: string): Array<{ hanzi: string; pinyin: string; meaningVi: string }> {
-	if (!raw.trim()) return [];
-	return raw.split('||').map((part) => {
-		const [hanzi = '', pinyin = '', meaningVi = ''] = part.split('|').map((s) => s.trim());
-		return { hanzi, pinyin, meaningVi };
-	}).filter((s) => s.hanzi);
-}
-
 function mapWordRow(r: Record<string, string>, rowNum: number): { row?: CnImportWordRow; error?: CnImportRowError } {
 	const simplified = (r.simplified ?? r.word ?? r.term ?? '').trim();
 	const pinyin = (r.pinyin ?? '').trim();

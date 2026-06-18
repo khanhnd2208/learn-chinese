@@ -35,6 +35,7 @@ Nếu DB dev đã có cột SRS per-channel từ `db push`, đánh dấu migrati
 
 ```bash
 npx prisma migrate resolve --applied 20260618100000_add_srs_channel_columns
+npx prisma migrate resolve --applied 20260618400000_hanzi_ai_analysis   # nếu đã db push Hanzi AI tables
 ```
 
 ## Biến môi trường
@@ -49,6 +50,8 @@ npx prisma migrate resolve --applied 20260618100000_add_srs_channel_columns
 | `GOOGLE_CLIENT_SECRET` | Có | Google OAuth |
 | `ADMIN_EMAILS` | Khuyến nghị | Email admin (CSV) — role admin khi đăng nhập |
 | `AUTH_TRUST_HOST` | Prod | `true` khi deploy sau reverse proxy |
+| `DEEPSEEK_API_KEY` | Hanzi AI | API key chỉ dùng ở server |
+| `HANZI_AI_MODEL` | Hanzi AI | Mặc định `deepseek-v4-flash` |
 
 ## Cấu trúc
 
@@ -80,6 +83,12 @@ Hệ thống ôn **không phải SM-2/FSRS/Anki**. Mỗi từ có 5 kênh kỹ n
 - Rate limit in-memory chỉ hiệu lực trên 1 instance; scale nhiều instance cần Redis
 
 Logic: `src/services/chinese/cnSrsService.ts`, `src/lib/chinese/practiceTaxonomy.ts`.
+
+## Hanzi AI
+
+Hanzi Lab gọi DeepSeek qua server, cache theo từ và lưu nội dung theo revision. Generation chạy đồng bộ với hard deadline 50 giây và lease 75 giây. Kết quả AI không được ghi vào `CnWord`, `CnHanzi` hoặc SRS.
+
+Production hiện yêu cầu một Node.js process (`PM2 instances=1`, `exec_mode=fork`) vì rate limit theo phút nằm trong memory. Daily quota, lease và circuit breaker nằm trong PostgreSQL.
 
 ## Demo auto-seed
 
