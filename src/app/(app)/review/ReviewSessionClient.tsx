@@ -29,7 +29,9 @@ async function fetchReviewBatch(excludeIds: string[]): Promise<{
 
 export default function ReviewSessionClient() {
 	const router = useRouter();
-	const { enqueue, flushAndWait, sessionResult, isFlushing, resetSession } = useIncrementalSubmit();
+	const { enqueue, flushAndWait, sessionResult, isFlushing, resetSession } = useIncrementalSubmit({
+		endpoint: '/api/review/submit',
+	});
 
 	const [phase, setPhase] = useState<Phase>('loading');
 	const [dueToday, setDueToday] = useState(0);
@@ -47,7 +49,6 @@ export default function ReviewSessionClient() {
 	const reviewedCountRef = useRef(0);
 
 	const loadInitial = useCallback(async () => {
-		setPhase('loading');
 		seenIdsRef.current = new Set();
 		setReviewedCount(0);
 		reviewedCountRef.current = 0;
@@ -72,8 +73,14 @@ export default function ReviewSessionClient() {
 		setPhase('review');
 	}, [resetSession]);
 
+	// Mount: load review batch (setState after await inside loadInitial)
 	useEffect(() => {
-		void loadInitial().catch(() => setPhase('empty'));
+		let cancelled = false;
+		// eslint-disable-next-line react-hooks/set-state-in-effect -- async fetch on mount
+		void loadInitial().catch(() => {
+			if (!cancelled) setPhase('empty');
+		});
+		return () => { cancelled = true; };
 	}, [loadInitial]);
 
 	const showSummary = useCallback((reason: 'exit' | 'complete') => {
@@ -162,6 +169,11 @@ export default function ReviewSessionClient() {
 				<div className="card-paper w-full p-8 text-center">
 					<MaterialIcon name="celebration" className="mx-auto text-success" size={48} />
 					<p className="mt-4 text-muted">Không có từ cần ôn hôm nay.</p>
+					<p className="mt-2 text-sm text-foreground-secondary">
+						Bật <strong>Ôn SRS</strong> trên bộ từ trong{' '}
+						<Link href="/sets" className="font-bold text-accent hover:underline">Danh sách bộ từ</Link>{' '}
+						để đưa từ vào hàng đợi ôn.
+					</p>
 					<div className="mt-6 flex flex-wrap justify-center gap-3">
 						<Link href="/review/stats" className="btn-primary">
 							<MaterialIcon name="query_stats" size={16} />
@@ -186,7 +198,10 @@ export default function ReviewSessionClient() {
 				subtitle={summaryReason === 'exit'
 					? 'Tiến độ đã được lưu — quay lại bất cứ lúc nào.'
 					: undefined}
-				onPrimaryAction={() => { void loadInitial(); }}
+				onPrimaryAction={() => {
+					setPhase('loading');
+					void loadInitial();
+				}}
 				primaryLabel="Ôn tiếp"
 			/>
 		);
@@ -217,6 +232,7 @@ export default function ReviewSessionClient() {
 					onExit={() => { void handleExit(); }}
 					incremental
 					isExiting={isExiting || isFlushing}
+					sessionType="review"
 					sessionProgress={{
 						reviewed: reviewedCount,
 						dueRemaining,

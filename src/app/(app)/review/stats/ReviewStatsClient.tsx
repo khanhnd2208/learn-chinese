@@ -68,7 +68,7 @@ export default function ReviewStatsClient() {
 				<StatCard label="Cần ôn" value={stats.dueTotal} icon="calendar_today" color="accent" />
 				<StatCard label="Đã ôn hôm nay" value={stats.reviewedToday} icon="done_all" color="success" />
 				<StatCard label="Đúng hôm nay" value={`${stats.accuracyToday}%`} icon="check_circle" color="foreground" />
-				<StatCard label="Từ yếu" value={stats.weakCount} icon="psychology_alt" color="warning" />
+				<StatCard label="Cần chú ý" value={stats.weakCount} icon="psychology_alt" color="warning" />
 			</section>
 
 			<section className="card-paper p-4">
@@ -96,7 +96,7 @@ export default function ReviewStatsClient() {
 
 			{stats.weakWords.length > 0 && (
 				<section>
-					<h2 className="label-caps">Từ yếu</h2>
+					<h2 className="label-caps">Cần chú ý</h2>
 					<div className="mt-3 flex flex-wrap gap-2">
 						{stats.weakWords.map((w) => (
 							<Link

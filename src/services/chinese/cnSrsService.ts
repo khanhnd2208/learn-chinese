@@ -7,14 +7,32 @@ import {
 	CN_CHANNEL_WEAK_THRESHOLD,
 	CN_LAPSE_FLOOR_IDX,
 	CN_LAPSE_HEAVY_IDX,
-	CN_PRODUCTION_QUESTION_TYPES,
-	CN_PRODUCTION_STEP_CONFIDENCE,
+	CN_MARK_KNOWN_COOLDOWN_MS,
+	CN_MARK_KNOWN_CORRECT_STEPS,
+	CN_MARK_KNOWN_HIDE_IDX,
 	CN_QUESTION_CONFIDENCE,
+	CN_QUESTION_RECALL_DEPTH,
+	CN_PRODUCTION_STEP_CONFIDENCE,
 	CN_SRS_INTERVALS_MINUTES,
 	CN_STATE_THRESHOLDS,
+	CN_STICKING_POINT_HEAVY_LAPSES,
+	CN_INTRO_PRIORITY_CAP,
+	recallDepthAllowsDoubleStep,
 } from '@/config/constants';
+import {
+	bumpIntroDayCount,
+	getChannelIntroPhase,
+	introPriorityMultiplier,
+	isIntroChannelDueToday,
+	maybeSetChannelUnlocked,
+} from '@/lib/chinese/channelIntro';
+import { getSrsActiveWordIds } from '@/services/chinese/cnSrsEnrollmentService';
 import { errorSeverity, inferErrorType } from '@/lib/chinese/errorMapping';
 import { rate } from '@/lib/chinese/hanziUtils';
+import {
+	bumpComponentFamiliarity,
+	componentKeysFromChars,
+} from '@/services/chinese/cnComponentService';
 import {
 	ALL_SKILL_CHANNELS,
 	type SkillChannel,
@@ -29,6 +47,8 @@ import type {
 	CnWordProgressDTO,
 	CnWordProgressState,
 	CnErrorType,
+	CnQuestionType,
+	RecallDepth,
 } from '@/types/chinese';
 import type { CnWord, CnWordProgress } from '@prisma/client';
 
@@ -45,6 +65,22 @@ const CHANNEL_FIELDS: Record<SkillChannel, {
 	hanzi: { dueAt: 'hanziDueAt', intervalIdx: 'hanziIntervalIdx', correct: 'charCorrect', total: 'charTotal' },
 };
 
+const HEAVY_LAPSE_FIELDS: Record<SkillChannel, keyof CnWordProgress> = {
+	meaning: 'meaningHeavyLapses',
+	listening: 'listeningHeavyLapses',
+	pinyin: 'pinyinHeavyLapses',
+	sentence: 'sentenceHeavyLapses',
+	hanzi: 'hanziHeavyLapses',
+};
+
+const MARKED_KNOWN_FIELDS: Record<SkillChannel, keyof CnWordProgress> = {
+	meaning: 'meaningMarkedKnownAt',
+	listening: 'listeningMarkedKnownAt',
+	pinyin: 'pinyinMarkedKnownAt',
+	sentence: 'sentenceMarkedKnownAt',
+	hanzi: 'hanziMarkedKnownAt',
+};
+
 const STATE_RANK: Record<CnWordProgressState, number> = {
 	new: 0,
 	learning: 1,
@@ -59,7 +95,7 @@ export interface ComputeNextReviewOptions {
 	correct: boolean;
 	now?: Date;
 	confidence?: number;
-	isProduction?: boolean;
+	recallDepth?: RecallDepth;
 	lapseSeverity?: 'light' | 'heavy';
 }
 
@@ -91,7 +127,7 @@ export function computeNextReview(options: ComputeNextReviewOptions): {
 		correct,
 		now = new Date(),
 		confidence = 1,
-		isProduction = false,
+		recallDepth = 'recognition',
 		lapseSeverity = 'light',
 	} = options;
 
@@ -106,7 +142,8 @@ export function computeNextReview(options: ComputeNextReviewOptions): {
 		};
 	}
 
-	const canDoubleStep = isProduction && confidence >= CN_PRODUCTION_STEP_CONFIDENCE;
+	const canDoubleStep = recallDepthAllowsDoubleStep(recallDepth)
+		&& confidence >= CN_PRODUCTION_STEP_CONFIDENCE;
 	const step = canDoubleStep ? 2 : 1;
 	const nextIdx = Math.min(intervalIdx + step, CN_SRS_INTERVALS_MINUTES.length - 1);
 	return {
@@ -142,6 +179,7 @@ export function isChannelDue(
 	dto?: CnWordProgressDTO | null,
 ): boolean {
 	if (!isChannelUnlocked(dto ?? progressToDTO(p), channel)) return false;
+	if (!isIntroChannelDueToday(p, channel, now)) return false;
 
 	const dueAt = getChannelDueAt(p, channel, p.dueAt);
 	if (dueAt <= now) return true;
@@ -197,6 +235,12 @@ function channelReviewPriority(
 
 	const chRate = channelRate(p, channel);
 	score += (100 - chRate) * 2;
+
+	const introPhase = getChannelIntroPhase(p, channel, now);
+	score *= introPriorityMultiplier(introPhase);
+	if (introPhase === 'intro') {
+		score = Math.min(score, CN_INTRO_PRIORITY_CAP);
+	}
 
 	const totals: Record<SkillChannel, number> = {
 		meaning: p.meaningTotal,
@@ -270,9 +314,11 @@ export function countDueChannelsForProgressList(
 
 export async function getDueChannels(userId: string, limit = 50): Promise<DueChannelEntry[]> {
 	const now = new Date();
-	// Perf note: loads all user progress then filters in JS — consider aggregate SQL for scale
+	const activeIds = await getSrsActiveWordIds(userId);
+	if (!activeIds.size) return [];
+
 	const all = await prisma.cnWordProgress.findMany({
-		where: { userId },
+		where: { userId, wordId: { in: [...activeIds] } },
 		include: { word: true },
 	});
 
@@ -292,7 +338,38 @@ function resolveSubmitErrorType(item: CnPracticeSubmitItem): CnErrorType | null 
 	return inferErrorType(item.questionType);
 }
 
-export async function submitPracticeResults(
+async function validateSubmitWordIds(wordIds: string[]): Promise<void> {
+	const wordCount = await prisma.cnWord.count({ where: { id: { in: wordIds } } });
+	if (wordCount !== wordIds.length) {
+		throw new AppError('Một hoặc nhiều wordId không hợp lệ', 400);
+	}
+}
+
+/** Practice sessions — log answers only, no SRS progress updates */
+export async function logPracticeAnswers(
+	userId: string,
+	items: CnPracticeSubmitItem[],
+): Promise<{ logged: number }> {
+	if (!items.length) return { logged: 0 };
+
+	const wordIds = [...new Set(items.map((i) => i.wordId))];
+	await validateSubmitWordIds(wordIds);
+
+	const answerLogs = items.map((item) => ({
+		userId,
+		wordId: item.wordId,
+		questionType: item.questionType,
+		correct: item.correct,
+		errorType: resolveSubmitErrorType(item),
+		source: 'practice' as const,
+	}));
+
+	await prisma.cnAnswerLog.createMany({ data: answerLogs });
+	return { logged: items.length };
+}
+
+/** Review sessions — full SRS updates */
+export async function submitReviewResults(
 	userId: string,
 	items: CnPracticeSubmitItem[],
 ): Promise<{ updated: number }> {
@@ -300,10 +377,12 @@ export async function submitPracticeResults(
 
 	const now = new Date();
 	const wordIds = [...new Set(items.map((i) => i.wordId))];
+	await validateSubmitWordIds(wordIds);
 
-	const wordCount = await prisma.cnWord.count({ where: { id: { in: wordIds } } });
-	if (wordCount !== wordIds.length) {
-		throw new AppError('Một hoặc nhiều wordId không hợp lệ', 400);
+	const activeIds = await getSrsActiveWordIds(userId);
+	const notEnrolled = wordIds.filter((id) => !activeIds.has(id));
+	if (notEnrolled.length) {
+		throw new AppError('Một hoặc nhiều từ chưa được đưa vào SRS', 400);
 	}
 
 	const existing = await prisma.cnWordProgress.findMany({
@@ -311,19 +390,15 @@ export async function submitPracticeResults(
 	});
 	const progressMap = new Map(existing.map((p) => [p.wordId, { ...p }]));
 	const loadedWordIds = new Set(existing.map((p) => p.wordId));
-	const processedInBatch = new Set<string>();
+
+	const missingProgress = wordIds.filter((id) => !loadedWordIds.has(id));
+	if (missingProgress.length) {
+		throw new AppError('Một hoặc nhiều từ chưa có tiến độ SRS', 400);
+	}
 
 	for (const item of items) {
-		let progress = progressMap.get(item.wordId);
-		const isCreateBranch = !loadedWordIds.has(item.wordId) && !processedInBatch.has(item.wordId);
-
-		if (!progress) {
-			progress = createEmptyProgress(userId, item.wordId, now);
-			progressMap.set(item.wordId, progress);
-		}
-
-		applyPracticeItem(progress, item, now, isCreateBranch);
-		processedInBatch.add(item.wordId);
+		const progress = progressMap.get(item.wordId)!;
+		applyPracticeItem(progress, item, now, false);
 	}
 
 	const answerLogs = items.map((item) => ({
@@ -332,22 +407,15 @@ export async function submitPracticeResults(
 		questionType: item.questionType,
 		correct: item.correct,
 		errorType: resolveSubmitErrorType(item),
+		source: 'review' as const,
 	}));
 
-	const creates: Array<Parameters<typeof prisma.cnWordProgress.create>[0]['data']> = [];
 	const updates: Array<{ wordId: string; data: Parameters<typeof prisma.cnWordProgress.update>[0]['data'] }> = [];
-
 	for (const [wordId, progress] of progressMap) {
-		const data = progressToWriteData(progress);
-		if (loadedWordIds.has(wordId)) {
-			updates.push({ wordId, data });
-		} else {
-			creates.push(data);
-		}
+		updates.push({ wordId, data: progressToWriteData(progress) });
 	}
 
 	await prisma.$transaction([
-		...creates.map((data) => prisma.cnWordProgress.create({ data })),
 		...updates.map(({ wordId, data }) =>
 			prisma.cnWordProgress.update({
 				where: { userId_wordId: { userId, wordId } },
@@ -357,7 +425,32 @@ export async function submitPracticeResults(
 		prisma.cnAnswerLog.createMany({ data: answerLogs }),
 	]);
 
+	const hanziItems = items.filter((i) =>
+		i.correct && ['radical_pick', 'char_components', 'similar_char'].includes(i.questionType),
+	);
+	if (hanziItems.length) {
+		const words = await prisma.cnWord.findMany({
+			where: { id: { in: [...new Set(hanziItems.map((i) => i.wordId))] } },
+			include: { chars: { include: { hanzi: true }, orderBy: { position: 'asc' } } },
+		});
+		for (const item of hanziItems) {
+			const w = words.find((x) => x.id === item.wordId);
+			if (!w) continue;
+			const keys = componentKeysFromChars(w.chars.map((c) => c.hanzi));
+			await bumpComponentFamiliarity(userId, keys, true);
+		}
+	}
+
 	return { updated: items.length };
+}
+
+/** @deprecated Use logPracticeAnswers or submitReviewResults */
+export async function submitPracticeResults(
+	userId: string,
+	items: CnPracticeSubmitItem[],
+): Promise<{ updated: number }> {
+	const result = await submitReviewResults(userId, items);
+	return { updated: result.updated };
 }
 
 function createEmptyProgress(userId: string, wordId: string, now: Date): CnWordProgress {
@@ -389,8 +482,139 @@ function createEmptyProgress(userId: string, wordId: string, now: Date): CnWordP
 		sentenceIntervalIdx: 0,
 		hanziDueAt: null,
 		hanziIntervalIdx: 0,
+		sentenceUnlockedAt: null,
+		hanziUnlockedAt: null,
+		lastExampleId: null,
+		meaningHeavyLapses: 0,
+		listeningHeavyLapses: 0,
+		pinyinHeavyLapses: 0,
+		sentenceHeavyLapses: 0,
+		hanziHeavyLapses: 0,
+		isStickingPoint: false,
+		meaningMarkedKnownAt: null,
+		listeningMarkedKnownAt: null,
+		pinyinMarkedKnownAt: null,
+		sentenceMarkedKnownAt: null,
+		hanziMarkedKnownAt: null,
+		sentenceIntroDayKey: null,
+		sentenceIntroDayCount: 0,
+		hanziIntroDayKey: null,
+		hanziIntroDayCount: 0,
 		createdAt: now,
 		updatedAt: now,
+	};
+}
+
+function getRecallDepth(questionType: CnQuestionType): RecallDepth {
+	return CN_QUESTION_RECALL_DEPTH[questionType] ?? 'recognition';
+}
+
+function incrementHeavyLapse(progress: CnWordProgress, channel: SkillChannel): void {
+	const field = HEAVY_LAPSE_FIELDS[channel];
+	const current = progress[field] as number;
+	(progress[field] as number) = current + 1;
+	if ((progress[field] as number) >= CN_STICKING_POINT_HEAVY_LAPSES) {
+		progress.isStickingPoint = true;
+	}
+}
+
+export function canMarkChannelKnown(
+	progress: CnWordProgress | null | undefined,
+	channel: SkillChannel | null,
+	now = new Date(),
+): boolean {
+	if (!progress || !channel) return false;
+	const idx = getChannelIntervalIdx(progress, channel);
+	if (idx >= CN_MARK_KNOWN_HIDE_IDX) return false;
+	const markedField = MARKED_KNOWN_FIELDS[channel];
+	const markedAt = progress[markedField];
+	if (markedAt instanceof Date && now.getTime() - markedAt.getTime() < CN_MARK_KNOWN_COOLDOWN_MS) {
+		return false;
+	}
+	return true;
+}
+
+export async function markChannelAsKnown(
+	userId: string,
+	wordId: string,
+	questionType: CnQuestionType,
+): Promise<{ intervalIdx: number; dueAt: string }> {
+	const channel = questionChannel(questionType);
+	if (!channel) {
+		throw new AppError('Loại câu hỏi không gắn với kênh SRS', 400);
+	}
+
+	const activeIds = await getSrsActiveWordIds(userId);
+	if (!activeIds.has(wordId)) {
+		throw new AppError('Từ chưa được đưa vào SRS', 400);
+	}
+
+	const now = new Date();
+	const progress = await prisma.cnWordProgress.findUnique({
+		where: { userId_wordId: { userId, wordId } },
+	});
+
+	if (!progress) {
+		throw new AppError('Từ chưa có tiến độ SRS', 400);
+	}
+
+	if (!canMarkChannelKnown(progress, channel, now)) {
+		throw new AppError('Không thể đánh dấu đã biết cho kênh này lúc này', 400);
+	}
+
+	const confidence = CN_QUESTION_CONFIDENCE[questionType] ?? 0.6;
+	const recallDepth = getRecallDepth(questionType);
+	const fields = CHANNEL_FIELDS[channel];
+	let idx = getChannelIntervalIdx(progress, channel);
+
+	for (let i = 0; i < CN_MARK_KNOWN_CORRECT_STEPS; i++) {
+		const next = computeNextReview({
+			intervalIdx: idx,
+			correct: true,
+			now,
+			confidence,
+			recallDepth,
+		});
+		idx = next.intervalIdx;
+		(progress[fields.dueAt] as Date | null) = next.dueAt;
+		(progress[fields.intervalIdx] as number) = next.intervalIdx;
+	}
+
+	(progress[fields.correct] as number) = (progress[fields.correct] as number) + CN_MARK_KNOWN_CORRECT_STEPS;
+	(progress[fields.total] as number) = (progress[fields.total] as number) + CN_MARK_KNOWN_CORRECT_STEPS;
+	(progress[MARKED_KNOWN_FIELDS[channel]] as Date | null) = now;
+	progress.lastReviewedAt = now;
+	maybeSetChannelUnlocked(progress, 'sentence', now);
+	maybeSetChannelUnlocked(progress, 'hanzi', now);
+	progress.dueAt = aggregateDueAt(progress, now);
+	progress.state = aggregateState(progress);
+	progress.intervalIdx = Math.max(
+		getChannelIntervalIdx(progress, 'meaning'),
+		getChannelIntervalIdx(progress, 'listening'),
+		getChannelIntervalIdx(progress, 'pinyin'),
+		getChannelIntervalIdx(progress, 'sentence'),
+		getChannelIntervalIdx(progress, 'hanzi'),
+	);
+
+	await prisma.$transaction([
+		prisma.cnWordProgress.update({
+			where: { userId_wordId: { userId, wordId } },
+			data: progressToWriteData(progress),
+		}),
+		prisma.cnAnswerLog.create({
+			data: {
+				userId,
+				wordId,
+				questionType,
+				correct: true,
+				source: 'mark_known',
+			},
+		}),
+	]);
+
+	return {
+		intervalIdx: idx,
+		dueAt: (progress[fields.dueAt] as Date ?? progress.dueAt).toISOString(),
 	};
 }
 
@@ -402,7 +626,7 @@ function applyPracticeItem(
 ): void {
 	const channel = questionChannel(item.questionType);
 	const confidence = CN_QUESTION_CONFIDENCE[item.questionType] ?? 0.6;
-	const isProduction = CN_PRODUCTION_QUESTION_TYPES.has(item.questionType);
+	const recallDepth = getRecallDepth(item.questionType);
 	const lapseSeverity = item.correct
 		? undefined
 		: errorSeverity(resolveSubmitErrorType(item) ?? inferErrorType(item.questionType));
@@ -412,7 +636,7 @@ function applyPracticeItem(
 		correct: item.correct,
 		now,
 		confidence,
-		isProduction,
+		recallDepth,
 		lapseSeverity,
 	});
 
@@ -429,6 +653,9 @@ function applyPracticeItem(
 			(progress[fields.intervalIdx] as number) = next.intervalIdx;
 			(progress[fields.correct] as number) = item.correct ? 1 : 0;
 			(progress[fields.total] as number) = 1;
+			if (!item.correct && lapseSeverity === 'heavy') {
+				incrementHeavyLapse(progress, channel);
+			}
 		}
 		return;
 	}
@@ -441,6 +668,10 @@ function applyPracticeItem(
 		(progress[fields.intervalIdx] as number) = chNext.intervalIdx;
 		(progress[fields.correct] as number) = (progress[fields.correct] as number) + (item.correct ? 1 : 0);
 		(progress[fields.total] as number) = (progress[fields.total] as number) + 1;
+		if (!item.correct && lapseSeverity === 'heavy') {
+			incrementHeavyLapse(progress, channel);
+		}
+		bumpIntroDayCount(progress, channel, now);
 	} else {
 		const next = computeNextReview(reviewOpts(progress.intervalIdx));
 		progress.dueAt = next.dueAt;
@@ -450,6 +681,10 @@ function applyPracticeItem(
 
 	progress.dueAt = aggregateDueAt(progress, now);
 	progress.state = aggregateState(progress);
+	if (getChannelIntervalIdx(progress, 'meaning') >= CN_STATE_THRESHOLDS.familiar) {
+		maybeSetChannelUnlocked(progress, 'sentence', now);
+		maybeSetChannelUnlocked(progress, 'hanzi', now);
+	}
 	progress.intervalIdx = Math.max(
 		getChannelIntervalIdx(progress, 'meaning'),
 		getChannelIntervalIdx(progress, 'listening'),
@@ -487,6 +722,24 @@ function progressToWriteData(progress: CnWordProgress): Parameters<typeof prisma
 		sentenceIntervalIdx: progress.sentenceIntervalIdx,
 		hanziDueAt: progress.hanziDueAt,
 		hanziIntervalIdx: progress.hanziIntervalIdx,
+		sentenceUnlockedAt: progress.sentenceUnlockedAt,
+		hanziUnlockedAt: progress.hanziUnlockedAt,
+		lastExampleId: progress.lastExampleId,
+		meaningHeavyLapses: progress.meaningHeavyLapses,
+		listeningHeavyLapses: progress.listeningHeavyLapses,
+		pinyinHeavyLapses: progress.pinyinHeavyLapses,
+		sentenceHeavyLapses: progress.sentenceHeavyLapses,
+		hanziHeavyLapses: progress.hanziHeavyLapses,
+		isStickingPoint: progress.isStickingPoint,
+		meaningMarkedKnownAt: progress.meaningMarkedKnownAt,
+		listeningMarkedKnownAt: progress.listeningMarkedKnownAt,
+		pinyinMarkedKnownAt: progress.pinyinMarkedKnownAt,
+		sentenceMarkedKnownAt: progress.sentenceMarkedKnownAt,
+		hanziMarkedKnownAt: progress.hanziMarkedKnownAt,
+		sentenceIntroDayKey: progress.sentenceIntroDayKey,
+		sentenceIntroDayCount: progress.sentenceIntroDayCount,
+		hanziIntroDayKey: progress.hanziIntroDayKey,
+		hanziIntroDayCount: progress.hanziIntroDayCount,
 	};
 }
 
@@ -537,12 +790,16 @@ export function progressToDTO(p: CnWordProgress): CnWordProgressDTO {
 		pinyinIntervalIdx: p.pinyinIntervalIdx,
 		sentenceIntervalIdx: p.sentenceIntervalIdx,
 		hanziIntervalIdx: p.hanziIntervalIdx,
+		isStickingPoint: p.isStickingPoint,
 	};
 }
 
 export async function countDueChannels(userId: string): Promise<number> {
-	// Perf note: full progress scan per call — N sets × countDueAndWeak can multiply queries
-	const all = await prisma.cnWordProgress.findMany({ where: { userId } });
+	const activeIds = await getSrsActiveWordIds(userId);
+	if (!activeIds.size) return 0;
+	const all = await prisma.cnWordProgress.findMany({
+		where: { userId, wordId: { in: [...activeIds] } },
+	});
 	return countDueChannelsForProgressList(all);
 }
 

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import QuestionRenderer from '@/components/chinese/QuestionRenderer';
-import SessionSummaryCard from '@/components/chinese/SessionSummaryCard';
 import { practiceModeLabel, questionTypeLabel } from '@/lib/chinese/questionLabels';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
 import type { CnPracticeQuestionDTO, CnQuestionType } from '@/types/chinese';
@@ -28,7 +27,10 @@ export default function ChinesePracticeClient() {
 	useEffect(() => {
 		(async () => {
 			try {
-				const params = new URLSearchParams({ mode, count: '20' });
+				const params = new URLSearchParams({
+					mode,
+					count: mode === 'integrated_recall' ? '10' : '20',
+				});
 				if (wordId) params.set('wordId', wordId);
 				const res = await fetch(`/api/practice/${setId}?${params}`);
 				const json = await res.json() as { ok: boolean; data?: { questions: CnPracticeQuestionDTO[] }; error?: string };
@@ -94,7 +96,7 @@ export default function ChinesePracticeClient() {
 						<span className="text-success">{sessionResult.correct}</span>
 						<span className="text-muted"> / {sessionResult.total}</span>
 					</p>
-					<p className="mt-1 text-sm text-muted">câu đúng · đã lưu tiến độ</p>
+					<p className="mt-1 text-sm text-muted">câu đúng · đã ghi nhận phiên luyện (không ảnh hưởng SRS)</p>
 					<ul className="mt-6 space-y-2 text-left text-sm text-foreground-secondary">
 						{Object.entries(sessionResult.byType).map(([type, s]) => (
 							<li key={type} className="flex justify-between border-b border-border/50 pb-2">
@@ -131,6 +133,7 @@ export default function ChinesePracticeClient() {
 					onComplete={() => { void handleComplete(); }}
 					onExit={() => { void handleExit(); }}
 					incremental
+					sessionType="practice"
 					isExiting={isExiting || isFlushing}
 					sessionProgress={{
 						reviewed: reviewedCount,

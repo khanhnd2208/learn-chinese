@@ -201,6 +201,7 @@ export async function seedDemoUserData(prisma: PrismaClient, userId: string): Pr
 				title: setSeed.title,
 				description: setSeed.description,
 				source: setSeed.source,
+				srsActive: true,
 				items: {
 					create: setSeed.terms.map((term) => ({
 						rawTerm: term,

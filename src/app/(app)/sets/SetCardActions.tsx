@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import MaterialIcon from '@/components/ui/MaterialIcon';
+import { confirmDeleteSrsSet } from '@/app/(app)/sets/SetSrsToggle';
 import type { CnWordSetListItemDTO } from '@/types/chinese';
 
 interface Props {
@@ -32,7 +33,8 @@ export default function SetCardActions({ set }: Props) {
 	const deleteSet = async (e: React.MouseEvent) => {
 		e.preventDefault();
 		e.stopPropagation();
-		if (!confirm(`Xóa bộ từ "${set.title}"?`)) return;
+		const ok = await confirmDeleteSrsSet(set.id, set.title, set.srsActive);
+		if (!ok) return;
 		setLoading(true);
 		try {
 			await fetch(`/api/sets/${set.id}`, { method: 'DELETE' });

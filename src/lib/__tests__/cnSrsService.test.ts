@@ -12,11 +12,62 @@ import {
 import type { CnPracticeSubmitItem } from '@/types/chinese';
 import type { CnWordProgress } from '@prisma/client';
 
+function progressFixture(overrides: Partial<CnWordProgress> & Pick<CnWordProgress, 'id' | 'userId' | 'wordId'>): CnWordProgress {
+	const now = new Date('2026-06-17T10:00:00Z');
+	return {
+		state: 'learning',
+		dueAt: now,
+		intervalIdx: 0,
+		lastReviewedAt: null,
+		meaningCorrect: 0,
+		meaningTotal: 0,
+		listeningCorrect: 0,
+		listeningTotal: 0,
+		pinyinCorrect: 0,
+		pinyinTotal: 0,
+		sentenceCorrect: 0,
+		sentenceTotal: 0,
+		charCorrect: 0,
+		charTotal: 0,
+		meaningDueAt: null,
+		meaningIntervalIdx: 0,
+		listeningDueAt: null,
+		listeningIntervalIdx: 0,
+		pinyinDueAt: null,
+		pinyinIntervalIdx: 0,
+		sentenceDueAt: null,
+		sentenceIntervalIdx: 0,
+		hanziDueAt: null,
+		hanziIntervalIdx: 0,
+		sentenceUnlockedAt: null,
+		hanziUnlockedAt: null,
+		lastExampleId: null,
+		meaningHeavyLapses: 0,
+		listeningHeavyLapses: 0,
+		pinyinHeavyLapses: 0,
+		sentenceHeavyLapses: 0,
+		hanziHeavyLapses: 0,
+		isStickingPoint: false,
+		meaningMarkedKnownAt: null,
+		listeningMarkedKnownAt: null,
+		pinyinMarkedKnownAt: null,
+		sentenceMarkedKnownAt: null,
+		hanziMarkedKnownAt: null,
+		sentenceIntroDayKey: null,
+		sentenceIntroDayCount: 0,
+		hanziIntroDayKey: null,
+		hanziIntroDayCount: 0,
+		createdAt: now,
+		updatedAt: now,
+		...overrides,
+	};
+}
+
 describe('cnSrsService', () => {
 	const now = new Date('2026-06-17T10:00:00Z');
 
-	it('advances one step on correct MCQ answer regardless of confidence', () => {
-		const next = computeNextReview({ intervalIdx: 0, correct: true, now, confidence: 1.0, isProduction: false });
+	it('advances one step on correct recognition answer', () => {
+		const next = computeNextReview({ intervalIdx: 0, correct: true, now, recallDepth: 'recognition' });
 		expect(next.intervalIdx).toBe(1);
 		expect(next.state).toBe('learning');
 		expect(next.dueAt.getTime()).toBe(now.getTime() + CN_SRS_INTERVALS_MINUTES[1] * 60_000);
@@ -28,7 +79,18 @@ describe('cnSrsService', () => {
 			correct: true,
 			now,
 			confidence: 1.0,
-			isProduction: true,
+			recallDepth: 'production',
+		});
+		expect(next.intervalIdx).toBe(2);
+	});
+
+	it('advances two steps on free_recall depth', () => {
+		const next = computeNextReview({
+			intervalIdx: 0,
+			correct: true,
+			now,
+			confidence: 1.0,
+			recallDepth: 'free_recall',
 		});
 		expect(next.intervalIdx).toBe(2);
 	});
@@ -63,7 +125,7 @@ describe('cnSrsService', () => {
 			correct: true,
 			now,
 			confidence: 1.0,
-			isProduction: true,
+			recallDepth: 'production',
 		});
 		expect(atThreshold.intervalIdx).toBe(CN_STATE_THRESHOLDS.mastered);
 		expect(atThreshold.state).toBe('mastered');
@@ -75,7 +137,7 @@ describe('cnSrsService', () => {
 			correct: true,
 			now,
 			confidence: 1.0,
-			isProduction: true,
+			recallDepth: 'production',
 		});
 		expect(next.intervalIdx).toBe(7);
 		expect(next.dueAt.getTime()).toBe(now.getTime() + CN_SRS_INTERVALS_MINUTES[7] * 60_000);
@@ -89,38 +151,18 @@ describe('cnSrsService', () => {
 	});
 
 	it('mergeSubmitItemsInMemory applies multiple items for same wordId sequentially', () => {
-		const now = new Date('2026-06-17T10:00:00Z');
-		const existing: CnWordProgress = {
+		const existing = progressFixture({
 			id: 'p1',
 			userId: 'u1',
 			wordId: 'w1',
 			state: 'learning',
-			dueAt: now,
 			intervalIdx: 1,
 			lastReviewedAt: now,
 			meaningCorrect: 2,
 			meaningTotal: 3,
-			listeningCorrect: 0,
-			listeningTotal: 0,
-			pinyinCorrect: 0,
-			pinyinTotal: 0,
-			sentenceCorrect: 0,
-			sentenceTotal: 0,
-			charCorrect: 0,
-			charTotal: 0,
 			meaningDueAt: now,
 			meaningIntervalIdx: 1,
-			listeningDueAt: null,
-			listeningIntervalIdx: 0,
-			pinyinDueAt: null,
-			pinyinIntervalIdx: 0,
-			sentenceDueAt: null,
-			sentenceIntervalIdx: 0,
-			hanziDueAt: null,
-			hanziIntervalIdx: 0,
-			createdAt: now,
-			updatedAt: now,
-		};
+		});
 
 		const items: CnPracticeSubmitItem[] = [
 			{ wordId: 'w1', questionType: 'hanzi_to_meaning', correct: true },
@@ -137,7 +179,6 @@ describe('cnSrsService', () => {
 	});
 
 	it('mergeSubmitItemsInMemory creates new progress for unknown wordId', () => {
-		const now = new Date('2026-06-17T10:00:00Z');
 		const items: CnPracticeSubmitItem[] = [
 			{ wordId: 'w-new', questionType: 'audio_to_meaning', correct: false },
 		];
@@ -148,10 +189,10 @@ describe('cnSrsService', () => {
 		expect(p.listeningTotal).toBe(1);
 		expect(p.listeningCorrect).toBe(0);
 		expect(p.listeningIntervalIdx).toBe(CN_LAPSE_FLOOR_IDX);
+		expect(p.listeningHeavyLapses).toBe(1);
 	});
 
 	it('mergeSubmitItemsInMemory handles two items for new wordId in one batch', () => {
-		const now = new Date('2026-06-17T10:00:00Z');
 		const items: CnPracticeSubmitItem[] = [
 			{ wordId: 'w-new', questionType: 'hanzi_to_meaning', correct: true },
 			{ wordId: 'w-new', questionType: 'hanzi_to_meaning', correct: true },

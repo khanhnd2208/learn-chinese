@@ -1,4 +1,5 @@
 import MaterialIcon from '@/components/ui/MaterialIcon';
+import Link from 'next/link';
 import type { CnHanziAnalysisDTO } from '@/types/chinese';
 import CharBreakdown from '@/components/chinese/CharBreakdown';
 import SpeakButton from '@/components/chinese/SpeakButton';
@@ -9,6 +10,11 @@ interface Props {
 
 export default function HanziLabPanel({ analysis }: Props) {
 	const { term, status, word, chars, similarGroup, mnemonicOverall } = analysis;
+	const componentKey = similarGroup
+		? `phonetic:${similarGroup.id}`
+		: chars[0]?.radical
+			? `radical:${chars[0].radical}`
+			: null;
 
 	return (
 		<div className="space-y-6">
@@ -23,7 +29,14 @@ export default function HanziLabPanel({ analysis }: Props) {
 							</>
 						)}
 					</div>
-					{(word?.simplified || term) && <SpeakButton text={word?.simplified || term} />}
+					<div className="flex flex-col gap-2">
+						{(word?.simplified || term) && <SpeakButton text={word?.simplified || term} />}
+						{word && (
+							<Link href={`/words/${word.id}`} className="btn-secondary text-xs">
+								Xem thẻ từ
+							</Link>
+						)}
+					</div>
 				</div>
 
 				{status === 'none' && (
@@ -58,6 +71,11 @@ export default function HanziLabPanel({ analysis }: Props) {
 						Phân biệt chữ gần giống — nhóm {similarGroup.key}
 					</h3>
 					{similarGroup.note && <p className="mt-2 text-sm text-foreground-secondary">{similarGroup.note}</p>}
+					{componentKey && (
+						<p className="mt-3 text-xs text-muted">
+							Các từ cùng nhóm thành phần có thể học nhanh hơn khi đã quen bộ thủ/âm gốc.
+						</p>
+					)}
 					<div className="mt-4 grid gap-3 sm:grid-cols-2">
 						{similarGroup.hanzi.map((h) => (
 							<div key={h.id} className="rounded-lg border border-border p-3">

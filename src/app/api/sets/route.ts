@@ -15,7 +15,12 @@ export const GET = withAuth(async (_req, user) => {
 export const POST = withAuth(async (request, user) => {
 	const body = await request.json() as CreateCnWordSetInput & { hskLevel?: number };
 	if (body.hskLevel) {
-		const result = await createSetFromHsk(user.id, body.hskLevel, body.title?.trim() || `HSK ${body.hskLevel}`);
+		const result = await createSetFromHsk(
+			user.id,
+			body.hskLevel,
+			body.title?.trim() || `HSK ${body.hskLevel}`,
+			body.srsActive,
+		);
 		return apiSuccess(result, 201);
 	}
 	if (!body.title?.trim()) return apiError('title is required', 400);

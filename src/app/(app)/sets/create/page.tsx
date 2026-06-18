@@ -13,6 +13,7 @@ export default function CreateChineseSetPage() {
 	const [description, setDescription] = useState('');
 	const [termsText, setTermsText] = useState('');
 	const [coverage, setCoverage] = useState<CnCoverageReportDTO | null>(null);
+	const [srsActive, setSrsActive] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -45,7 +46,7 @@ export default function CreateChineseSetPage() {
 			const res = await fetch('/api/sets', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ title, description, terms, source, hskLevel }),
+				body: JSON.stringify({ title, description, terms, source, hskLevel, srsActive }),
 			});
 			const json = await res.json() as { ok: boolean; data?: { set: { id: string } }; error?: string };
 			if (!json.ok) throw new Error(json.error ?? 'Lỗi');
@@ -105,6 +106,24 @@ export default function CreateChineseSetPage() {
 						className="mt-2 w-full rounded-lg border border-border bg-background px-4 py-3 font-mono text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
 						placeholder={'我\n你\n学生\n老师'}
 					/>
+				</div>
+
+				<div className="rounded-lg border border-border bg-surface-container/50 p-4 space-y-3">
+					<label className="flex cursor-pointer items-start gap-3">
+						<input
+							type="checkbox"
+							checked={srsActive}
+							onChange={(e) => setSrsActive(e.target.checked)}
+							className="mt-1 h-4 w-4 accent-accent"
+						/>
+						<div>
+							<p className="text-sm font-bold text-foreground">Đưa bộ này vào SRS (ôn tập hàng ngày)</p>
+							<p className="mt-1 text-xs text-muted">
+								Bật: từ sẽ vào <strong>/review</strong> và trộn với các bộ SRS khác.
+								Tắt: chỉ luyện trong bộ, không ảnh hưởng tiến độ ôn. Có thể bật/tắt sau trong danh sách bộ từ.
+							</p>
+						</div>
+					</label>
 				</div>
 
 				<div className="flex flex-wrap gap-3">

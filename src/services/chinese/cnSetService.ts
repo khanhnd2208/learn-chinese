@@ -5,6 +5,12 @@ import { prisma } from '@/lib/prisma';
 import { MAX_CN_TERMS_PER_SET } from '@/config/constants';
 import { ensureDemoDataForUser } from '../../../prisma/seed-data/demo-user';
 import { buildCoverageReport, lookupTerms } from '@/services/chinese/cnContentService';
+import {
+	activateSetInSrs,
+	enrollWordsInSrs,
+	onSetDeleted,
+	onWordRemovedFromActiveSet,
+} from '@/services/chinese/cnSrsEnrollmentService';
 import { countDueChannelsForProgressList } from '@/services/chinese/cnSrsService';
 import { normalizeTerm, uniqueTerms } from '@/lib/chinese/hanziUtils';
 import type {
@@ -29,8 +35,8 @@ function wordToBrief(w: CnWord) {
 	};
 }
 
-async function countDueAndWeak(userId: string, wordIds: string[]) {
-	if (!wordIds.length) return { dueCount: 0, weakCount: 0 };
+async function countDueAndWeak(userId: string, wordIds: string[], srsActive: boolean) {
+	if (!srsActive || !wordIds.length) return { dueCount: 0, weakCount: 0 };
 	const now = new Date();
 	const progress = await prisma.cnWordProgress.findMany({
 		where: { userId, wordId: { in: wordIds } },
@@ -49,6 +55,7 @@ function setToListItem(
 		title: set.title,
 		description: set.description,
 		source: set.source,
+		srsActive: set.srsActive,
 		itemCount: set.items.length,
 		dueCount: stats.dueCount,
 		weakCount: stats.weakCount,
@@ -69,7 +76,7 @@ export async function listUserSets(userId: string): Promise<CnWordSetListItemDTO
 	const result: CnWordSetListItemDTO[] = [];
 	for (const set of sets) {
 		const wordIds = set.items.map((i) => i.wordId).filter((id): id is string => !!id);
-		const stats = await countDueAndWeak(userId, wordIds);
+		const stats = await countDueAndWeak(userId, wordIds, set.srsActive);
 		result.push(setToListItem(set, stats));
 	}
 	return result;
@@ -88,7 +95,7 @@ export async function getUserSet(userId: string, setId: string): Promise<CnWordS
 	if (!set) return null;
 
 	const wordIds = set.items.map((i) => i.wordId).filter((id): id is string => !!id);
-	const stats = await countDueAndWeak(userId, wordIds);
+	const stats = await countDueAndWeak(userId, wordIds, set.srsActive);
 	const progressMap = wordIds.length
 		? new Map(
 				(await prisma.cnWordProgress.findMany({
@@ -102,6 +109,7 @@ export async function getUserSet(userId: string, setId: string): Promise<CnWordS
 		title: set.title,
 		description: set.description,
 		source: set.source,
+		srsActive: set.srsActive,
 		itemCount: set.items.length,
 		dueCount: stats.dueCount,
 		weakCount: stats.weakCount,
@@ -135,6 +143,7 @@ export async function createUserSet(
 			title: input.title.trim(),
 			description: input.description?.trim() ?? '',
 			source: input.source ?? 'manual',
+			srsActive: false,
 			items: {
 				create: terms.map((term) => ({
 					rawTerm: term,
@@ -145,14 +154,8 @@ export async function createUserSet(
 		include: { items: { include: { word: true } } },
 	});
 
-	// Init SRS progress for words with content
-	for (const item of set.items) {
-		if (!item.wordId) continue;
-		await prisma.cnWordProgress.upsert({
-			where: { userId_wordId: { userId, wordId: item.wordId } },
-			create: { userId, wordId: item.wordId, state: 'new', dueAt: new Date() },
-			update: {},
-		});
+	if (input.srsActive) {
+		await activateSetInSrs(userId, set.id);
 	}
 
 	const full = await getUserSet(userId, set.id);
@@ -180,6 +183,7 @@ export async function updateUserSet(
 export async function deleteUserSet(userId: string, setId: string): Promise<boolean> {
 	const existing = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
 	if (!existing) return false;
+	await onSetDeleted(userId, setId);
 	await prisma.cnWordSet.delete({ where: { id: setId } });
 	return true;
 }
@@ -197,6 +201,7 @@ export async function addTermsToSet(
 	const coverage = buildCoverageReport(lookups);
 	const lookupMap = new Map(lookups.map((l) => [l.term, l]));
 
+	const newWordIds: string[] = [];
 	for (const term of normalized) {
 		const wordId = lookupMap.get(term)?.word?.id ?? null;
 		await prisma.cnWordSetItem.upsert({
@@ -204,13 +209,11 @@ export async function addTermsToSet(
 			create: { setId, rawTerm: term, wordId },
 			update: { wordId },
 		});
-		if (wordId) {
-			await prisma.cnWordProgress.upsert({
-				where: { userId_wordId: { userId, wordId } },
-				create: { userId, wordId, state: 'new', dueAt: new Date() },
-				update: {},
-			});
-		}
+		if (wordId) newWordIds.push(wordId);
+	}
+
+	if (set.srsActive && newWordIds.length) {
+		await enrollWordsInSrs(userId, newWordIds);
 	}
 
 	await prisma.cnWordSet.update({ where: { id: setId }, data: { updatedAt: new Date() } });
@@ -221,7 +224,15 @@ export async function addTermsToSet(
 export async function removeItemFromSet(userId: string, setId: string, itemId: string): Promise<boolean> {
 	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
 	if (!set) return false;
+
+	const item = await prisma.cnWordSetItem.findFirst({ where: { id: itemId, setId } });
+	if (!item) return false;
+
 	await prisma.cnWordSetItem.deleteMany({ where: { id: itemId, setId } });
+
+	if (item.wordId) {
+		await onWordRemovedFromActiveSet(userId, setId, item.wordId);
+	}
 	return true;
 }
 
@@ -250,6 +261,15 @@ export async function moveItemToSet(
 			data: { setId: toSetId },
 		});
 	}
+
+	if (item.wordId) {
+		if (from.srsActive) {
+			await onWordRemovedFromActiveSet(userId, fromSetId, item.wordId);
+		}
+		if (to.srsActive) {
+			await enrollWordsInSrs(userId, [item.wordId]);
+		}
+	}
 	return true;
 }
 
@@ -266,6 +286,7 @@ export async function duplicateUserSet(userId: string, setId: string): Promise<C
 			title: `${source.title} (bản sao)`,
 			description: source.description,
 			source: source.source,
+			srsActive: false,
 			items: {
 				create: source.items.map((item) => ({
 					rawTerm: item.rawTerm,
@@ -274,15 +295,6 @@ export async function duplicateUserSet(userId: string, setId: string): Promise<C
 			},
 		},
 	});
-
-	for (const item of source.items) {
-		if (!item.wordId) continue;
-		await prisma.cnWordProgress.upsert({
-			where: { userId_wordId: { userId, wordId: item.wordId } },
-			create: { userId, wordId: item.wordId, state: 'new', dueAt: new Date() },
-			update: {},
-		});
-	}
 
 	return getUserSet(userId, copy.id);
 }
@@ -296,6 +308,7 @@ export async function createSetFromHsk(
 	userId: string,
 	level: number,
 	title: string,
+	srsActive?: boolean,
 ): Promise<{ set: CnWordSetDTO; coverage: CnCoverageReportDTO }> {
 	const words = await prisma.cnWord.findMany({
 		where: { hskLevel: level, status: 'published' },
@@ -306,5 +319,6 @@ export async function createSetFromHsk(
 		title,
 		source: 'hsk',
 		terms: words.map((w) => w.simplified),
+		srsActive,
 	});
 }

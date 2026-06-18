@@ -44,7 +44,7 @@ export default function ChineseDashboardPage() {
 				<Stat label="Bộ từ đang học" value={dashboard.setCount} icon="folder" />
 				<Stat label="Từ đã học" value={dashboard.wordsLearned} icon="menu_book" />
 				<Stat label="Đã nhớ chắc" value={dashboard.wordsMastered} icon="military_tech" color="gold" />
-				<Stat label="Từ yếu" value={dashboard.weakCount} icon="psychology_alt" color="warning" />
+				<Stat label="Cần chú ý" value={dashboard.weakCount} icon="psychology_alt" color="warning" />
 				<Stat label="Cần ôn hôm nay" value={dashboard.dueToday} icon="calendar_today" color="accent" />
 				<Stat label="Tỷ lệ đúng tổng" value={`${dashboard.overallRate}%`} icon="check_circle" color="success" />
 			</section>
@@ -83,7 +83,7 @@ export default function ChineseDashboardPage() {
 
 			{dashboard.weakWords.length > 0 && (
 				<section>
-					<h2 className="label-caps">Từ yếu</h2>
+					<h2 className="label-caps">Cần chú ý</h2>
 					<div className="mt-3 flex flex-wrap gap-2">
 						{dashboard.weakWords.map((w) => (
 							<Link

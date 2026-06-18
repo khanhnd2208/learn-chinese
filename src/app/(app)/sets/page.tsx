@@ -4,6 +4,7 @@ import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
 import SetCardActions from '@/app/(app)/sets/SetCardActions';
 import SetExcelActions from '@/app/(app)/sets/SetExcelActions';
+import SetSrsToggle from '@/app/(app)/sets/SetSrsToggle';
 import { auth } from '@/lib/auth';
 import { listUserSets } from '@/services/chinese/cnSetService';
 
@@ -32,6 +33,14 @@ export default async function ChineseSetsPage() {
 				<SetExcelActions />
 			</div>
 
+			<div className="card-paper border-l-4 border-l-accent p-4 text-sm text-foreground-secondary">
+				<p>
+					<strong className="text-foreground">Luyện tập</strong> không ảnh hưởng SRS — chỉ ghi nhận phiên luyện.
+					Bật <strong className="text-foreground">Ôn SRS</strong> trên từng bộ để đưa từ vào hàng đợi{' '}
+					<Link href="/review" className="font-bold text-accent hover:underline">/review</Link>.
+				</p>
+			</div>
+
 			{sets.length === 0 ? (
 				<div className="text-sm text-muted">
 					<p>Chưa có bộ từ nào.</p>
@@ -57,12 +66,18 @@ export default async function ChineseSetsPage() {
 								</div>
 								<div className="flex flex-1 flex-col gap-2">
 									<p className="text-sm text-muted">{set.description || 'Không có mô tả'}</p>
+									<SetSrsToggle setId={set.id} srsActive={set.srsActive} title={set.title} compact />
 									<div className="mt-auto pt-2">
 										<div className="mb-1 flex justify-between text-sm text-foreground-secondary">
-											<span>{set.itemCount} từ · {set.dueCount} cần ôn</span>
-											<span className="font-bold text-accent">{progress}%</span>
+											<span>
+												{set.itemCount} từ
+												{set.srsActive ? ` · ${set.dueCount} cần ôn` : ' · không trong SRS'}
+											</span>
+											{set.srsActive && (
+												<span className="font-bold text-accent">{progress}%</span>
+											)}
 										</div>
-										<ProgressBar value={progress} />
+										{set.srsActive && <ProgressBar value={progress} />}
 									</div>
 								</div>
 								<div className="flex gap-2 pt-2">

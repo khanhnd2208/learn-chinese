@@ -21,12 +21,21 @@ export type CnQuestionType =
 	| 'audio_to_hanzi'
 	| 'audio_to_meaning'
 	| 'audio_to_pinyin'
+	| 'audio_to_pinyin_typed'
+	| 'hanzi_from_meaning'
 	| 'fill_sentence'
 	| 'sentence_order'
 	| 'radical_pick'
 	| 'char_components'
 	| 'similar_char'
 	| 'translate_sentence';
+
+export type RecallDepth =
+	| 'recognition'
+	| 'cued_recall'
+	| 'cross_modal'
+	| 'free_recall'
+	| 'production';
 
 export type CnErrorType =
 	| 'sai_nghia'
@@ -105,6 +114,7 @@ export interface CnWordProgressDTO {
 	pinyinIntervalIdx: number;
 	sentenceIntervalIdx: number;
 	hanziIntervalIdx: number;
+	isStickingPoint?: boolean;
 }
 
 export interface CnChannelMasteryDTO {
@@ -168,6 +178,7 @@ export interface CnWordSetDTO {
 	title: string;
 	description: string;
 	source: CnWordSetSource;
+	srsActive: boolean;
 	itemCount: number;
 	dueCount: number;
 	weakCount: number;
@@ -181,6 +192,7 @@ export interface CnWordSetListItemDTO {
 	title: string;
 	description: string;
 	source: CnWordSetSource;
+	srsActive: boolean;
 	itemCount: number;
 	dueCount: number;
 	weakCount: number;
@@ -203,6 +215,10 @@ export interface CnPracticeQuestionDTO {
 	components?: string[];
 	radical?: string;
 	explanation?: string;
+	/** Channel interval index for mark-known eligibility */
+	channelIntervalIdx?: number;
+	canMarkKnown?: boolean;
+	isStickingPoint?: boolean;
 }
 
 export interface CnPracticeSubmitItem {
@@ -217,6 +233,7 @@ export interface CnPracticeSessionResultDTO {
 	correct: number;
 	byType: Record<string, { correct: number; total: number }>;
 	weakWords: string[];
+	stickingPointWords?: string[];
 }
 
 export interface CnReviewSessionSummaryDTO {
@@ -265,6 +282,7 @@ export interface CreateCnWordSetInput {
 	description?: string;
 	source?: CnWordSetSource;
 	terms: string[];
+	srsActive?: boolean;
 }
 
 export interface CnHanziAnalysisDTO {

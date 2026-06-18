@@ -4,6 +4,7 @@
 import { prisma } from '@/lib/prisma';
 import { groupLogsIntoSessions } from '@/lib/chinese/groupAnswerSessions';
 import { rate } from '@/lib/chinese/hanziUtils';
+import { getSrsActiveWordIds } from '@/services/chinese/cnSrsEnrollmentService';
 import { countDueToday } from '@/services/chinese/cnSrsService';
 import type { CnReviewStatsDTO } from '@/types/chinese';
 
@@ -18,14 +19,15 @@ export async function getReviewStats(userId: string): Promise<CnReviewStatsDTO> 
 	const todayStart = startOfLocalDay(now);
 	const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
 
-	const [dueTotal, progress, todayLogs, weekLogs] = await Promise.all([
+	const [dueTotal, activeWordIds, todayLogs, weekLogs] = await Promise.all([
 		countDueToday(userId),
-		prisma.cnWordProgress.findMany({
-			where: { userId },
-			include: { word: true },
-		}),
+		getSrsActiveWordIds(userId),
 		prisma.cnAnswerLog.findMany({
-			where: { userId, createdAt: { gte: todayStart } },
+			where: {
+				userId,
+				createdAt: { gte: todayStart },
+				source: { in: ['review', 'mark_known'] },
+			},
 			orderBy: { createdAt: 'desc' },
 		}),
 		prisma.cnAnswerLog.findMany({
@@ -34,6 +36,14 @@ export async function getReviewStats(userId: string): Promise<CnReviewStatsDTO> 
 			take: 500,
 		}),
 	]);
+
+	const activeIds = [...activeWordIds];
+	const progress = activeIds.length
+		? await prisma.cnWordProgress.findMany({
+			where: { userId, wordId: { in: activeIds } },
+			include: { word: true },
+		})
+		: [];
 
 	const reviewedToday = todayLogs.length;
 	const correctToday = todayLogs.filter((l) => l.correct).length;

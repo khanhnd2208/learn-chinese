@@ -40,7 +40,14 @@ git pull
 pm2 restart learn-chinese
 ```
 
-## Database — SRS features mới
+## Database — migrations bắt buộc (2026-06-18)
+
+Sau khi pull, `deploy.sh` chạy `prisma migrate deploy`. Cần có trên prod:
+
+- `20260618200000_srs_pedagogy_improvements` — channel intro, mark-known, sticking point, answer source
+- `20260618300000_srs_set_activation` — `CnWordSet.srsActive` + backfill bộ có progress
+
+## Database — SRS features trước đó
 
 Các tính năng **ôn tập tự do** và **/review/stats** **không cần migration mới**. Chỉ dùng bảng có sẵn:
 

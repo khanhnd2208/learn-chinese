@@ -99,16 +99,23 @@ export async function publishWordRows(rows: CnImportWordRow[], db: DbClient = pr
 			});
 		}
 
-		if (row.exampleHanzi) {
+		if (row.exampleHanzi || row.exampleSentences) {
 			await db.cnExample.deleteMany({ where: { wordId: word.id } });
-			await db.cnExample.create({
-				data: {
-					wordId: word.id,
-					hanzi: row.exampleHanzi,
-					pinyin: row.examplePinyin,
-					meaningVi: row.exampleMeaningVi,
-				},
-			});
+			const examples = row.exampleSentences
+				? parsePatternSamples(row.exampleSentences)
+				: row.exampleHanzi
+					? [{ hanzi: row.exampleHanzi, pinyin: row.examplePinyin, meaningVi: row.exampleMeaningVi }]
+					: [];
+			if (examples.length) {
+				await db.cnExample.createMany({
+					data: examples.map((ex) => ({
+						wordId: word.id,
+						hanzi: ex.hanzi,
+						pinyin: ex.pinyin,
+						meaningVi: ex.meaningVi,
+					})),
+				});
+			}
 		}
 
 		if (row.patternTemplate) {

@@ -87,6 +87,9 @@ export async function buildContentExportWorkbook(): Promise<Buffer> {
 		example_hanzi: w.examples[0]?.hanzi ?? '',
 		example_pinyin: w.examples[0]?.pinyin ?? '',
 		example_meaning_vi: w.examples[0]?.meaningVi ?? '',
+		example_sentences: w.examples.length
+			? w.examples.map((ex) => `${ex.hanzi}|${ex.pinyin}|${ex.meaningVi}`).join('||')
+			: '',
 		pattern_template: w.patterns[0]?.template ?? '',
 		pattern_samples: w.patterns[0]
 			? (Array.isArray(w.patterns[0].samples)
@@ -303,14 +306,13 @@ export async function importUserWorkbook(userId: string, file: File, restoreProg
 				create: { setId, rawTerm, wordId: word?.id ?? null },
 				update: { wordId: word?.id ?? null },
 			});
-			if (word?.id) {
-				await tx.cnWordProgress.upsert({
-					where: { userId_wordId: { userId, wordId: word.id } },
-					create: { userId, wordId: word.id, state: 'new', dueAt: new Date() },
-					update: {},
-				});
-			}
 			itemCountBySet.set(setId, currentCount + 1);
+		}
+
+		if (restoreProgress) {
+			for (const setId of setIdByKey.values()) {
+				await tx.cnWordSet.update({ where: { id: setId }, data: { srsActive: true } });
+			}
 		}
 
 		if (!restoreProgress) return;

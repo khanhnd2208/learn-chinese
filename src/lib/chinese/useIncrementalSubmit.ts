@@ -31,7 +31,12 @@ function mergeItemsIntoSummary(
 	return { total, correct, byType, weakWords: [...weakWords] };
 }
 
-export function useIncrementalSubmit() {
+export interface UseIncrementalSubmitOptions {
+	endpoint?: string;
+}
+
+export function useIncrementalSubmit(options: UseIncrementalSubmitOptions = {}) {
+	const endpoint = options.endpoint ?? '/api/practice/submit';
 	const queueRef = useRef<CnPracticeSubmitItem[]>([]);
 	const flushPromiseRef = useRef<Promise<void> | null>(null);
 	const [isFlushing, setIsFlushing] = useState(false);
@@ -46,7 +51,7 @@ export function useIncrementalSubmit() {
 		flushPromiseRef.current = (async () => {
 			setIsFlushing(true);
 			try {
-				const res = await fetch('/api/practice/submit', {
+				const res = await fetch(endpoint, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ items: batch }),
@@ -59,12 +64,11 @@ export function useIncrementalSubmit() {
 			} finally {
 				setIsFlushing(false);
 				flushPromiseRef.current = null;
-				if (queueRef.current.length > 0) await flush();
 			}
 		})();
 
 		return flushPromiseRef.current;
-	}, []);
+	}, [endpoint]);
 
 	const enqueue = useCallback((item: CnPracticeSubmitItem) => {
 		queueRef.current.push(item);
@@ -73,11 +77,13 @@ export function useIncrementalSubmit() {
 	}, [flush]);
 
 	const flushAndWait = useCallback(async () => {
-		await flush();
-		while (flushPromiseRef.current) {
-			await flushPromiseRef.current;
+		for (;;) {
+			await flush();
+			while (flushPromiseRef.current) {
+				await flushPromiseRef.current;
+			}
+			if (queueRef.current.length === 0) break;
 		}
-		if (queueRef.current.length > 0) await flushAndWait();
 	}, [flush]);
 
 	const resetSession = useCallback(() => {
@@ -91,11 +97,11 @@ export function useIncrementalSubmit() {
 			if (!batch.length) return;
 			const body = JSON.stringify({ items: batch });
 			const blob = new Blob([body], { type: 'application/json' });
-			navigator.sendBeacon('/api/practice/submit', blob);
+			navigator.sendBeacon(endpoint, blob);
 		};
 		window.addEventListener('pagehide', flushOnPageHide);
 		return () => window.removeEventListener('pagehide', flushOnPageHide);
-	}, []);
+	}, [endpoint]);
 
 	return { enqueue, flushAndWait, sessionResult, isFlushing, resetSession };
 }
