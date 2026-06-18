@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
+import InAppBrowserNotice from './in-app-browser-notice';
 import SignInWithGoogleButton from './sign-in-with-google-button';
 
 export default async function LoginPage() {
@@ -29,6 +30,7 @@ export default async function LoginPage() {
 					Đăng nhập để tạo bộ từ, ôn SRS, luyện nghe và phân tích chữ Hán.
 				</p>
 				<div className="mt-8">
+					<InAppBrowserNotice />
 					<SignInWithGoogleButton callbackUrl="/" />
 				</div>
 				<p className="mt-6 text-center text-xs text-muted">

@@ -2,6 +2,7 @@
 
 import { signIn } from 'next-auth/react';
 import { useState } from 'react';
+import { useInAppBrowserBlocked } from './in-app-browser-notice';
 
 function GoogleIcon({ className }: { className?: string }) {
 	return (
@@ -33,8 +34,11 @@ function GoogleIcon({ className }: { className?: string }) {
 
 export default function SignInWithGoogleButton({ callbackUrl }: { callbackUrl: string }) {
 	const [loading, setLoading] = useState(false);
+	const inAppBrowserBlocked = useInAppBrowserBlocked();
 
 	const handleSignIn = async () => {
+		if (inAppBrowserBlocked) return;
+
 		setLoading(true);
 		try {
 			await signIn('google', { callbackUrl }, { prompt: 'select_account' });
@@ -47,12 +51,18 @@ export default function SignInWithGoogleButton({ callbackUrl }: { callbackUrl: s
 	return (
 		<button
 			type="button"
-			disabled={loading}
+			disabled={loading || inAppBrowserBlocked}
 			onClick={handleSignIn}
 			className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-border bg-surface px-5 py-3 text-sm font-bold uppercase tracking-wider text-foreground transition-all hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
 		>
 			<GoogleIcon className="h-5 w-5" />
-			<span>{loading ? 'Đang chuyển hướng...' : 'Tiếp tục với Google'}</span>
+			<span>
+				{inAppBrowserBlocked
+					? 'Cần mở Safari / Chrome trước'
+					: loading
+						? 'Đang chuyển hướng...'
+						: 'Tiếp tục với Google'}
+			</span>
 		</button>
 	);
 }
