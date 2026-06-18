@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { CnImportPreview } from '@/lib/chinese/parseChineseFile';
 import type { CnWordDTO } from '@/types/chinese';
+import HanziAiAdminPanel from './HanziAiAdminPanel';
 
 export default function AdminChinesePage() {
 	const [words, setWords] = useState<CnWordDTO[]>([]);
@@ -121,6 +122,8 @@ export default function AdminChinesePage() {
 					</table>
 				</div>
 			</div>
+
+			<HanziAiAdminPanel />
 		</div>
 	);
 }

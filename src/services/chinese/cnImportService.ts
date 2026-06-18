@@ -5,6 +5,8 @@ import { prisma } from '@/lib/prisma';
 import { splitHanzi } from '@/lib/chinese/hanziUtils';
 import type { CnImportHanziRow, CnImportPreview, CnImportWordRow } from '@/lib/chinese/parseChineseFile';
 import type { Prisma } from '@prisma/client';
+import type { HanziAiReconcileTrigger } from '@/services/chinese/hanziAi/hanziAiAdminService';
+import { reconcileHanziAiInTransaction } from '@/services/chinese/hanziAi/hanziAiAdminService';
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -31,11 +33,15 @@ async function ensureSimilarGroup(db: DbClient, key: string) {
 	return db.cnSimilarGroup.create({ data: { key, note: '' } });
 }
 
-export async function publishHanziRows(rows: CnImportHanziRow[], db: DbClient = prisma): Promise<number> {
+export async function publishHanziRows(
+	rows: CnImportHanziRow[],
+	db: DbClient = prisma,
+): Promise<{ count: number; triggers: HanziAiReconcileTrigger[] }> {
 	let count = 0;
+	const triggers: HanziAiReconcileTrigger[] = [];
 	for (const row of rows) {
 		const group = row.similarGroupKey ? await ensureSimilarGroup(db, row.similarGroupKey) : null;
-		await db.cnHanzi.upsert({
+		const hanzi = await db.cnHanzi.upsert({
 			where: { char: row.char },
 			create: {
 				char: row.char,
@@ -59,13 +65,18 @@ export async function publishHanziRows(rows: CnImportHanziRow[], db: DbClient = 
 				status: row.status,
 			},
 		});
+		triggers.push({ type: 'hanzi', id: hanzi.id, chars: [row.char] });
 		count++;
 	}
-	return count;
+	return { count, triggers };
 }
 
-export async function publishWordRows(rows: CnImportWordRow[], db: DbClient = prisma): Promise<number> {
+export async function publishWordRows(
+	rows: CnImportWordRow[],
+	db: DbClient = prisma,
+): Promise<{ count: number; triggers: HanziAiReconcileTrigger[] }> {
 	let count = 0;
+	const triggers: HanziAiReconcileTrigger[] = [];
 	for (const row of rows) {
 		const word = await db.cnWord.upsert({
 			where: { simplified: row.simplified },
@@ -129,21 +140,25 @@ export async function publishWordRows(rows: CnImportWordRow[], db: DbClient = pr
 			});
 		}
 
+		triggers.push({ type: 'word', id: word.id, term: word.simplified, chars: charList });
 		count++;
 	}
-	return count;
+	return { count, triggers };
 }
 
 export async function publishImportPreview(preview: CnImportPreview, type: 'words' | 'hanzi') {
 	if (preview.errors.length) {
 		throw new Error(`Import có ${preview.errors.length} lỗi — sửa trước khi publish`);
 	}
-	return prisma.$transaction(async (tx) => {
+	const result = await prisma.$transaction(async (tx) => {
 		if (type === 'hanzi') {
-			const count = await publishHanziRows(preview.hanzi, tx);
+			const { count, triggers } = await publishHanziRows(preview.hanzi, tx);
+			await reconcileHanziAiInTransaction(tx, triggers);
 			return { type, count, warnings: preview.warnings };
 		}
-		const count = await publishWordRows(preview.words, tx);
+		const { count, triggers } = await publishWordRows(preview.words, tx);
+		await reconcileHanziAiInTransaction(tx, triggers);
 		return { type, count, warnings: preview.warnings };
 	});
+	return result;
 }

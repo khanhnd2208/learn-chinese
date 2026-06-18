@@ -32,7 +32,8 @@
     "prisma": "^7.7.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -43,8 +44,8 @@
     "eslint": "^9.39.2",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5",
     "tsx": "^4.20.5",
+    "typescript": "^5",
     "vitest": "^4.1.1"
   }
 }

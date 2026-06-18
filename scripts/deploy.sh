@@ -21,4 +21,6 @@ echo "==> Building production..."
 npm run build
 
 echo "==> Deploy complete. Start with: npm start (port 3001)"
-echo "    Or restart PM2: pm2 restart learn-chinese"
+echo "    Or PM2 fork (required for Hanzi AI rate limits):"
+echo "    pm2 start ecosystem.config.cjs"
+echo "    pm2 save"
