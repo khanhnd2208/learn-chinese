@@ -9,7 +9,11 @@ import type { HanziAiPublicAnalysis } from '@/services/chinese/hanziAi/hanziAiTy
 import { HANZI_AI_POLL_INTERVAL_MS, HANZI_AI_POLL_MAX_MS } from '@/config/hanziAi';
 
 const VALID_TERM = /^\p{Script=Han}{1,4}$/u;
-const LOADING_COPY = ['Đang kiểm tra dữ liệu…', 'Đang phân tích cấu tạo chữ…', 'Đang tạo giải thích và mẹo ghi nhớ…'];
+const LOADING_COPY = [
+	'Đang tra từ điển và kiểm tra dữ liệu…',
+	'Đang phân tích cấu tạo từng chữ…',
+	'Đang viết giải thích và ví dụ bằng tiếng Việt…',
+];
 
 export default function HanziLabClient() {
 	const searchParams = useSearchParams();
@@ -100,15 +104,25 @@ export default function HanziLabClient() {
 
 	return (
 		<div className="mx-auto max-w-5xl space-y-8 px-4 py-8 md:px-8">
-			<section><h1 className="text-4xl font-black">Hanzi Lab</h1><p className="mt-2 text-sm text-foreground-secondary">Từ điển phân tích chữ Hán bằng AI dành cho người Việt.</p></section>
+			<section>
+				<h1 className="text-4xl font-black">Hanzi Lab</h1>
+				<p className="mt-2 text-sm text-foreground-secondary">
+					Nhập chữ hoặc từ tiếng Trung để xem cách đọc, nghĩa tiếng Việt và cách ghép từng nét chữ.
+				</p>
+			</section>
 			<section className="card-paper p-6">
-				<label htmlFor="hanzi-ai-input" className="label-caps">Nhập 1 chữ, một từ hoặc thành ngữ tối đa 4 chữ</label>
+				<label htmlFor="hanzi-ai-input" className="label-caps">Chữ hoặc từ cần tra (1–4 chữ Hán)</label>
 				<div className="mt-3 flex flex-col gap-3 sm:flex-row">
 					<input id="hanzi-ai-input" value={input} onChange={(e) => { setInput(e.target.value); setError(null); }} onKeyDown={(e) => { if (e.key === 'Enter') void analyze(); }} placeholder="Ví dụ: 折磨" className="hanzi-lg min-w-0 flex-1 rounded-xl border border-border bg-background px-4 py-3 text-2xl focus:border-accent focus:outline-none" />
-					<button type="button" onClick={() => void analyze()} disabled={!valid || loading} className="btn-primary px-8 disabled:opacity-50">{loading ? 'Đang phân tích…' : 'Phân tích'}</button>
+					<button type="button" onClick={() => void analyze()} disabled={!valid || loading} className="btn-primary px-8 disabled:opacity-50">{loading ? 'Đang xử lý…' : 'Xem phân tích'}</button>
 				</div>
-				{input && !valid && <p className="mt-2 text-sm text-accent">Chỉ nhập từ 1 đến 4 chữ Hán, không có khoảng trắng hoặc dấu câu.</p>}
-				{loading && <p className="mt-4 text-center text-sm font-bold text-accent">{LOADING_COPY[loadingStep]}</p>}
+				{input && !valid && <p className="mt-2 text-sm text-accent">Chỉ nhập từ 1 đến 4 chữ Hán, không dấu cách hay dấu câu.</p>}
+				{loading && (
+					<p className="mt-4 text-center text-sm font-bold text-accent">
+						{LOADING_COPY[loadingStep]}
+						<span className="mt-1 block text-xs font-normal text-muted">Thường mất khoảng 5–10 giây.</span>
+					</p>
+				)}
 				{error && <p className="mt-3 text-sm text-accent">{error}</p>}
 			</section>
 
@@ -116,7 +130,7 @@ export default function HanziLabClient() {
 				<>
 					{analysis.factsSoftStale && (
 						<p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
-							Dữ liệu từ điển đã cập nhật gần đây. Bản phân tích vẫn hiển thị; admin có thể tạo bản mới khi cần.
+							Từ điển đã được cập nhật gần đây. Bản phân tích hiện tại vẫn dùng được; bạn có thể bấm Xem phân tích để làm mới nếu muốn.
 						</p>
 					)}
 					<HanziAiResultPanel value={analysis} />
@@ -124,21 +138,21 @@ export default function HanziLabClient() {
 			)}
 			{analysis?.status === 'stale' && (
 				<p className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm">
-					Dữ liệu nguồn đã thay đổi. Bản phân tích cũ tạm ẩn — bấm Phân tích để tạo bản mới.
+					Thông tin từ điển đã đổi nên bản phân tích cũ tạm ẩn. Bấm <strong>Xem phân tích</strong> để tạo bản mới.
 				</p>
 			)}
 			{analysis && ['needs_review', 'blocked'].includes(analysis.status) && (
 				<p className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm">Bản phân tích này đang được kiểm tra và tạm thời chưa hiển thị.</p>
 			)}
 			{analysis?.status === 'empty' && (
-				<p className="rounded-lg border border-border bg-surface p-4 text-sm text-muted">Chưa có phân tích cho từ này. Bấm Phân tích để bắt đầu.</p>
+				<p className="rounded-lg border border-border bg-surface p-4 text-sm text-muted">Chưa có phân tích cho từ này. Bấm Xem phân tích để bắt đầu.</p>
 			)}
 			{analysis?.status === 'failed' && (
 				<p className="rounded-lg border border-accent/30 bg-accent/10 p-4 text-sm">Không tạo được phân tích. Vui lòng thử lại sau.</p>
 			)}
 			{curated && (
 				<details className="rounded-xl border border-border p-4">
-					<summary className="cursor-pointer text-sm font-bold">Dữ liệu từ điển hiện có</summary>
+					<summary className="cursor-pointer text-sm font-bold">Xem thêm: dữ liệu từ điển trong hệ thống</summary>
 					<div className="mt-5"><HanziLabPanel analysis={curated} /></div>
 				</details>
 			)}
