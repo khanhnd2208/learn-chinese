@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import MaterialIcon from '@/components/ui/MaterialIcon';
+import SetSrsToggle, { confirmDeleteSrsSet } from '@/app/(app)/sets/SetSrsToggle';
 import type { CnWordSetDTO, CnWordSetListItemDTO } from '@/types/chinese';
 
 interface Props {
@@ -44,7 +45,8 @@ export default function SetManagePanel({ set, allSets }: Props) {
 	};
 
 	const deleteSet = async () => {
-		if (!confirm(`Xóa bộ từ "${set.title}"?`)) return;
+		const ok = await confirmDeleteSrsSet(set.id, set.title, set.srsActive);
+		if (!ok) return;
 		setLoading(true);
 		try {
 			const res = await fetch(`/api/sets/${set.id}`, { method: 'DELETE' });
@@ -135,6 +137,9 @@ export default function SetManagePanel({ set, allSets }: Props) {
 		<div className="hidden space-y-6 border-t border-border pt-8 md:block">
 			<section>
 				<h2 className="label-caps mb-4">Quản lý bộ từ</h2>
+				<div className="mb-4">
+					<SetSrsToggle setId={set.id} srsActive={set.srsActive} title={set.title} />
+				</div>
 				<div className="flex flex-wrap items-start justify-between gap-4">
 					<div className="flex-1">
 						{editing ? (

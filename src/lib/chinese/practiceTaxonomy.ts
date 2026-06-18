@@ -19,7 +19,8 @@ export type PracticeGroup =
 	| 'listening'
 	| 'sentence_usage'
 	| 'hanzi_memory'
-	| 'smart_mixed';
+	| 'smart_mixed'
+	| 'integrated_recall';
 
 export interface GoalWeights {
 	meaning: number;
@@ -37,14 +38,14 @@ export const DEFAULT_GOAL_WEIGHTS: GoalWeights = {
 	hanzi: 5,
 };
 
-export const GROUP_QUESTION_MAP: Record<Exclude<PracticeGroup, 'smart_mixed'>, CnQuestionType[]> = {
-	core_vocab: ['hanzi_to_meaning', 'meaning_to_hanzi', 'pinyin_to_hanzi'],
-	listening: ['audio_to_hanzi', 'audio_to_meaning', 'audio_to_pinyin'],
+export const GROUP_QUESTION_MAP: Record<Exclude<PracticeGroup, 'smart_mixed' | 'integrated_recall'>, CnQuestionType[]> = {
+	core_vocab: ['hanzi_to_meaning', 'meaning_to_hanzi', 'pinyin_to_hanzi', 'hanzi_from_meaning'],
+	listening: ['audio_to_hanzi', 'audio_to_meaning', 'audio_to_pinyin', 'audio_to_pinyin_typed'],
 	sentence_usage: ['fill_sentence', 'sentence_order', 'translate_sentence'],
 	hanzi_memory: ['radical_pick', 'char_components', 'similar_char'],
 };
 
-export const CHANNEL_TO_GROUP: Record<SkillChannel, Exclude<PracticeGroup, 'smart_mixed'>> = {
+export const CHANNEL_TO_GROUP: Record<SkillChannel, Exclude<PracticeGroup, 'smart_mixed' | 'integrated_recall'>> = {
 	meaning: 'core_vocab',
 	listening: 'listening',
 	pinyin: 'core_vocab',
@@ -59,8 +60,8 @@ const ALWAYS_UNLOCKED_CHANNELS: ReadonlySet<SkillChannel> = new Set([
 ]);
 
 export function questionChannel(type: CnQuestionType): SkillChannel | null {
-	if (['hanzi_to_meaning', 'meaning_to_hanzi'].includes(type)) return 'meaning';
-	if (['audio_to_hanzi', 'audio_to_meaning', 'audio_to_pinyin'].includes(type)) return 'listening';
+	if (['hanzi_to_meaning', 'meaning_to_hanzi', 'hanzi_from_meaning'].includes(type)) return 'meaning';
+	if (['audio_to_hanzi', 'audio_to_meaning', 'audio_to_pinyin', 'audio_to_pinyin_typed'].includes(type)) return 'listening';
 	if (type === 'pinyin_to_hanzi') return 'pinyin';
 	if (['fill_sentence', 'sentence_order', 'translate_sentence'].includes(type)) return 'sentence';
 	if (['radical_pick', 'char_components', 'similar_char'].includes(type)) return 'hanzi';
@@ -79,6 +80,7 @@ export function practiceModeToGroup(mode: string): PracticeGroup {
 		sentence_usage: 'sentence_usage',
 		hanzi: 'hanzi_memory',
 		hanzi_memory: 'hanzi_memory',
+		integrated_recall: 'integrated_recall',
 	};
 	return map[normalized] ?? 'smart_mixed';
 }
@@ -153,7 +155,12 @@ function channelWeaknessScore(
 		: { meaning: 0, listening: 0, pinyin: 0, sentence: 0, hanzi: 0 };
 	const practiced = totals[channel] > 0;
 	const effectiveRate = practiced && rate !== null ? rate : 0;
-	return (100 - effectiveRate) * goalWeights[channel];
+	let score = (100 - effectiveRate) * goalWeights[channel];
+	if (channel === 'sentence' && (totals.sentence ?? 0) < 3) score *= 0.4;
+	else if (channel === 'hanzi' && (totals.hanzi ?? 0) < 3) score *= 0.4;
+	else if (channel === 'sentence' && (totals.sentence ?? 0) < 10) score *= 0.7;
+	else if (channel === 'hanzi' && (totals.hanzi ?? 0) < 10) score *= 0.7;
+	return score;
 }
 
 export function getWeakestChannel(
@@ -215,7 +222,7 @@ function resolveAllowedGroups(
 function typesForGroups(groups: PracticeGroup[]): CnQuestionType[] {
 	const types: CnQuestionType[] = [];
 	for (const g of groups) {
-		if (g === 'smart_mixed') continue;
+		if (g === 'smart_mixed' || g === 'integrated_recall') continue;
 		types.push(...GROUP_QUESTION_MAP[g]);
 	}
 	return [...new Set(types)];
@@ -239,6 +246,10 @@ export function wordSupportsQuestionType(word: CnWordCardDTO, type: CnQuestionTy
 			return word.chars.some((c) => c.components.length > 0);
 		case 'similar_char':
 			return word.chars.some((c) => !!c.similarGroupId);
+		case 'hanzi_from_meaning':
+			return !!word.simplified && !!word.meaningVi;
+		case 'audio_to_pinyin_typed':
+			return !!word.simplified && !!word.pinyin;
 		case 'hanzi_to_meaning':
 		case 'meaning_to_hanzi':
 			return !!word.simplified && !!word.meaningVi;

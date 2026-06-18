@@ -12,6 +12,8 @@ const QUESTION_ERROR_MAP: Partial<Record<CnQuestionType, CnErrorType>> = {
 	audio_to_hanzi: 'nghe_khong_ra',
 	audio_to_meaning: 'nghe_khong_ra',
 	audio_to_pinyin: 'sai_thanh_dieu',
+	audio_to_pinyin_typed: 'sai_thanh_dieu',
+	hanzi_from_meaning: 'quen_hanzi',
 	fill_sentence: 'sai_mau_cau',
 	sentence_order: 'sai_vi_tri',
 	radical_pick: 'nham_chu',

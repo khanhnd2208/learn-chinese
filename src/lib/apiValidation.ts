@@ -12,6 +12,7 @@ import type { CnPracticeSubmitItem, CnQuestionType, CnErrorType } from '@/types/
 const VALID_QUESTION_TYPES = new Set<CnQuestionType>([
 	'hanzi_to_meaning', 'meaning_to_hanzi', 'pinyin_to_hanzi',
 	'audio_to_hanzi', 'audio_to_meaning', 'audio_to_pinyin',
+	'audio_to_pinyin_typed', 'hanzi_from_meaning',
 	'fill_sentence', 'sentence_order', 'radical_pick', 'char_components', 'similar_char', 'translate_sentence',
 ]);
 

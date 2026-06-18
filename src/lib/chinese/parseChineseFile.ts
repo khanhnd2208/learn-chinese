@@ -17,6 +17,7 @@ export interface CnImportWordRow {
 	exampleHanzi: string;
 	examplePinyin: string;
 	exampleMeaningVi: string;
+	exampleSentences: string;
 	patternTemplate: string;
 	patternSamples: string;
 	chars: string;
@@ -57,6 +58,14 @@ function parseStatus(val: string | undefined): 'draft' | 'published' {
 	return val?.trim().toLowerCase() === 'published' ? 'published' : 'draft';
 }
 
+function parseExampleSentences(raw: string): Array<{ hanzi: string; pinyin: string; meaningVi: string }> {
+	if (!raw.trim()) return [];
+	return raw.split('||').map((part) => {
+		const [hanzi = '', pinyin = '', meaningVi = ''] = part.split('|').map((s) => s.trim());
+		return { hanzi, pinyin, meaningVi };
+	}).filter((s) => s.hanzi);
+}
+
 function mapWordRow(r: Record<string, string>, rowNum: number): { row?: CnImportWordRow; error?: CnImportRowError } {
 	const simplified = (r.simplified ?? r.word ?? r.term ?? '').trim();
 	const pinyin = (r.pinyin ?? '').trim();
@@ -82,6 +91,7 @@ function mapWordRow(r: Record<string, string>, rowNum: number): { row?: CnImport
 			exampleHanzi: (r.example_hanzi ?? r.exampleHanzi ?? '').trim(),
 			examplePinyin: (r.example_pinyin ?? r.examplePinyin ?? '').trim(),
 			exampleMeaningVi: (r.example_meaning_vi ?? r.exampleMeaningVi ?? '').trim(),
+			exampleSentences: (r.example_sentences ?? r.exampleSentences ?? '').trim(),
 			patternTemplate: (r.pattern_template ?? r.patternTemplate ?? '').trim(),
 			patternSamples: (r.pattern_samples ?? r.patternSamples ?? '').trim(),
 			chars: (r.chars ?? '').trim(),

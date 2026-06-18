@@ -37,12 +37,21 @@ enum CnQuestionType {
   audio_to_hanzi
   audio_to_meaning
   audio_to_pinyin
+  audio_to_pinyin_typed
+  hanzi_from_meaning
   fill_sentence
   sentence_order
   radical_pick
   char_components
   similar_char
   translate_sentence
+}
+
+enum CnAnswerSource {
+  practice
+  review
+  mark_known
+  integrated
 }
 
 enum CnErrorType {
@@ -143,6 +152,7 @@ model CnWordSet {
   title       String
   description String          @default("")
   source      CnWordSetSource @default(manual)
+  srsActive   Boolean         @default(false)
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   items       CnWordSetItem[]
@@ -189,6 +199,24 @@ model CnWordProgress {
   sentenceIntervalIdx Int              @default(0)
   hanziDueAt       DateTime?
   hanziIntervalIdx Int                @default(0)
+  sentenceUnlockedAt DateTime?
+  hanziUnlockedAt    DateTime?
+  lastExampleId      String?
+  meaningHeavyLapses   Int @default(0)
+  listeningHeavyLapses Int @default(0)
+  pinyinHeavyLapses    Int @default(0)
+  sentenceHeavyLapses  Int @default(0)
+  hanziHeavyLapses     Int @default(0)
+  isStickingPoint      Boolean @default(false)
+  meaningMarkedKnownAt   DateTime?
+  listeningMarkedKnownAt DateTime?
+  pinyinMarkedKnownAt    DateTime?
+  sentenceMarkedKnownAt  DateTime?
+  hanziMarkedKnownAt     DateTime?
+  sentenceIntroDayKey    String?
+  sentenceIntroDayCount  Int @default(0)
+  hanziIntroDayKey       String?
+  hanziIntroDayCount     Int @default(0)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   word             CnWord              @relation(fields: [wordId], references: [id], onDelete: Cascade)
@@ -206,9 +234,24 @@ model CnAnswerLog {
   questionType CnQuestionType
   errorType    CnErrorType?
   correct      Boolean
+  source       CnAnswerSource @default(practice)
   createdAt    DateTime       @default(now())
   word         CnWord         @relation(fields: [wordId], references: [id], onDelete: Cascade)
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, wordId])
   @@index([userId, errorType])
+}
+
+model CnUserComponentProgress {
+  id            String   @id @default(cuid())
+  userId        String
+  componentKey  String
+  familiarity   Int      @default(0)
+  correctCount  Int      @default(0)
+  totalCount    Int      @default(0)
+  lastSeenAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  @@unique([userId, componentKey])
+  @@index([userId])
 }

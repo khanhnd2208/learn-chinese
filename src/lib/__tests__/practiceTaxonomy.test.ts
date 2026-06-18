@@ -166,15 +166,14 @@ describe('computeNextReview confidence & production gate', () => {
 			intervalIdx: 0,
 			correct: true,
 			now: new Date('2025-01-01'),
-			confidence: 1.0,
-			isProduction: false,
+			recallDepth: 'recognition',
 		});
 		const production = computeNextReview({
 			intervalIdx: 0,
 			correct: true,
 			now: new Date('2025-01-01'),
 			confidence: 1.0,
-			isProduction: true,
+			recallDepth: 'production',
 		});
 		expect(production.intervalIdx).toBeGreaterThan(mcq.intervalIdx);
 	});

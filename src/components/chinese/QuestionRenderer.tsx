@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
 import SpeakButton from '@/components/chinese/SpeakButton';
-import { isAudioQuestion, questionTypeLabel } from '@/lib/chinese/questionLabels';
+import StickingPointCard from '@/components/chinese/StickingPointCard';
+import { channelLabel, isAudioQuestion, questionTypeLabel } from '@/lib/chinese/questionLabels';
+import { questionChannel } from '@/lib/chinese/practiceTaxonomy';
 import { useSpeech } from '@/lib/chinese/useSpeech';
 import type { CnPracticeQuestionDTO, CnQuestionType } from '@/types/chinese';
 
@@ -28,6 +30,7 @@ interface Props {
 	incremental?: boolean;
 	isExiting?: boolean;
 	exitLabel?: string;
+	sessionType?: 'practice' | 'review';
 }
 
 export default function QuestionRenderer({
@@ -39,12 +42,16 @@ export default function QuestionRenderer({
 	incremental = false,
 	isExiting = false,
 	exitLabel,
+	sessionType = 'practice',
 }: Props) {
 	const [idx, setIdx] = useState(0);
 	const [selected, setSelected] = useState<string | null>(null);
 	const [textAnswer, setTextAnswer] = useState('');
 	const [results, setResults] = useState<QuestionAnswerResult[]>([]);
 	const [feedback, setFeedback] = useState<string | null>(null);
+	const [showMarkConfirm, setShowMarkConfirm] = useState(false);
+	const [markingKnown, setMarkingKnown] = useState(false);
+	const [sessionHeavyLapses, setSessionHeavyLapses] = useState<Record<string, number>>({});
 	const { speak, supported } = useSpeech();
 	const autoPlayedRef = useRef<string | null>(null);
 
@@ -88,7 +95,36 @@ export default function QuestionRenderer({
 			skipped ? 'Đã bỏ qua' :
 			correct ? 'Đúng!' : `Sai — đáp án: ${q.correctAnswer}`,
 		);
+		if (!correct && !skipped) {
+			setSessionHeavyLapses((prev) => ({
+				...prev,
+				[q.wordId]: (prev[q.wordId] ?? 0) + 1,
+			}));
+		}
 		setTimeout(() => advance(next), skipped ? 600 : 1200);
+	};
+
+	const handleMarkKnown = async () => {
+		if (sessionType !== 'review' || !q.canMarkKnown || markingKnown || waiting) return;
+		setMarkingKnown(true);
+		try {
+			const res = await fetch('/api/review/mark-known', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ wordId: q.wordId, questionType: q.type }),
+			});
+			const json = await res.json() as { ok: boolean; error?: string };
+			if (!json.ok) throw new Error(json.error ?? 'Lỗi');
+			setShowMarkConfirm(false);
+			setFeedback('Đã ghi nhận — sẽ nhắc lại sau');
+			const next = [...results];
+			setResults(next);
+			setTimeout(() => advance(next), 800);
+		} catch (e) {
+			setFeedback(e instanceof Error ? e.message : 'Không thể đánh dấu');
+		} finally {
+			setMarkingKnown(false);
+		}
 	};
 
 	const progressLabel = sessionProgress
@@ -190,7 +226,7 @@ export default function QuestionRenderer({
 
 			{feedback && (
 				<p className={`mt-6 text-center text-sm font-bold ${
-					feedback.startsWith('Đúng') ? 'text-success' :
+					feedback.startsWith('Đúng') || feedback.startsWith('Đã ghi nhận') ? 'text-success' :
 					feedback.startsWith('Đã bỏ') ? 'text-muted' :
 					'text-accent'
 				}`}>
@@ -198,7 +234,48 @@ export default function QuestionRenderer({
 				</p>
 			)}
 
-			<div className={`mt-8 flex items-center justify-between ${audioOnly ? 'sticky bottom-2 z-10 rounded-xl border border-border bg-background/95 p-3 backdrop-blur-sm' : ''}`}>
+			{feedback?.startsWith('Sai') && (sessionHeavyLapses[q.wordId] ?? 0) >= 2 && (
+				<StickingPointCard wordId={q.wordId} simplified={q.hanzi} />
+			)}
+
+			{(sessionType === 'review' && q.canMarkKnown) && !feedback && (
+				<div className="sticky bottom-0 z-10 mt-6 space-y-2 rounded-xl border border-border bg-background/95 p-3 backdrop-blur-sm">
+					{q.canMarkKnown && !showMarkConfirm && (
+						<button
+							type="button"
+							disabled={waiting || markingKnown}
+							onClick={() => setShowMarkConfirm(true)}
+							className="btn-secondary w-full min-h-[48px] justify-center !normal-case !tracking-normal"
+						>
+							<MaterialIcon name="verified" size={18} />
+							Đã biết — nhắc lại sau
+						</button>
+					)}
+					{showMarkConfirm && (
+						<div className="space-y-2 text-center">
+							<p className="text-sm text-foreground-secondary">
+								Xác nhận bạn đã thuộc kỹ năng{' '}
+								<strong>{channelLabel(questionChannel(q.type) ?? 'meaning')}</strong> của từ này?
+							</p>
+							<div className="flex gap-2">
+								<button type="button" onClick={() => setShowMarkConfirm(false)} className="btn-secondary flex-1 min-h-[44px]">
+									Hủy
+								</button>
+								<button
+									type="button"
+									disabled={markingKnown}
+									onClick={() => { void handleMarkKnown(); }}
+									className="btn-primary flex-1 min-h-[44px]"
+								>
+									{markingKnown ? 'Đang lưu...' : 'Xác nhận'}
+								</button>
+							</div>
+						</div>
+					)}
+				</div>
+			)}
+
+			<div className={`mt-4 flex items-center justify-between ${audioOnly ? 'sticky bottom-2 z-10 rounded-xl border border-border bg-background/95 p-3 backdrop-blur-sm' : ''}`}>
 				{q.audioText && (
 					<button
 						type="button"

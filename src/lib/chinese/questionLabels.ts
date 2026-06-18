@@ -8,6 +8,8 @@ export function questionTypeLabel(type: CnQuestionType): string {
 		audio_to_hanzi: 'Nghe → Hán tự',
 		audio_to_meaning: 'Nghe → Nghĩa',
 		audio_to_pinyin: 'Nghe → Pinyin',
+		audio_to_pinyin_typed: 'Nghe → Gõ pinyin',
+		hanzi_from_meaning: 'Nghĩa → Gõ Hán tự',
 		fill_sentence: 'Điền từ vào câu',
 		sentence_order: 'Sắp xếp câu',
 		radical_pick: 'Chọn bộ thủ',
@@ -29,6 +31,7 @@ export function practiceModeLabel(mode: string): string {
 		hanzi: 'Nhớ mặt chữ',
 		smart_mixed: 'Ôn tổng hợp',
 		mixed: 'Ôn tổng hợp',
+		integrated_recall: 'Kiểm tra toàn diện',
 	};
 	return labels[mode] ?? 'Luyện tập';
 }
@@ -39,7 +42,19 @@ export const PRACTICE_MODES = [
 	{ mode: 'sentence_usage', label: 'Dùng trong câu', icon: 'edit_note' },
 	{ mode: 'hanzi_memory', label: 'Nhớ mặt chữ', icon: 'biotech' },
 	{ mode: 'smart_mixed', label: 'Ôn tổng hợp', icon: 'shuffle' },
+	{ mode: 'integrated_recall', label: 'Kiểm tra toàn diện', icon: 'hub' },
 ] as const;
+
+export function channelLabel(channel: string): string {
+	const labels: Record<string, string> = {
+		meaning: 'Nghĩa',
+		listening: 'Nghe',
+		pinyin: 'Pinyin',
+		sentence: 'Câu',
+		hanzi: 'Chữ Hán',
+	};
+	return labels[channel] ?? channel;
+}
 
 export function isAudioQuestion(type: CnQuestionType): boolean {
 	return type.startsWith('audio_');

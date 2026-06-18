@@ -5,7 +5,7 @@ import {
 	RATE_LIMIT_WINDOW_MS,
 } from '@/config/constants';
 import { checkRateLimit, rateLimitKey } from '@/lib/rateLimit';
-import { submitPracticeResults } from '@/services/chinese/cnSrsService';
+import { logPracticeAnswers } from '@/services/chinese/cnSrsService';
 import { summarizeSession } from '@/services/chinese/cnPracticeService';
 
 export const POST = withAuth(async (request, user) => {
@@ -22,7 +22,7 @@ export const POST = withAuth(async (request, user) => {
 		return apiError('items không hợp lệ (cần wordId, questionType, correct; tối đa 200 mục)', 400);
 	}
 
-	const { updated } = await submitPracticeResults(user.id, body.items);
+	const { logged } = await logPracticeAnswers(user.id, body.items);
 	const summary = summarizeSession(body.items);
-	return apiSuccess({ updated, summary });
+	return apiSuccess({ logged, summary });
 });

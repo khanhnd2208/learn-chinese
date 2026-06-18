@@ -7,8 +7,9 @@ import {
 	type PracticeGroup,
 	practiceModeToGroup,
 } from '@/lib/chinese/practiceTaxonomy';
-import { generatePracticeSession, mergeWordPools } from '@/lib/chinese/generateQuestions';
-import { CN_DEFAULT_PRACTICE_COUNT, CN_DEFAULT_REVIEW_COUNT, CN_MAX_CHANNELS_PER_WORD_REVIEW } from '@/config/constants';
+import { generatePracticeSession, enrichQuestionWithProgress, mergeWordPools } from '@/lib/chinese/generateQuestions';
+import { buildIntegratedBundles, flattenIntegratedBundles } from '@/lib/chinese/integratedRecall';
+import { CN_DEFAULT_INTEGRATED_COUNT, CN_DEFAULT_PRACTICE_COUNT, CN_DEFAULT_REVIEW_COUNT, CN_MAX_CHANNELS_PER_WORD_REVIEW } from '@/config/constants';
 import { getWordCard, getUserDistractorPool } from '@/services/chinese/cnContentService';
 import { getReviewSession, progressToDTO } from '@/services/chinese/cnSrsService';
 import type {
@@ -55,7 +56,8 @@ export async function buildPracticeSession(
 	wordId?: string,
 ): Promise<CnPracticeQuestionDTO[]> {
 	const group = practiceModeToGroup(mode);
-	let { words, progressMap } = await getWordsForSet(userId, setId);
+	const { words: setWords, progressMap } = await getWordsForSet(userId, setId);
+	let words = setWords;
 	if (wordId) {
 		words = words.filter((w) => w.id === wordId);
 		if (!words.length) return [];
@@ -63,7 +65,19 @@ export async function buildPracticeSession(
 	const distractorPool = words.length >= 8
 		? words
 		: mergeWordPools(words, await getUserDistractorPool(userId));
-	return generatePracticeSession(words, count, { group, progressMap, distractorPool });
+
+	if (group === 'integrated_recall') {
+		const bundles = buildIntegratedBundles(
+			words,
+			Math.min(count, CN_DEFAULT_INTEGRATED_COUNT),
+			progressMap,
+			distractorPool,
+		);
+		const flat = flattenIntegratedBundles(bundles);
+		return flat.map((q) => enrichQuestionWithProgress(q, progressMap.get(q.wordId) ?? null, false));
+	}
+
+	return generatePracticeSession(words, count, { group, progressMap, distractorPool, allowMarkKnown: false });
 }
 
 export async function buildListeningSession(userId: string, setId: string, count = 10) {
@@ -113,12 +127,14 @@ export async function buildReviewQuestions(
 			progressMap,
 			distractorPool,
 			targetChannel: entry.channel,
+			allowMarkKnown: true,
 		});
 		if (!batch.length) {
 			batch = generatePracticeSession([word], 1, {
 				group: 'core_vocab',
 				progressMap,
 				distractorPool,
+				allowMarkKnown: true,
 			});
 		}
 		questions.push(...batch);

@@ -43,9 +43,9 @@ export default async function ChineseHomePage() {
 							Ôn ngay
 						</Link>
 					) : (
-						<Link href="/listening" className="btn-primary shrink-0 px-6 py-3 shadow-sm">
-							<MaterialIcon name="hearing" size={18} />
-							Luyện nghe
+						<Link href="/sets" className="btn-primary shrink-0 px-6 py-3 shadow-sm">
+							<MaterialIcon name="library_books" size={18} />
+							Bộ từ
 						</Link>
 					)}
 				</div>
@@ -99,7 +99,7 @@ export default async function ChineseHomePage() {
 				>
 					<span className="label-caps flex items-center gap-1 text-foreground-secondary">
 						<MaterialIcon name="psychology_alt" size={16} />
-						Từ yếu
+						Từ cần chú ý
 					</span>
 					<div className="mt-auto flex items-end gap-2">
 						<span className="text-4xl font-black text-warning">{dashboard.weakCount}</span>
@@ -130,10 +130,6 @@ export default async function ChineseHomePage() {
 				<Link href="/hanzi-lab" className="btn-secondary">
 					<MaterialIcon name="science" size={16} />
 					Hanzi Lab
-				</Link>
-				<Link href="/listening" className="btn-secondary">
-					<MaterialIcon name="hearing" size={16} />
-					Luyện nghe
 				</Link>
 			</section>
 

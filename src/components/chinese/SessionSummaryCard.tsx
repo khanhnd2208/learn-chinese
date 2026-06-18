@@ -52,7 +52,9 @@ export default function SessionSummaryCard({
 					<p className="mt-3 text-sm text-success">Không còn mục đến hạn — nghỉ ngơi nhé!</p>
 				)}
 				{summary.weakWords.length > 0 && (
-					<p className="mt-2 text-sm text-warning">{summary.weakWords.length} từ vẫn cần ôn thêm.</p>
+					<p className="mt-2 text-sm text-warning">
+						{summary.weakWords.length} từ cần thêm thời gian — thử cách học khác khi ôn lại.
+					</p>
 				)}
 				<div className="mt-8 flex flex-wrap justify-center gap-3">
 					{onPrimaryAction ? (
