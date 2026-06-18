@@ -1,0 +1,214 @@
+// Learn Chinese — standalone vocabulary app (PostgreSQL)
+// userId references MongoDB User._id via NextAuth
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum CnContentStatus {
+  draft
+  published
+}
+
+enum CnWordSetSource {
+  manual
+  hsk
+  textbook
+}
+
+enum CnWordProgressState {
+  new
+  learning
+  weak
+  familiar
+  strong
+  mastered
+}
+
+enum CnQuestionType {
+  hanzi_to_meaning
+  meaning_to_hanzi
+  pinyin_to_hanzi
+  audio_to_hanzi
+  audio_to_meaning
+  audio_to_pinyin
+  fill_sentence
+  sentence_order
+  radical_pick
+  char_components
+  similar_char
+  translate_sentence
+}
+
+enum CnErrorType {
+  sai_nghia
+  sai_pinyin
+  sai_thanh_dieu
+  nghe_khong_ra
+  nham_chu
+  quen_hanzi
+  sai_mau_cau
+  sai_vi_tri
+  qua_han
+}
+
+model CnSimilarGroup {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  note      String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  hanzi     CnHanzi[]
+}
+
+model CnHanzi {
+  id             String          @id @default(cuid())
+  char           String          @unique
+  pinyin         String          @default("")
+  hanViet        String          @default("")
+  meaningVi      String          @default("")
+  components     String[]        @default([])
+  radical        String          @default("")
+  mnemonicVi     String          @default("")
+  similarGroupId String?
+  status         CnContentStatus @default(draft)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  similarGroup   CnSimilarGroup? @relation(fields: [similarGroupId], references: [id], onDelete: SetNull)
+  wordChars      CnWordChar[]
+  @@index([status])
+  @@index([similarGroupId])
+}
+
+model CnWord {
+  id           String          @id @default(cuid())
+  simplified   String          @unique
+  pinyin       String          @default("")
+  hanViet      String          @default("")
+  meaningVi    String          @default("")
+  partOfSpeech String          @default("")
+  mnemonicVi   String          @default("")
+  hskLevel     Int?
+  status       CnContentStatus @default(draft)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  chars        CnWordChar[]
+  examples     CnExample[]
+  patterns     CnSentencePattern[]
+  setItems     CnWordSetItem[]
+  progress     CnWordProgress[]
+  answerLogs   CnAnswerLog[]
+  @@index([status])
+  @@index([hskLevel])
+}
+
+model CnWordChar {
+  id       String @id @default(cuid())
+  wordId   String
+  hanziId  String
+  position Int
+  word     CnWord  @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  hanzi    CnHanzi @relation(fields: [hanziId], references: [id], onDelete: Cascade)
+  @@unique([wordId, position])
+  @@index([hanziId])
+}
+
+model CnExample {
+  id        String @id @default(cuid())
+  wordId    String
+  hanzi     String
+  pinyin    String @default("")
+  meaningVi String @default("")
+  word      CnWord @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  @@index([wordId])
+}
+
+model CnSentencePattern {
+  id       String @id @default(cuid())
+  wordId   String
+  template String
+  samples  Json   @default("[]")
+  word     CnWord @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  @@index([wordId])
+}
+
+model CnWordSet {
+  id          String          @id @default(cuid())
+  userId      String
+  title       String
+  description String          @default("")
+  source      CnWordSetSource @default(manual)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  items       CnWordSetItem[]
+  @@index([userId, updatedAt(sort: Desc)])
+}
+
+model CnWordSetItem {
+  id      String  @id @default(cuid())
+  setId   String
+  wordId  String?
+  rawTerm String
+  set     CnWordSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+  word    CnWord?   @relation(fields: [wordId], references: [id], onDelete: SetNull)
+  @@unique([setId, rawTerm])
+  @@index([setId])
+  @@index([wordId])
+}
+
+model CnWordProgress {
+  id               String              @id @default(cuid())
+  userId           String
+  wordId           String
+  state            CnWordProgressState @default(new)
+  dueAt            DateTime            @default(now())
+  intervalIdx      Int                 @default(0)
+  lastReviewedAt   DateTime?
+  meaningCorrect   Int                 @default(0)
+  meaningTotal     Int                 @default(0)
+  listeningCorrect Int                 @default(0)
+  listeningTotal   Int                 @default(0)
+  pinyinCorrect    Int                 @default(0)
+  pinyinTotal      Int                 @default(0)
+  sentenceCorrect  Int                 @default(0)
+  sentenceTotal    Int                 @default(0)
+  charCorrect      Int                 @default(0)
+  charTotal        Int                 @default(0)
+  meaningDueAt     DateTime?
+  meaningIntervalIdx Int               @default(0)
+  listeningDueAt   DateTime?
+  listeningIntervalIdx Int             @default(0)
+  pinyinDueAt      DateTime?
+  pinyinIntervalIdx Int                @default(0)
+  sentenceDueAt    DateTime?
+  sentenceIntervalIdx Int              @default(0)
+  hanziDueAt       DateTime?
+  hanziIntervalIdx Int                @default(0)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  word             CnWord              @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  @@unique([userId, wordId])
+  @@index([userId, dueAt])
+  @@index([userId, state])
+  @@index([userId, meaningDueAt])
+  @@index([userId, listeningDueAt])
+}
+
+model CnAnswerLog {
+  id           String         @id @default(cuid())
+  userId       String
+  wordId       String
+  questionType CnQuestionType
+  errorType    CnErrorType?
+  correct      Boolean
+  createdAt    DateTime       @default(now())
+  word         CnWord         @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, wordId])
+  @@index([userId, errorType])
+}

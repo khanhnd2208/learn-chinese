@@ -1,0 +1,16 @@
+simplified,pinyin,han_viet,meaning_vi,part_of_speech,hsk_level,example_hanzi,example_pinyin,example_meaning_vi,pattern_template,pattern_samples,chars,status
+你好,nǐ hǎo,NHỈ HẢO,xin chào,lời chào,1,你好！,Nǐ hǎo!,Xin chào!,你好 + Name,你好，王老师！|Nǐ hǎo Wáng lǎoshī!|Chào thầy Vương!,你|好,published
+谢谢,xièxie,TẠ TẠ,cảm ơn,động từ,1,谢谢你！,Xièxie nǐ!,Cảm ơn bạn!,谢谢 + Person,谢谢你！|Xièxie nǐ!|Cảm ơn bạn!,谢,published
+再见,zàijiàn,TÁI KIỆN,tạm biệt,lời chào,1,再见！,Zàijiàn!,Tạm biệt!,再见 + Name,再见，老师！|Zàijiàn lǎoshī!|Tạm biệt thầy/cô!,再|见,published
+学校,xuéxiào,HỌC HIỆU,trường học,danh từ,1,我在学校。,Wǒ zài xuéxiào.,Tôi ở trường.,在 + Place,我在学校。|Wǒ zài xuéxiào.|Tôi ở trường.,学|校,published
+名字,míngzi,DANH TỰ,tên,danh từ,1,你叫什么名字？,Nǐ jiào shénme míngzi?,Bạn tên gì?,叫 + 名字,我叫安娜。|Wǒ jiào Ānnà.|Tôi tên Anna.,名|字,published
+多少,duōshao,ĐA THIỂU,bao nhiêu,đại từ,1,这个多少钱？,Zhège duōshao qián?,Cái này bao nhiêu tiền?,多少 + Noun,多少钱？|Duōshao qián?|Bao nhiêu tiền?,多|少,published
+漂亮,piàoliang,PHIỀU LƯỢNG,đẹp,tính từ,1,她很漂亮。,Tā hěn piàoliang.,Cô ấy rất đẹp.,很 + Adj,很漂亮。|Hěn piàoliang.|Rất đẹp.,漂|亮,published
+饭店,fàndiàn,PHẠN ĐIỆM,nhà hàng,danh từ,1,我们去饭店。,Wǒmen qù fàndiàn.,Chúng tôi đi nhà hàng.,去 + Place,去饭店吃饭。|Qù fàndiàn chī fàn.|Đi nhà hàng ăn cơm.,饭|店,published
+睡觉,shuìjiào,THỤY GIÁO,ngủ,động từ,1,我想睡觉。,Wǒ xiǎng shuìjiào.,Tôi muốn ngủ.,想 + V,我想睡觉。|Wǒ xiǎng shuìjiào.|Tôi muốn ngủ.,睡|觉,published
+工作,gōngzuò,CÔNG TÁC,làm việc,danh từ/động từ,1,他在工作。,Tā zài gōngzuò.,Anh ấy đang làm việc.,在 + V,我在工作。|Wǒ zài gōngzuò.|Tôi đang làm việc.,工|作,published
+电脑,diànnǎo,ĐIỆN NÃO,máy tính,danh từ,1,这是我的电脑。,Zhè shì wǒ de diànnǎo.,Đây là máy tính của tôi.,这是 + N,这是我的电脑。|Zhè shì wǒ de diànnǎo.|Đây là máy tính tôi.,电|脑,published
+飞机,fēijī,PHI CƠ,máy bay,danh từ,1,我坐飞机去中国。,Wǒ zuò fēijī qù Zhōngguó.,Tôi đi Trung Quốc bằng máy bay.,坐 + 飞机,他坐飞机。|Tā zuò fēijī.|Anh ấy đi máy bay.,飞|机,published
+爸爸,bàba,BA BA,bố cha,danh từ,1,我爸爸是老师。,Wǒ bàba shì lǎoshī.,Bố tôi là giáo viên.,我爸爸 + V,我爸爸是老师。|Wǒ bàba shì lǎoshī.|Bố tôi là giáo viên.,爸,published
+妈妈,māma,MA MA,mẹ,danh từ,1,我妈妈很漂亮。,Wǒ māma hěn piàoliang.,Mẹ tôi rất đẹp.,我妈妈 + Adj,我妈妈很漂亮。|Wǒ māma hěn piàoliang.|Mẹ tôi rất đẹp.,妈,published
+吃饭,chī fàn,NGẬT PHẠN,ăn cơm,động từ,1,我们去饭店吃饭。,Wǒmen qù fàndiàn chī fàn.,Chúng tôi đi nhà hàng ăn cơm.,去 + Place + 吃饭,我想吃饭。|Wǒ xiǎng chī fàn.|Tôi muốn ăn cơm.,吃|饭,published

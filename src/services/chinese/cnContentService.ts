@@ -1,0 +1,331 @@
+/* ════════════════════════════════════════════════════════════════════════
+   cnContentService.ts — Chinese content lookup & word cards
+   ════════════════════════════════════════════════════════════════════════ */
+import { prisma } from '@/lib/prisma';
+import { splitHanzi } from '@/lib/chinese/hanziUtils';
+import { assessLookupReadiness } from '@/lib/chinese/practiceReadiness';
+import {
+	channelMasteryLabel,
+	channelMasteryLevel,
+} from '@/lib/chinese/practiceTaxonomy';
+import { progressToDTO } from '@/services/chinese/cnSrsService';
+import type {
+	CnChannelMasteryDTO,
+	CnCoverageReportDTO,
+	CnExampleDTO,
+	CnHanziAnalysisDTO,
+	CnHanziDTO,
+	CnLookupResultDTO,
+	CnLookupStatus,
+	CnSentencePatternDTO,
+	CnSimilarGroupDTO,
+	CnWordCardDTO,
+	CnWordDTO,
+} from '@/types/chinese';
+import type { CnHanzi, CnSentencePattern, CnWord } from '@prisma/client';
+
+function hanziToDTO(h: CnHanzi): CnHanziDTO {
+	return {
+		id: h.id,
+		char: h.char,
+		pinyin: h.pinyin,
+		hanViet: h.hanViet,
+		meaningVi: h.meaningVi,
+		components: h.components,
+		radical: h.radical,
+		mnemonicVi: h.mnemonicVi,
+		similarGroupId: h.similarGroupId,
+		status: h.status,
+	};
+}
+
+function wordToDTO(w: CnWord): CnWordDTO {
+	return {
+		id: w.id,
+		simplified: w.simplified,
+		pinyin: w.pinyin,
+		hanViet: w.hanViet,
+		meaningVi: w.meaningVi,
+		partOfSpeech: w.partOfSpeech,
+		mnemonicVi: w.mnemonicVi,
+		hskLevel: w.hskLevel,
+		status: w.status,
+	};
+}
+
+function patternToDTO(p: CnSentencePattern): CnSentencePatternDTO {
+	const samples = Array.isArray(p.samples)
+		? (p.samples as Array<{ hanzi: string; pinyin: string; meaningVi: string }>)
+		: [];
+	return { id: p.id, template: p.template, samples };
+}
+
+function resolveLookupStatus(
+	word: CnWord | null,
+	chars: CnHanzi[],
+): CnLookupStatus {
+	if (word && word.status === 'published') return 'full';
+	if (chars.length > 0) return 'charsOnly';
+	return 'none';
+}
+
+export async function lookupTerms(terms: string[]): Promise<CnLookupResultDTO[]> {
+	const normalized = [...new Set(terms.map((t) => t.trim()).filter(Boolean))];
+	if (!normalized.length) return [];
+
+	const words = await prisma.cnWord.findMany({
+		where: { simplified: { in: normalized }, status: 'published' },
+		include: {
+			chars: { include: { hanzi: true }, orderBy: { position: 'asc' } },
+			examples: { take: 1, orderBy: { id: 'asc' } },
+			patterns: { take: 1, orderBy: { id: 'asc' } },
+		},
+	});
+
+	const wordMap = new Map(words.map((w) => [w.simplified, w]));
+	const allChars = new Set<string>();
+	for (const term of normalized) {
+		for (const ch of splitHanzi(term)) allChars.add(ch);
+	}
+
+	const hanziList = await prisma.cnHanzi.findMany({
+		where: { char: { in: [...allChars] }, status: 'published' },
+	});
+	const hanziMap = new Map(hanziList.map((h) => [h.char, h]));
+
+	return normalized.map((term) => {
+		const word = wordMap.get(term) ?? null;
+		const chars = splitHanzi(term)
+			.map((ch) => hanziMap.get(ch))
+			.filter((h): h is CnHanzi => !!h)
+			.map(hanziToDTO);
+
+		const hasCharAnalysis = chars.length > 0 && chars.every((c) => c.components.length > 0 || c.radical);
+		const status = resolveLookupStatus(word, hanziList.filter((h) => splitHanzi(term).includes(h.char)));
+
+		const exampleHanzi = word?.examples[0]?.hanzi ?? null;
+		const patternSamples = word?.patterns[0]
+			? (Array.isArray(word.patterns[0].samples)
+				? (word.patterns[0].samples as Array<{ hanzi: string; pinyin: string; meaningVi: string }>)
+				: [])
+			: [];
+		const readiness = word
+			? assessLookupReadiness({
+				simplified: word.simplified,
+				meaningVi: word.meaningVi,
+				pinyin: word.pinyin,
+				exampleHanzi,
+				patternSamples,
+				chars: chars.map((c) => ({
+					radical: c.radical,
+					components: c.components,
+					similarGroupId: c.similarGroupId,
+				})),
+			})
+			: {
+				hasExample: false,
+				hasPattern: false,
+				supportsSentence: false,
+				supportsHanziMemory: false,
+				supportsSimilarChar: false,
+			};
+
+		return {
+			term,
+			status,
+			word: word ? wordToDTO(word) : null,
+			chars,
+			hasPinyin: !!word?.pinyin,
+			hasMeaning: !!word?.meaningVi,
+			hasAudio: !!word?.pinyin,
+			hasCharAnalysis,
+			hasExample: readiness.hasExample,
+			hasPattern: readiness.hasPattern,
+			supportsSentence: readiness.supportsSentence,
+			supportsHanziMemory: readiness.supportsHanziMemory,
+			supportsSimilarChar: readiness.supportsSimilarChar,
+		};
+	});
+}
+
+export function buildCoverageReport(results: CnLookupResultDTO[]): CnCoverageReportDTO {
+	const pending = results.filter((r) => r.status === 'none').map((r) => r.term);
+	return {
+		total: results.length,
+		inDatabase: results.filter((r) => r.status !== 'none').length,
+		hasPinyin: results.filter((r) => r.hasPinyin).length,
+		hasMeaning: results.filter((r) => r.hasMeaning).length,
+		hasAudio: results.filter((r) => r.hasAudio).length,
+		hasCharAnalysis: results.filter((r) => r.hasCharAnalysis).length,
+		hasExample: results.filter((r) => r.hasExample).length,
+		hasPattern: results.filter((r) => r.hasPattern).length,
+		supportsSentence: results.filter((r) => r.supportsSentence).length,
+		supportsHanziMemory: results.filter((r) => r.supportsHanziMemory).length,
+		supportsSimilarChar: results.filter((r) => r.supportsSimilarChar).length,
+		pending,
+	};
+}
+
+export async function getWordCard(wordId: string, userId?: string): Promise<CnWordCardDTO | null> {
+	const word = await prisma.cnWord.findUnique({
+		where: { id: wordId, status: 'published' },
+		include: {
+			examples: true,
+			patterns: true,
+			chars: { include: { hanzi: true }, orderBy: { position: 'asc' } },
+		},
+	});
+	if (!word) return null;
+
+	const charIds = word.chars.map((c) => c.hanziId);
+	const [related, progressRow] = await Promise.all([
+		charIds.length
+			? prisma.cnWord.findMany({
+					where: {
+						status: 'published',
+						id: { not: word.id },
+						chars: { some: { hanziId: { in: charIds } } },
+					},
+					take: 6,
+				})
+			: Promise.resolve([]),
+		userId
+			? prisma.cnWordProgress.findUnique({
+					where: { userId_wordId: { userId, wordId } },
+				})
+			: Promise.resolve(null),
+	]);
+
+	const progress = progressRow ? progressToDTO(progressRow) : null;
+	const channelMastery: CnChannelMasteryDTO[] | undefined = progress
+		? ([
+			{ channel: 'meaning' as const, rate: progress.meaningRate, total: progress.meaningTotal },
+			{ channel: 'listening' as const, rate: progress.listeningRate, total: progress.listeningTotal },
+			{ channel: 'pinyin' as const, rate: progress.pinyinRate, total: progress.pinyinTotal },
+			{ channel: 'sentence' as const, rate: progress.sentenceRate, total: progress.sentenceTotal },
+			{ channel: 'hanzi' as const, rate: progress.charRate, total: progress.charTotal },
+		].map((ch) => {
+			const level = channelMasteryLevel(ch.rate, ch.total);
+			return { ...ch, level, label: channelMasteryLabel(level) };
+		}))
+		: undefined;
+
+	return {
+		...wordToDTO(word),
+		examples: word.examples.map((e): CnExampleDTO => ({
+			id: e.id,
+			hanzi: e.hanzi,
+			pinyin: e.pinyin,
+			meaningVi: e.meaningVi,
+		})),
+		patterns: word.patterns.map(patternToDTO),
+		chars: word.chars.map((wc) => ({ ...hanziToDTO(wc.hanzi), position: wc.position })),
+		relatedWords: related.map(wordToDTO),
+		progress,
+		channelMastery,
+	};
+}
+
+export async function getHanziAnalysis(term: string): Promise<CnHanziAnalysisDTO> {
+	const normalized = term.trim();
+	const results = await lookupTerms([normalized]);
+	const lookup = results[0] ?? {
+		term: normalized,
+		status: 'none' as const,
+		word: null,
+		chars: [],
+		hasPinyin: false,
+		hasMeaning: false,
+		hasAudio: false,
+		hasCharAnalysis: false,
+		hasExample: false,
+		hasPattern: false,
+		supportsSentence: false,
+		supportsHanziMemory: false,
+		supportsSimilarChar: false,
+	};
+
+	let word: CnWordCardDTO | null = null;
+	if (lookup.word) {
+		word = await getWordCard(lookup.word.id);
+	}
+
+	const chars = word?.chars ?? lookup.chars.map((c, i) => ({ ...c, position: i }));
+
+	let similarGroup: CnSimilarGroupDTO | null = null;
+	const groupId = chars.find((c) => c.similarGroupId)?.similarGroupId;
+	if (groupId) {
+		const group = await prisma.cnSimilarGroup.findUnique({
+			where: { id: groupId },
+			include: { hanzi: { where: { status: 'published' } } },
+		});
+		if (group) {
+			similarGroup = {
+				id: group.id,
+				key: group.key,
+				note: group.note,
+				hanzi: group.hanzi.map(hanziToDTO),
+			};
+		}
+	}
+
+	return {
+		term: normalized,
+		status: lookup.status,
+		word,
+		chars,
+		similarGroup,
+		mnemonicOverall: word?.mnemonicVi ?? '',
+	};
+}
+
+export async function getHanziByChar(char: string): Promise<CnHanziDTO | null> {
+	const hanzi = await prisma.cnHanzi.findUnique({
+		where: { char, status: 'published' },
+	});
+	return hanzi ? hanziToDTO(hanzi) : null;
+}
+
+export async function listHskWords(level: number): Promise<CnWordDTO[]> {
+	const words = await prisma.cnWord.findMany({
+		where: { hskLevel: level, status: 'published' },
+		orderBy: { simplified: 'asc' },
+	});
+	return words.map(wordToDTO);
+}
+
+export async function listPublishedWords(limit = 500): Promise<CnWordDTO[]> {
+	const words = await prisma.cnWord.findMany({
+		where: { status: 'published' },
+		orderBy: { simplified: 'asc' },
+		take: limit,
+	});
+	return words.map(wordToDTO);
+}
+
+/** Vocabulary pool for MCQ distractors — user's sets + HSK fallback */
+export async function getUserDistractorPool(userId: string, minCount = 12): Promise<CnWordCardDTO[]> {
+	const setItems = await prisma.cnWordSetItem.findMany({
+		where: { set: { userId }, wordId: { not: null } },
+		select: { wordId: true },
+		distinct: ['wordId'],
+	});
+	let wordIds = setItems.map((i) => i.wordId).filter((id): id is string => !!id);
+
+	if (wordIds.length < minCount) {
+		const extra = await prisma.cnWord.findMany({
+			where: {
+				status: 'published',
+				hskLevel: { lte: 2 },
+				...(wordIds.length ? { id: { notIn: wordIds } } : {}),
+			},
+			take: Math.max(minCount * 2, 24),
+			select: { id: true },
+			orderBy: [{ hskLevel: 'asc' }, { simplified: 'asc' }],
+		});
+		wordIds = [...new Set([...wordIds, ...extra.map((e) => e.id)])];
+	}
+
+	const cards = await Promise.all(wordIds.slice(0, 60).map((id) => getWordCard(id)));
+	return cards.filter((c): c is CnWordCardDTO => !!c);
+}
