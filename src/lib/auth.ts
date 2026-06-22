@@ -2,6 +2,7 @@ import NextAuth from 'next-auth';
 import { MongoDBAdapter } from '@auth/mongodb-adapter';
 import { ObjectId } from 'mongodb';
 
+import { ensureGlobalSampleSets } from '@/services/chinese/cnSampleSetService';
 import { mongoClientPromise } from '@/lib/mongodbClient';
 import { authConfig } from '@/lib/auth.config';
 
@@ -61,6 +62,13 @@ const nextAuth = NextAuth({
 				);
 			} catch (error) {
 				console.error('[auth] createUser failed:', error);
+			}
+			if (user.id) {
+				try {
+					await ensureGlobalSampleSets(user.id);
+				} catch (error) {
+					console.error('[auth] ensureGlobalSampleSets failed:', error);
+				}
 			}
 		},
 	},

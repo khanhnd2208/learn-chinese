@@ -8,11 +8,11 @@ import {
 	getUnlockedGroups,
 	isChannelUnlocked,
 	practiceModeToGroup,
+	reviewQuestionTypeForChannel,
 	selectQuestionTypesForWord,
 	wordSupportsQuestionType,
 } from '@/lib/chinese/practiceTaxonomy';
-import { CN_STATE_THRESHOLDS } from '@/config/constants';
-import type { CnWordCardDTO, CnWordProgressDTO } from '@/types/chinese';
+import type { CnWordCardDTO } from '@/types/chinese';
 
 function mkWord(overrides: Partial<CnWordCardDTO> = {}): CnWordCardDTO {
 	return {
@@ -33,79 +33,48 @@ function mkWord(overrides: Partial<CnWordCardDTO> = {}): CnWordCardDTO {
 	};
 }
 
-function mkProgress(overrides: Partial<CnWordProgressDTO> = {}): CnWordProgressDTO {
-	return {
-		wordId: 'w1',
-		state: 'learning',
-		dueAt: new Date().toISOString(),
-		intervalIdx: 0,
-		lastReviewedAt: null,
-		meaningRate: 80,
-		listeningRate: 70,
-		pinyinRate: 60,
-		sentenceRate: 50,
-		meaningTotal: 5,
-		listeningTotal: 3,
-		pinyinTotal: 2,
-		sentenceTotal: 1,
-		meaningIntervalIdx: 0,
-		listeningIntervalIdx: 0,
-		pinyinIntervalIdx: 0,
-		sentenceIntervalIdx: 0,
-		...overrides,
-	};
-}
-
-describe('practiceTaxonomy (6 core types)', () => {
-	it('has 4 SRS channels and 6 question types in groups', () => {
-		expect(ALL_SKILL_CHANNELS).toEqual(['meaning', 'listening', 'pinyin', 'sentence']);
+describe('practiceTaxonomy (9 core types)', () => {
+	it('has 3 SRS channels and 9 question types in groups', () => {
+		expect(ALL_SKILL_CHANNELS).toEqual(['meaning', 'listening', 'pinyin']);
 		const grouped = Object.values(GROUP_QUESTION_MAP).flat();
 		expect(new Set(grouped).size).toBe(6);
-		expect([...new Set(grouped)].sort()).toEqual([...CORE_QUESTION_TYPES].sort());
+		expect(CORE_QUESTION_TYPES.length).toBe(9);
 	});
 
 	it('maps channels to practice groups', () => {
 		expect(CHANNEL_TO_GROUP.meaning).toBe('core_vocab');
 		expect(CHANNEL_TO_GROUP.listening).toBe('listening');
-		expect(CHANNEL_TO_GROUP.sentence).toBe('sentence_usage');
+		expect(CHANNEL_TO_GROUP.pinyin).toBe('core_vocab');
 	});
 
-	it('practice modes map to 4 groups + smart_mixed', () => {
+	it('practice modes map to groups + smart_mixed', () => {
 		expect(practiceModeToGroup('smart_mixed')).toBe('smart_mixed');
 		expect(practiceModeToGroup('core_vocab')).toBe('core_vocab');
 		expect(practiceModeToGroup('listening')).toBe('listening');
-		expect(practiceModeToGroup('sentence_usage')).toBe('sentence_usage');
 		expect(practiceModeToGroup('unknown')).toBe('smart_mixed');
 	});
 
-	it('sentence channel unlocks when meaning is familiar', () => {
-		expect(isChannelUnlocked(null, 'sentence')).toBe(false);
-		expect(isChannelUnlocked(mkProgress({ meaningIntervalIdx: CN_STATE_THRESHOLDS.familiar - 1 }), 'sentence')).toBe(false);
-		expect(isChannelUnlocked(mkProgress({ meaningIntervalIdx: CN_STATE_THRESHOLDS.familiar }), 'sentence')).toBe(true);
+	it('all channels always unlocked', () => {
+		expect(isChannelUnlocked(null, 'meaning')).toBe(true);
+		expect(isChannelUnlocked(null, 'listening')).toBe(true);
+		expect(isChannelUnlocked(null, 'pinyin')).toBe(true);
 	});
 
-	it('getUnlockedGroups excludes sentence until familiar', () => {
+	it('getUnlockedGroups returns core and listening', () => {
 		expect(getUnlockedGroups(null)).toEqual(['core_vocab', 'listening']);
-		const groups = getUnlockedGroups(mkProgress({ meaningIntervalIdx: CN_STATE_THRESHOLDS.familiar }));
-		expect(groups).toContain('sentence_usage');
 	});
 
-	it('fill_sentence requires verified example with offsets', () => {
-		const word = mkWord({
-			examples: [{
-				id: 'e1',
-				hanzi: '我每天学习中文。',
-				pinyin: '',
-				meaningVi: '',
-				targetWordStart: 3,
-				targetWordEnd: 5,
-				naturalnessStatus: 'verified',
-			}],
-		});
-		expect(wordSupportsQuestionType(word, 'fill_sentence')).toBe(true);
-		expect(wordSupportsQuestionType(mkWord({
-			examples: [{ id: 'e1', hanzi: '我每天学习中文。', pinyin: '', meaningVi: '' }],
-		}), 'fill_sentence')).toBe(false);
+	it('reviewQuestionTypeForChannel maps stage to question type', () => {
+		expect(reviewQuestionTypeForChannel('meaning', 0)).toBe('hanzi_to_meaning');
+		expect(reviewQuestionTypeForChannel('meaning', 1)).toBe('meaning_to_hanzi');
+		expect(reviewQuestionTypeForChannel('meaning', 2)).toBe('meaning_to_hanzi_typed');
+		expect(reviewQuestionTypeForChannel('pinyin', 1)).toBe('hanzi_to_pinyin');
+		expect(reviewQuestionTypeForChannel('listening', 2)).toBe('audio_to_hanzi_typed');
+	});
+
+	it('typed types require word fields', () => {
+		expect(wordSupportsQuestionType(mkWord(), 'meaning_to_hanzi_typed')).toBe(true);
+		expect(wordSupportsQuestionType(mkWord({ pinyin: '' }), 'hanzi_to_pinyin_typed')).toBe(false);
 	});
 
 	it('selectQuestionTypesForWord returns only supported core types', () => {
@@ -117,9 +86,9 @@ describe('practiceTaxonomy (6 core types)', () => {
 		}
 	});
 
-	it('goal weights sum to 100 without hanzi channel', () => {
+	it('goal weights sum to 100', () => {
 		const sum = DEFAULT_GOAL_WEIGHTS.meaning + DEFAULT_GOAL_WEIGHTS.listening
-			+ DEFAULT_GOAL_WEIGHTS.pinyin + DEFAULT_GOAL_WEIGHTS.sentence;
+			+ DEFAULT_GOAL_WEIGHTS.pinyin;
 		expect(sum).toBe(100);
 	});
 });

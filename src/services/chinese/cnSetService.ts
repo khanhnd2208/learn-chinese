@@ -1,6 +1,7 @@
 /* ════════════════════════════════════════════════════════════════════════
    cnSetService.ts — User Chinese word sets
    ════════════════════════════════════════════════════════════════════════ */
+import { ensureGlobalSampleSets } from '@/services/chinese/cnSampleSetService';
 import { prisma } from '@/lib/prisma';
 import { MAX_CN_TERMS_PER_SET } from '@/config/constants';
 import { buildCoverageReport, lookupTerms } from '@/services/chinese/cnContentService';
@@ -68,6 +69,8 @@ function setToListItem(
 }
 
 export async function listUserSets(userId: string): Promise<CnWordSetListItemDTO[]> {
+	await ensureGlobalSampleSets(userId);
+
 	const sets = await prisma.cnWordSet.findMany({
 		where: { userId },
 		include: { items: true },

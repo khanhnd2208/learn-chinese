@@ -59,15 +59,14 @@ beforeEach(() => {
 });
 
 describe('previewUserWorkbook — tu_vung format', () => {
-	it('accepts valid tu_vung workbook with rich counters', async () => {
+	it('accepts valid tu_vung workbook with 7-column format', async () => {
 		const file = tuVungFile([
 			{
 				bo_tu: 'Bài 1',
 				simplified: '学生',
 				pinyin: 'xuésheng',
 				meaning_vi: 'học sinh',
-				vi_du_1: '我是学生。',
-				vi_du_2: '他也是学生。',
+				ghi_chu: '学 là học, 生 là người.',
 			},
 			{
 				bo_tu: 'Bài 1',
@@ -81,33 +80,28 @@ describe('previewUserWorkbook — tu_vung format', () => {
 		expect(preview.errors).toHaveLength(0);
 		expect(preview.validWords).toBe(2);
 		expect(preview.setsCount).toBe(1);
-		expect(preview.wordsWithExamples).toBe(1);
-		expect(preview.wordsWithoutExamples).toBe(1);
-		expect(preview.examplesAuto).toBe(2);
+		expect(preview.wordsWithExamples).toBe(0);
+		expect(preview.wordsWithoutExamples).toBe(2);
+		expect(preview.examplesAuto).toBe(0);
 		expect(preview.matchedWords).toBe(2);
 		expect(preview.pendingWords).toBe(0);
 	});
 
-	it('warns on bad example without blocking import', async () => {
+	it('merges legacy mnemonic/usage into ghi_chu', async () => {
 		const file = tuVungFile([
 			{
 				bo_tu: 'Bài 1',
 				simplified: '朋友',
 				pinyin: 'péngyou',
 				meaning_vi: 'bạn bè',
-				vi_du_1: '他很好。',
+				mnemonic_vi: 'Mẹo nhớ',
+				usage_note_vi: 'Cách dùng',
 			},
 		]);
 
 		const preview = await previewUserWorkbook(file);
 		expect(preview.errors).toHaveLength(0);
-		expect(preview.badExampleWarnings).toHaveLength(1);
-		expect(preview.badExampleWarnings[0]).toMatchObject({
-			simplified: '朋友',
-			reason: 'missing_target',
-			exampleIndex: 1,
-		});
-		expect(preview.warnings.some((w) => w.includes('朋友'))).toBe(true);
+		expect(preview.validWords).toBe(1);
 	});
 
 	it('rejects missing required fields', async () => {
@@ -194,8 +188,7 @@ describe('importUserWorkbook — tu_vung format', () => {
 				simplified: '学生',
 				pinyin: 'xuésheng',
 				meaning_vi: 'học sinh',
-				usage_note_vi: 'Thường dùng cho học sinh phổ thông hoặc sinh viên.',
-				vi_du_1: '我是学生。',
+				ghi_chu: 'Thường dùng cho học sinh phổ thông hoặc sinh viên.',
 			},
 		]);
 
@@ -231,7 +224,7 @@ describe('importUserWorkbook — tu_vung format', () => {
 		const result = await importUserWorkbook('user-1', file, false);
 		expect(result.errors).toHaveLength(0);
 		expect(createdSets[0]?.title).toBe('Bài 1 (import 2)');
-		expect(upsertCalls[0]?.create.usageNoteVi).toBe('Thường dùng cho học sinh phổ thông hoặc sinh viên.');
-		expect(upsertCalls[0]?.update.usageNoteVi).toBe('Thường dùng cho học sinh phổ thông hoặc sinh viên.');
+		expect(upsertCalls[0]?.create.ghiChu).toBe('Thường dùng cho học sinh phổ thông hoặc sinh viên.');
+		expect(upsertCalls[0]?.update.ghiChu).toBe('Thường dùng cho học sinh phổ thông hoặc sinh viên.');
 	});
 });

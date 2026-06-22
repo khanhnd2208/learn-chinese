@@ -46,7 +46,6 @@ export function pickDistractorsForType(
 	correct: string,
 	count = 3,
 	prefer: string[] = [],
-	sentenceHanzi?: string,
 ): string[] {
 	const others = pool.filter((w) => w.id !== target.id);
 	let ranked: Array<{ value: string; score: number }> = [];
@@ -59,19 +58,19 @@ export function pickDistractorsForType(
 			}));
 			break;
 		case 'meaning_to_hanzi':
-		case 'fill_sentence':
 			ranked = others
-				.filter((w) => {
-					if (type !== 'fill_sentence' || !sentenceHanzi) return true;
-					if (w.simplified === correct) return false;
-					return !sentenceHanzi.includes(w.simplified);
-				})
 				.map((w) => ({
 					value: w.simplified,
 					score: scoreCandidate(target, w)
-						+ (Math.abs(w.simplified.length - target.simplified.length) <= 1 ? 2 : 0)
-						+ (type === 'fill_sentence' && target.partOfSpeech && w.partOfSpeech === target.partOfSpeech ? 3 : 0),
+						+ (Math.abs(w.simplified.length - target.simplified.length) <= 1 ? 2 : 0),
 				}));
+			break;
+		case 'hanzi_to_pinyin':
+			ranked = others.map((w) => ({
+				value: w.pinyin,
+				score: scoreCandidate(target, w)
+					+ (10 - levenshtein(normalizePinyinPlain(w.pinyinPlain ?? w.pinyin), normalizePinyinPlain(target.pinyinPlain ?? target.pinyin))),
+			}));
 			break;
 		case 'pinyin_to_hanzi': {
 			const targetPlain = normalizePinyinPlain(target.pinyinPlain ?? target.pinyin);
@@ -127,9 +126,8 @@ export function buildMcqOptionsForType(
 	correct: string,
 	count = 3,
 	prefer: string[] = [],
-	sentenceHanzi?: string,
 ): string[] | null {
-	const distractors = pickDistractorsForType(type, target, pool, correct, count, prefer, sentenceHanzi);
+	const distractors = pickDistractorsForType(type, target, pool, correct, count, prefer);
 	if (distractors.length < 1) return null;
 	return shuffle(unique([correct, ...distractors]));
 }

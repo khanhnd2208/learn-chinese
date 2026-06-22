@@ -6,9 +6,10 @@ import {
 	isChannelDue,
 } from '@/services/chinese/cnSrsService';
 import {
-	CN_FIRST_WRONG_RETRY_MINUTES,
-	CN_LAPSE_FLOOR_IDX,
-	CN_SRS_INTERVALS_MINUTES,
+	addDays,
+	CN_LAPSE_HEAVY_IDX,
+	CN_LAPSE_RECALL_IDX,
+	CN_SRS_INTERVAL_DAYS,
 	CN_STATE_THRESHOLDS,
 } from '@/config/constants';
 import type { CnPracticeSubmitItem } from '@/types/chinese';
@@ -59,146 +60,85 @@ function progressFixture(overrides: Partial<CnWordProgress> & Pick<CnWordProgres
 describe('cnSrsService', () => {
 	const now = new Date('2026-06-17T10:00:00Z');
 
-	it('advances one step on correct answer', () => {
+	it('MCQ1 correct advances to MCQ2 due tomorrow', () => {
 		const next = computeNextReview({ intervalIdx: 0, correct: true, now });
 		expect(next.intervalIdx).toBe(1);
 		expect(next.state).toBe('learning');
-		expect(next.dueAt.getTime()).toBe(now.getTime() + CN_SRS_INTERVALS_MINUTES[1] * 60_000);
+		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[1]).getTime());
 	});
 
-	it('always advances one step per correct answer', () => {
-		const next = computeNextReview({
-			intervalIdx: 0,
-			correct: true,
-			now,
-		});
+	it('MCQ2 correct advances to Recall due in 3 days', () => {
+		const next = computeNextReview({ intervalIdx: 1, correct: true, now });
+		expect(next.intervalIdx).toBe(2);
+		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[2]).getTime());
+	});
+
+	it('Recall correct advances to Maintain due in 7 days', () => {
+		const next = computeNextReview({ intervalIdx: 2, correct: true, now });
+		expect(next.intervalIdx).toBe(3);
+		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[3]).getTime());
+	});
+
+	it('Maintain correct advances interval tier', () => {
+		const next = computeNextReview({ intervalIdx: 3, correct: true, now });
+		expect(next.intervalIdx).toBe(4);
+		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[4]).getTime());
+	});
+
+	it('caps at max maintain tier (30 days)', () => {
+		const next = computeNextReview({ intervalIdx: 5, correct: true, now });
+		expect(next.intervalIdx).toBe(5);
+		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[5]).getTime());
+	});
+
+	it('MCQ1 wrong stays at MCQ1 due tomorrow', () => {
+		const next = computeNextReview({ intervalIdx: 0, correct: false, now });
+		expect(next.intervalIdx).toBe(0);
+		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[0]).getTime());
+	});
+
+	it('MCQ2 wrong regresses to MCQ1', () => {
+		const next = computeNextReview({ intervalIdx: 1, correct: false, now });
+		expect(next.intervalIdx).toBe(0);
+	});
+
+	it('Recall wrong regresses to MCQ2', () => {
+		const next = computeNextReview({ intervalIdx: 2, correct: false, now, lapseSeverity: 'light' });
 		expect(next.intervalIdx).toBe(1);
 	});
 
-	it('lapses lightly by one step with floor at 1 day', () => {
-		const next = computeNextReview({
-			intervalIdx: 5,
-			correct: false,
-			now,
-			lapseSeverity: 'light',
-		});
-		expect(next.intervalIdx).toBe(4);
-		expect(next.state).toBe('weak');
-		expect(next.dueAt.getTime()).toBe(now.getTime() + CN_SRS_INTERVALS_MINUTES[4] * 60_000);
+	it('Maintain wrong light lapse regresses to Recall', () => {
+		const next = computeNextReview({ intervalIdx: 4, correct: false, now, lapseSeverity: 'light' });
+		expect(next.intervalIdx).toBe(CN_LAPSE_RECALL_IDX);
 	});
 
-	it('lapses heavily to floor index (1 day) not 10 minutes', () => {
-		const next = computeNextReview({
-			intervalIdx: 8,
-			correct: false,
-			now,
-			lapseSeverity: 'heavy',
-		});
-		expect(next.intervalIdx).toBe(CN_LAPSE_FLOOR_IDX);
-		expect(next.dueAt.getTime()).toBe(now.getTime() + CN_SRS_INTERVALS_MINUTES[CN_LAPSE_FLOOR_IDX] * 60_000);
+	it('Maintain wrong heavy lapse regresses to MCQ2', () => {
+		const next = computeNextReview({ intervalIdx: 4, correct: false, now, lapseSeverity: 'heavy' });
+		expect(next.intervalIdx).toBe(CN_LAPSE_HEAVY_IDX);
 	});
 
-	it('first wrong on channel waits 30 minutes before re-queue', () => {
-		const next = computeNextReview({
-			intervalIdx: 0,
-			correct: false,
-			now,
-			lapseSeverity: 'heavy',
-			isFirstChannelAttempt: true,
-		});
-		expect(next.intervalIdx).toBe(0);
-		expect(next.state).toBe('learning');
-		expect(next.dueAt.getTime()).toBe(now.getTime() + CN_FIRST_WRONG_RETRY_MINUTES * 60_000);
-	});
-
-	it('isChannelDue respects 30-minute cooldown after first wrong', () => {
-		const dueAt = new Date(now.getTime() + CN_FIRST_WRONG_RETRY_MINUTES * 60_000);
-		const p = progressFixture({
-			id: 'p1',
-			userId: 'u1',
-			wordId: 'w1',
-			state: 'learning',
-			meaningIntervalIdx: 1,
-			listeningTotal: 1,
-			listeningCorrect: 0,
-			listeningDueAt: dueAt,
-			listeningIntervalIdx: 0,
-		});
-		expect(isChannelDue(p, 'listening', now)).toBe(false);
-		const afterCooldown = new Date(dueAt.getTime() + 1);
-		expect(isChannelDue(p, 'listening', afterCooldown)).toBe(true);
-	});
-
-	it('first wrong on one channel does not block other channels on same word', () => {
-		const cooldownDue = new Date(now.getTime() + CN_FIRST_WRONG_RETRY_MINUTES * 60_000);
-		const p = progressFixture({
-			id: 'p1',
-			userId: 'u1',
-			wordId: 'w1',
-			state: 'weak',
-			dueAt: cooldownDue,
-			listeningTotal: 1,
-			listeningCorrect: 0,
-			listeningDueAt: cooldownDue,
-			listeningIntervalIdx: 0,
-			meaningTotal: 0,
-			meaningDueAt: null,
-			pinyinTotal: 0,
-			pinyinDueAt: null,
-		});
-		expect(isChannelDue(p, 'listening', now)).toBe(false);
-		expect(isChannelDue(p, 'meaning', now)).toBe(true);
-		expect(isChannelDue(p, 'pinyin', now)).toBe(false);
-	});
-
-	it('new enrolled word only has meaning due before ramp', () => {
+	it('all channels due for new enrolled word', () => {
 		const p = progressFixture({ id: 'p1', userId: 'u1', wordId: 'w-new' });
 		expect(isChannelDue(p, 'meaning', now)).toBe(true);
-		expect(isChannelDue(p, 'listening', now)).toBe(false);
-		expect(isChannelDue(p, 'pinyin', now)).toBe(false);
-	});
-
-	it('opens listening and pinyin after meaning ramp threshold', () => {
-		const p = progressFixture({
-			id: 'p1',
-			userId: 'u1',
-			wordId: 'w1',
-			meaningIntervalIdx: 1,
-			listeningTotal: 0,
-			pinyinTotal: 0,
-		});
 		expect(isChannelDue(p, 'listening', now)).toBe(true);
 		expect(isChannelDue(p, 'pinyin', now)).toBe(true);
 	});
 
-	it('does not due early for low lifetime rate before interval expires', () => {
-		const future = new Date(now.getTime() + CN_SRS_INTERVALS_MINUTES[3] * 60_000);
+	it('does not due early before interval expires', () => {
+		const future = addDays(now, CN_SRS_INTERVAL_DAYS[3]);
 		const p = progressFixture({
 			id: 'p1',
 			userId: 'u1',
 			wordId: 'w1',
 			listeningTotal: 5,
-			listeningCorrect: 1,
+			listeningCorrect: 4,
 			listeningDueAt: future,
 			listeningIntervalIdx: 3,
 		});
 		expect(isChannelDue(p, 'listening', now)).toBe(false);
 	});
 
-	it('mergeSubmitItemsInMemory applies 30m cooldown only to the failed channel', () => {
-		const items: CnPracticeSubmitItem[] = [
-			{ wordId: 'w-new', questionType: 'audio_to_meaning', correct: false },
-		];
-		const { progressByWordId } = mergeSubmitItemsInMemory('u1', items, [], now);
-		const p = progressByWordId.get('w-new')!;
-
-		expect(p.listeningDueAt!.getTime()).toBe(now.getTime() + CN_FIRST_WRONG_RETRY_MINUTES * 60_000);
-		expect(isChannelDue(p, 'listening', now)).toBe(false);
-		expect(isChannelDue(p, 'meaning', now)).toBe(true);
-		expect(isChannelDue(p, 'pinyin', now)).toBe(false);
-	});
-
-	it('reaches mastered state at 90-day threshold', () => {
+	it('reaches mastered state at 30-day threshold', () => {
 		expect(nextStateFromInterval(CN_STATE_THRESHOLDS.mastered, true)).toBe('mastered');
 		const atThreshold = computeNextReview({
 			intervalIdx: CN_STATE_THRESHOLDS.mastered - 1,
@@ -207,16 +147,6 @@ describe('cnSrsService', () => {
 		});
 		expect(atThreshold.intervalIdx).toBe(CN_STATE_THRESHOLDS.mastered);
 		expect(atThreshold.state).toBe('mastered');
-	});
-
-	it('can advance beyond old 30-day cap to 90 days', () => {
-		const next = computeNextReview({
-			intervalIdx: 6,
-			correct: true,
-			now,
-		});
-		expect(next.intervalIdx).toBe(7);
-		expect(next.dueAt.getTime()).toBe(now.getTime() + CN_SRS_INTERVALS_MINUTES[7] * 60_000);
 	});
 
 	it('maps interval indices to states via thresholds', () => {
@@ -261,34 +191,12 @@ describe('cnSrsService', () => {
 		const { progressByWordId } = mergeSubmitItemsInMemory('u1', items, [], now);
 		const p = progressByWordId.get('w-new')!;
 
-		expect(p.state).toBe('learning');
+		expect(p.state).toBe('weak');
 		expect(p.listeningTotal).toBe(1);
 		expect(p.listeningCorrect).toBe(0);
 		expect(p.listeningIntervalIdx).toBe(0);
-		expect(p.listeningDueAt!.getTime()).toBe(now.getTime() + CN_FIRST_WRONG_RETRY_MINUTES * 60_000);
+		expect(p.listeningDueAt!.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[0]).getTime());
 		expect(p.listeningHeavyLapses).toBe(1);
-	});
-
-	it('second wrong on channel uses normal lapse floor', () => {
-		const existing = progressFixture({
-			id: 'p1',
-			userId: 'u1',
-			wordId: 'w1',
-			listeningTotal: 1,
-			listeningCorrect: 0,
-			listeningDueAt: now,
-			listeningIntervalIdx: 0,
-		});
-		const items: CnPracticeSubmitItem[] = [
-			{ wordId: 'w1', questionType: 'audio_to_meaning', correct: false },
-		];
-		const { progressByWordId } = mergeSubmitItemsInMemory('u1', items, [existing], now);
-		const p = progressByWordId.get('w1')!;
-
-		expect(p.listeningIntervalIdx).toBe(CN_LAPSE_FLOOR_IDX);
-		expect(p.listeningDueAt!.getTime()).toBe(
-			now.getTime() + CN_SRS_INTERVALS_MINUTES[CN_LAPSE_FLOOR_IDX] * 60_000,
-		);
 	});
 
 	it('mergeSubmitItemsInMemory handles two items for new wordId in one batch', () => {

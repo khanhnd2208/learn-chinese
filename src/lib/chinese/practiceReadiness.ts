@@ -1,7 +1,6 @@
 /* ════════════════════════════════════════════════════════════════════════
    practiceReadiness.ts — Assess word data readiness for practice modes
    ════════════════════════════════════════════════════════════════════════ */
-import { wordSupportsQuestionType } from '@/lib/chinese/practiceTaxonomy';
 import type { CnWordCardDTO } from '@/types/chinese';
 
 export interface PracticeReadiness {
@@ -12,7 +11,7 @@ export interface PracticeReadiness {
 export function assessWordCardReadiness(word: CnWordCardDTO): PracticeReadiness {
 	return {
 		hasExample: word.examples.length > 0 && !!word.examples[0]?.hanzi,
-		supportsSentence: wordSupportsQuestionType(word, 'fill_sentence'),
+		supportsSentence: false,
 	};
 }
 

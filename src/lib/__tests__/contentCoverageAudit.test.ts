@@ -89,10 +89,13 @@ describe('seed content coverage audit (6 core types)', () => {
 		}
 	});
 
-	it('fill_sentence only for verified examples subset', () => {
-		const supported = cards.filter((c) => wordSupportsQuestionType(c, 'fill_sentence')).length;
-		expect(supported).toBeGreaterThan(0);
-		const generated = cards.filter((c, i) => generateQuestionForWord(c, pool, 'fill_sentence', i));
-		expect(generated.length).toBe(supported);
+	it('typed recall types generate for most seed words', () => {
+		const typedTypes: CnQuestionType[] = ['meaning_to_hanzi_typed', 'hanzi_to_pinyin_typed'];
+		for (const type of typedTypes) {
+			const supported = cards.filter((c) => wordSupportsQuestionType(c, type)).length;
+			expect(supported).toBeGreaterThan(total * 0.95);
+			const generated = cards.filter((c, i) => generateQuestionForWord(c, pool, type, i));
+			expect(generated.length).toBeGreaterThan(total * 0.9);
+		}
 	});
 });

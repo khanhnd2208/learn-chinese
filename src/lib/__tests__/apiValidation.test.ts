@@ -9,7 +9,7 @@ describe('apiValidation', () => {
 	it('accepts valid practice submit items', () => {
 		expect(validatePracticeSubmitItems([
 			{ wordId: 'w1', questionType: 'hanzi_to_meaning', correct: true },
-			{ wordId: 'w2', questionType: 'fill_sentence', correct: false, errorType: 'sai_nghia' },
+			{ wordId: 'w2', questionType: 'meaning_to_hanzi_typed', correct: false, errorType: 'quen_hanzi' },
 		])).toBe(true);
 	});
 

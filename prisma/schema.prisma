@@ -35,10 +35,14 @@ enum CnQuestionType {
   hanzi_to_meaning
   meaning_to_hanzi
   pinyin_to_hanzi
+  hanzi_to_pinyin
   audio_to_hanzi
   audio_to_meaning
-  fill_sentence
+  meaning_to_hanzi_typed
+  hanzi_to_pinyin_typed
+  audio_to_hanzi_typed
   // Legacy — kept for historical CnAnswerLog rows
+  fill_sentence
   audio_to_pinyin
   audio_to_pinyin_typed
   hanzi_from_meaning
@@ -181,6 +185,7 @@ model CnWord {
   partOfSpeech String          @default("")
   mnemonicVi           String          @default("")
   usageNoteVi          String          @default("")
+  ghiChu               String          @default("")
   hskLevel             Int?
   pinyinPlain          String          @default("")
   pinyinNumbered       String          @default("")

@@ -2,12 +2,12 @@
    cnPracticeService.ts — Practice session orchestration
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
+import { practiceModeToGroup } from '@/lib/chinese/practiceTaxonomy';
 import {
-	CHANNEL_TO_GROUP,
-	type PracticeGroup,
-	practiceModeToGroup,
-} from '@/lib/chinese/practiceTaxonomy';
-import { generatePracticeSession, enrichQuestionWithProgress, mergeWordPools, generateQuestionForWord } from '@/lib/chinese/generateQuestions';
+	generatePracticeSession,
+	generateReviewQuestion,
+	mergeWordPools,
+} from '@/lib/chinese/generateQuestions';
 import { CN_DEFAULT_PRACTICE_COUNT, CN_DEFAULT_REVIEW_COUNT, CN_MAX_CHANNELS_PER_WORD_REVIEW } from '@/config/constants';
 import { getWordCard, getUserDistractorPool } from '@/services/chinese/cnContentService';
 import { getReviewSession, progressToDTO } from '@/services/chinese/cnSrsService';
@@ -65,15 +65,11 @@ export async function buildPracticeSession(
 		? words
 		: mergeWordPools(words, await getUserDistractorPool(userId));
 
-	return generatePracticeSession(words, count, { group, progressMap, distractorPool, allowMarkKnown: false });
+	return generatePracticeSession(words, count, { group, progressMap, distractorPool });
 }
 
 export async function buildListeningSession(userId: string, setId: string, count = 10) {
 	return buildPracticeSession(userId, setId, count, 'listening');
-}
-
-export async function buildSentenceSession(userId: string, setId: string, count = 10) {
-	return buildPracticeSession(userId, setId, count, 'sentence_usage');
 }
 
 export async function buildReviewQuestions(
@@ -97,11 +93,6 @@ export async function buildReviewQuestions(
 		return true;
 	}).slice(0, limit);
 
-	const progressMap = new Map<string, CnWordProgressDTO | null>();
-	for (const entry of selected) {
-		progressMap.set(entry.progress.wordId, progressToDTO(entry.progress));
-	}
-
 	const questions: CnPracticeQuestionDTO[] = [];
 
 	for (const entry of selected) {
@@ -109,24 +100,28 @@ export async function buildReviewQuestions(
 		const word = cardMap.get(entry.progress.wordId);
 		if (!word) continue;
 
-		const group = CHANNEL_TO_GROUP[entry.channel] as PracticeGroup;
-		let batch = generatePracticeSession([word], 1, {
-			group,
-			progressMap,
+		const progress = progressToDTO(entry.progress);
+		const q = generateReviewQuestion(
+			word,
 			distractorPool,
-			targetChannel: entry.channel,
-			allowMarkKnown: true,
-			sessionContext: 'review',
-		});
-		if (!batch.length) {
-			batch = generatePracticeSession([word], 1, {
-				group: 'core_vocab',
-				progressMap,
-				distractorPool,
-				allowMarkKnown: true,
-			});
+			entry.channel,
+			progress,
+			questions.length,
+		);
+		if (q) {
+			questions.push(q);
+			continue;
 		}
-		questions.push(...batch);
+
+		// Fallback: MCQ meaning if typed generation fails
+		const fallback = generateReviewQuestion(
+			word,
+			distractorPool,
+			'meaning',
+			{ ...progress, meaningIntervalIdx: 0 },
+			questions.length,
+		);
+		if (fallback) questions.push(fallback);
 	}
 
 	const exclude = new Set(excludeQuestionIds);
@@ -152,29 +147,4 @@ export function summarizeSession(
 		byType,
 		weakWords: [...wrongWords],
 	};
-}
-
-const MARK_KNOWN_DIAGNOSTIC_TYPES: CnQuestionType[] = [
-	'hanzi_to_meaning',
-	'audio_to_meaning',
-	'meaning_to_hanzi',
-];
-
-export async function buildMarkKnownDiagnostic(
-	userId: string,
-	wordId: string,
-): Promise<CnPracticeQuestionDTO[]> {
-	const card = await getWordCard(wordId, userId);
-	if (!card) return [];
-
-	const distractorPool = mergeWordPools([card], await getUserDistractorPool(userId));
-	const questions: CnPracticeQuestionDTO[] = [];
-
-	for (let i = 0; i < MARK_KNOWN_DIAGNOSTIC_TYPES.length; i++) {
-		const type = MARK_KNOWN_DIAGNOSTIC_TYPES[i];
-		const q = generateQuestionForWord(card, distractorPool, type, i);
-		if (q) questions.push(enrichQuestionWithProgress(q, card.progress ?? null, false));
-	}
-
-	return questions;
 }

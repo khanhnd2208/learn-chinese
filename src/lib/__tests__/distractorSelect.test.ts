@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest';
 import { pickDistractorsForType } from '@/lib/chinese/distractorSelect';
 import type { CnWordCardDTO } from '@/types/chinese';
 
-function mkWord(id: string, simplified: string, partOfSpeech = ''): CnWordCardDTO {
+function mkWord(id: string, simplified: string, pinyin: string): CnWordCardDTO {
 	return {
 		id,
 		simplified,
-		pinyin: '',
+		pinyin,
 		hanViet: '',
 		meaningVi: simplified,
-		partOfSpeech,
+		partOfSpeech: '',
 		mnemonicVi: '',
 		hskLevel: 1,
 		status: 'published',
@@ -20,25 +20,22 @@ function mkWord(id: string, simplified: string, partOfSpeech = ''): CnWordCardDT
 	};
 }
 
-describe('fill_sentence distractors', () => {
-	it('excludes words that appear in the example sentence', () => {
-		const target = mkWord('w1', '老师', 'noun');
+describe('hanzi_to_pinyin distractors', () => {
+	it('picks pinyin options from pool', () => {
+		const target = mkWord('w1', '老师', 'lǎoshī');
 		const pool = [
 			target,
-			mkWord('w2', '学生', 'noun'),
-			mkWord('w3', '是', 'verb'),
-			mkWord('w4', '人', 'noun'),
+			mkWord('w2', '学生', 'xuésheng'),
+			mkWord('w3', '你好', 'nǐ hǎo'),
 		];
 		const distractors = pickDistractorsForType(
-			'fill_sentence',
+			'hanzi_to_pinyin',
 			target,
 			pool,
-			'老师',
-			3,
-			[],
-			'他是老师。',
+			'lǎoshī',
+			2,
 		);
-		expect(distractors).not.toContain('是');
+		expect(distractors).not.toContain('lǎoshī');
 		expect(distractors.length).toBeGreaterThan(0);
 	});
 });
