@@ -10,7 +10,8 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
 
 import { HANZI, SIMILAR_GROUPS, WORDS } from './seed-data/content';
-import { resolveSeedUserId, seedDemoUserData } from './seed-data/demo-user';
+import { resolveSeedUserId } from './seed-data/demo-user';
+import { enrichExampleForFill } from '../src/lib/chinese/fillExampleValidator';
 
 expand(config({ path: resolve(process.cwd(), '.env.local') }));
 expand(config({ path: resolve(process.cwd(), '.env') }));
@@ -93,7 +94,18 @@ async function seedContent() {
 
 		if (w.example) {
 			await prisma.cnExample.deleteMany({ where: { wordId: word.id } });
-			await prisma.cnExample.create({ data: { wordId: word.id, ...w.example } });
+			const fillMeta = enrichExampleForFill(w.example.hanzi, w.simplified);
+			await prisma.cnExample.create({
+				data: {
+					wordId: word.id,
+					hanzi: w.example.hanzi,
+					pinyin: w.example.pinyin,
+					meaningVi: w.example.meaningVi,
+					naturalnessStatus: fillMeta.naturalnessStatus,
+					targetWordStart: fillMeta.targetWordStart,
+					targetWordEnd: fillMeta.targetWordEnd,
+				},
+			});
 		}
 
 		if (w.pattern) {
@@ -112,10 +124,9 @@ async function main() {
 
 	const userId = await resolveSeedUserId();
 	if (userId) {
-		await seedDemoUserData(prisma, userId);
+		console.log(`  ℹ️  Seed user: ${userId.slice(0, 8)}… (chỉ nội dung từ vựng, không tạo bộ demo)`);
 	} else {
-		console.log('  ⚠️  Bỏ qua demo user — đăng nhập Google 1 lần rồi chạy lại: npm run db:seed');
-		console.log('     Hoặc đặt SEED_USER_ID / SEED_USER_EMAIL trong .env.local');
+		console.log('  ⚠️  Chưa có SEED_USER_ID — seed chỉ ghi nội dung CnWord/CnHanzi');
 	}
 
 	console.log('✅ Seed complete!');

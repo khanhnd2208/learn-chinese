@@ -6,6 +6,10 @@ import { auth } from '@/lib/auth';
 import { listUserSets } from '@/services/chinese/cnSetService';
 import { countDueToday } from '@/services/chinese/cnSrsService';
 import { getChineseDashboard } from '@/services/chinese/cnDashboardService';
+import {
+	computeSetChannelProgress,
+	maxSrsChannelsForSet,
+} from '@/lib/chinese/setSrsProgress';
 
 export const dynamic = 'force-dynamic';
 
@@ -150,9 +154,11 @@ export default async function ChineseHomePage() {
 				) : (
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 						{sets.slice(0, 3).map((set) => {
-							const progress = set.itemCount > 0
-								? Math.round(((set.itemCount - set.dueCount) / set.itemCount) * 100)
+							const maxChannels = maxSrsChannelsForSet(set.itemCount);
+							const progress = set.srsActive
+								? computeSetChannelProgress(set.itemCount, set.dueCount)
 								: 0;
+							const masteredChannels = Math.max(0, maxChannels - set.dueCount);
 							const status = setStatusLabel(progress);
 							return (
 								<div
@@ -172,7 +178,7 @@ export default async function ChineseHomePage() {
 											<div className="mb-1 flex justify-between text-sm text-foreground-secondary">
 												<span>Tiến độ</span>
 												<span className={`font-bold ${progress >= 100 ? 'text-success' : 'text-accent'}`}>
-													{set.itemCount - set.dueCount} / {set.itemCount}
+													{set.srsActive ? `${masteredChannels} / ${maxChannels}` : '—'}
 												</span>
 											</div>
 											<ProgressBar

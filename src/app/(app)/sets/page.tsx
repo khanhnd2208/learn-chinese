@@ -3,9 +3,12 @@ import { redirect } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
 import SetCardActions from '@/app/(app)/sets/SetCardActions';
-import SetExcelActions from '@/app/(app)/sets/SetExcelActions';
 import SetSrsToggle from '@/app/(app)/sets/SetSrsToggle';
 import { auth } from '@/lib/auth';
+import {
+	computeSetChannelProgress,
+	formatSetDueChannelsLabel,
+} from '@/lib/chinese/setSrsProgress';
 import { listUserSets } from '@/services/chinese/cnSetService';
 
 export const dynamic = 'force-dynamic';
@@ -18,26 +21,29 @@ export default async function ChineseSetsPage() {
 
 	return (
 		<div className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-8">
-			<section className="flex items-end justify-between">
+			<section className="flex flex-wrap items-end justify-between gap-4">
 				<div>
 					<span className="label-caps tracking-widest">Bộ từ</span>
 					<h1 className="mt-2 text-3xl font-black text-foreground">Danh sách bộ từ</h1>
 				</div>
-				<Link href="/sets/create" className="btn-primary hidden md:inline-flex">
-					<MaterialIcon name="add" size={16} />
-					Tạo mới
-				</Link>
+				<div className="hidden flex-wrap gap-2 md:flex">
+					<Link href="/sets/import" className="btn-secondary">
+						<MaterialIcon name="upload_file" size={16} />
+						Thêm bộ từ
+					</Link>
+					<Link href="/sets/create" className="btn-primary">
+						<MaterialIcon name="add" size={16} />
+						Tạo mới
+					</Link>
+				</div>
 			</section>
-
-			<div className="hidden md:block">
-				<SetExcelActions />
-			</div>
 
 			<div className="card-paper border-l-4 border-l-accent p-4 text-sm text-foreground-secondary">
 				<p>
-					<strong className="text-foreground">Luyện tập</strong> không ảnh hưởng SRS — chỉ ghi nhận phiên luyện.
-					Bật <strong className="text-foreground">Ôn SRS</strong> trên từng bộ để đưa từ vào hàng đợi{' '}
-					<Link href="/review" className="font-bold text-accent hover:underline">/review</Link>.
+					<strong className="text-foreground">Luyện tập</strong> giúp bạn học tự do trong từng bộ.
+					<strong className="text-foreground"> Lịch ôn SRS</strong> chỉ thay đổi khi bạn học ở mục{' '}
+					<Link href="/review" className="font-bold text-accent hover:underline">Ôn tập</Link>.
+					Bật <strong className="text-foreground">Ôn SRS</strong> trên từng bộ để đưa từ vào hàng đợi.
 				</p>
 			</div>
 
@@ -49,8 +55,8 @@ export default async function ChineseSetsPage() {
 			) : (
 				<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
 					{sets.map((set) => {
-						const progress = set.itemCount > 0
-							? Math.round(((set.itemCount - set.dueCount) / set.itemCount) * 100)
+						const progress = set.srsActive
+							? computeSetChannelProgress(set.itemCount, set.dueCount)
 							: 0;
 						return (
 							<div key={set.id} className="card-paper group relative flex flex-col gap-2 overflow-hidden p-4">
@@ -71,7 +77,9 @@ export default async function ChineseSetsPage() {
 										<div className="mb-1 flex justify-between text-sm text-foreground-secondary">
 											<span>
 												{set.itemCount} từ
-												{set.srsActive ? ` · ${set.dueCount} cần ôn` : ' · không trong SRS'}
+												{set.srsActive
+													? ` · ${formatSetDueChannelsLabel(set.dueCount)}`
+													: ' · không trong SRS'}
 											</span>
 											{set.srsActive && (
 												<span className="font-bold text-accent">{progress}%</span>

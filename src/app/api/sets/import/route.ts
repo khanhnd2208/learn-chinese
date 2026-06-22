@@ -21,7 +21,7 @@ export const POST = withAuth(async (request, user) => {
 	}
 
 	if (action === 'preview') {
-		const preview = await previewUserWorkbook(file);
+		const preview = await previewUserWorkbook(file, user.id);
 		return apiSuccess({ preview });
 	}
 

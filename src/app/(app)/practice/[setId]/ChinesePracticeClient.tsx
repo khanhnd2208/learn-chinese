@@ -5,9 +5,22 @@ import Link from 'next/link';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import QuestionRenderer from '@/components/chinese/QuestionRenderer';
-import { practiceModeLabel, questionTypeLabel } from '@/lib/chinese/questionLabels';
+import { practiceModeLabel, channelLabel } from '@/lib/chinese/questionLabels';
+import { questionChannel } from '@/lib/chinese/coreQuestionTypes';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
 import type { CnPracticeQuestionDTO, CnQuestionType } from '@/types/chinese';
+
+function summarizeByChannel(byType: Record<string, { correct: number; total: number }>) {
+	const out: Record<string, { correct: number; total: number }> = {};
+	for (const [type, stats] of Object.entries(byType)) {
+		const channel = questionChannel(type as CnQuestionType);
+		const label = channelLabel(channel);
+		if (!out[label]) out[label] = { correct: 0, total: 0 };
+		out[label].correct += stats.correct;
+		out[label].total += stats.total;
+	}
+	return out;
+}
 
 export default function ChinesePracticeClient() {
 	const { setId } = useParams<{ setId: string }>();
@@ -29,7 +42,7 @@ export default function ChinesePracticeClient() {
 			try {
 				const params = new URLSearchParams({
 					mode,
-					count: mode === 'integrated_recall' ? '10' : '20',
+					count: '20',
 				});
 				if (wordId) params.set('wordId', wordId);
 				const res = await fetch(`/api/practice/${setId}?${params}`);
@@ -96,11 +109,13 @@ export default function ChinesePracticeClient() {
 						<span className="text-success">{sessionResult.correct}</span>
 						<span className="text-muted"> / {sessionResult.total}</span>
 					</p>
-					<p className="mt-1 text-sm text-muted">câu đúng · đã ghi nhận phiên luyện (không ảnh hưởng SRS)</p>
+					<p className="mt-1 text-sm text-muted">
+						câu đúng · luyện tập giúp app biết kênh yếu; ôn SRS vẫn là lịch chính
+					</p>
 					<ul className="mt-6 space-y-2 text-left text-sm text-foreground-secondary">
-						{Object.entries(sessionResult.byType).map(([type, s]) => (
-							<li key={type} className="flex justify-between border-b border-border/50 pb-2">
-								<span>{questionTypeLabel(type as CnQuestionType)}</span>
+						{Object.entries(summarizeByChannel(sessionResult.byType)).map(([label, s]) => (
+							<li key={label} className="flex justify-between border-b border-border/50 pb-2">
+								<span>{label}</span>
 								<span className="font-bold">{s.correct}/{s.total}</span>
 							</li>
 						))}

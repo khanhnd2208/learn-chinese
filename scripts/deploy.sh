@@ -11,6 +11,12 @@ npm ci
 echo "==> Applying database migrations..."
 npx prisma migrate deploy
 
+echo "==> Purging legacy demo sets (one canonical Excel sample only)..."
+npx tsx scripts/purge-legacy-demo-sets.ts
+
+echo "==> Verifying import sample workbook..."
+npx tsx scripts/verify-user-set-sample.ts
+
 echo "==> Generating Prisma client..."
 npx prisma generate
 

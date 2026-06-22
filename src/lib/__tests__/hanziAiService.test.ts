@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { getCachedHanziAiAnalysis } from '@/services/chinese/hanziAi/hanziAnalysisService';
+import { validV2Result } from './hanziTrustFixtures';
+import { HANZI_TRUST_PROMPT_VERSION } from '@/services/chinese/hanziAi/hanziTrustRegistry';
 
 vi.mock('@/lib/prisma', () => ({
 	prisma: {
@@ -18,20 +20,6 @@ vi.mock('@/services/chinese/hanziAi/hanziKnownFacts', () => ({
 import { prisma } from '@/lib/prisma';
 import { hashKnownFacts } from '@/services/chinese/hanziAi/hanziKnownFacts';
 
-const validResult = {
-	schemaVersion: 1,
-	term: '学习', normalizedTerm: '学习', script: 'simplified',
-	simplified: '学习', traditional: '學習', pinyin: 'xuéxí', hanViet: 'HỌC TẬP',
-	primaryMeaningVi: 'học tập', otherMeaningsVi: [], wordClasses: [], usageNoteVi: null,
-	overallExplanationVi: 'x', overallMnemonicVi: null,
-	characters: [
-		{ position: 0, char: '学', pinyin: 'xué', dictionaryReadings: ['xué'], hanViet: 'HỌC', meaningVi: 'học', radical: null, structureType: 'single', components: [], structureExplanationVi: 'x', mnemonicVi: null, etymologyStatus: 'not_provided', similarCharacters: [] },
-		{ position: 1, char: '习', pinyin: 'xí', dictionaryReadings: ['xí'], hanViet: 'TẬP', meaningVi: 'tập', radical: null, structureType: 'single', components: [], structureExplanationVi: 'x', mnemonicVi: null, etymologyStatus: 'not_provided', similarCharacters: [] },
-	],
-	examples: [{ chinese: '我每天学习中文。', pinyin: 'Wǒ měitiān xuéxí Zhōngwén.', meaningVi: 'Tôi học tiếng Trung mỗi ngày.', usageNoteVi: null }],
-	warnings: [],
-};
-
 beforeEach(() => {
 	vi.mocked(prisma.cnHanziAiAnalysis.findUnique).mockReset();
 	vi.mocked(prisma.cnHanziAiAnalysis.update).mockReset();
@@ -45,7 +33,7 @@ describe('getCachedHanziAiAnalysis', () => {
 			id: 'a1', normalizedTerm: '学习', contentStatus: 'ready', contentVersion: 1,
 			openReportCount: 0, hardFactsHash: 'live-hard', allFactsHash: 'live-all',
 			generationLeaseToken: null, generationLeaseAt: null,
-			currentRevision: { resultJson: validResult, schemaVersion: 1 },
+			currentRevision: { resultJson: validV2Result, schemaVersion: 2, promptVersion: HANZI_TRUST_PROMPT_VERSION },
 		} as never);
 
 		const result = await getCachedHanziAiAnalysis('学习');
@@ -60,7 +48,7 @@ describe('getCachedHanziAiAnalysis', () => {
 			id: 'a1', normalizedTerm: '学习', contentStatus: 'ready', contentVersion: 1,
 			openReportCount: 0, hardFactsHash: 'live-hard', allFactsHash: 'live-all',
 			generationLeaseToken: null, generationLeaseAt: null,
-			currentRevision: { resultJson: validResult, schemaVersion: 1 },
+			currentRevision: { resultJson: validV2Result, schemaVersion: 2, promptVersion: HANZI_TRUST_PROMPT_VERSION },
 		} as never);
 
 		const result = await getCachedHanziAiAnalysis('学习');
@@ -75,7 +63,7 @@ describe('getCachedHanziAiAnalysis', () => {
 			id: 'a1', normalizedTerm: '学习', contentStatus: 'ready', contentVersion: 1,
 			openReportCount: 0, hardFactsHash: 'live-hard', allFactsHash: 'live-all',
 			generationLeaseToken: null, generationLeaseAt: null,
-			currentRevision: { resultJson: validResult, schemaVersion: 1 },
+			currentRevision: { resultJson: validV2Result, schemaVersion: 2, promptVersion: HANZI_TRUST_PROMPT_VERSION },
 		} as never);
 
 		const result = await getCachedHanziAiAnalysis('学习');

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import SetSrsToggle from '@/app/(app)/sets/SetSrsToggle';
+import SetSrsStatusBanner from '@/app/(app)/sets/SetSrsStatusBanner';
 import { PRACTICE_MODES } from '@/lib/chinese/questionLabels';
 import type { CnWordSetDTO } from '@/types/chinese';
 
@@ -16,6 +17,7 @@ const OTHER_MODES = PRACTICE_MODES.filter((m) => !PRIMARY_MODES.includes(m.mode 
 
 export default function SetStudyPanel({ set }: Props) {
 	const [showOtherModes, setShowOtherModes] = useState(false);
+	const hasResolvedWords = set.items.some((item) => item.wordId);
 
 	return (
 		<div className="space-y-6">
@@ -27,8 +29,17 @@ export default function SetStudyPanel({ set }: Props) {
 					{set.srsActive && ` · ${set.dueCount} cần ôn · ${set.weakCount} cần chú ý`}
 				</p>
 
-				<div className="mt-4">
-					<SetSrsToggle setId={set.id} srsActive={set.srsActive} title={set.title} />
+				<div className="mt-4 space-y-3">
+					<SetSrsStatusBanner srsActive={set.srsActive} />
+
+					<div className="rounded-lg border border-border bg-surface-container/50 p-4">
+						<SetSrsToggle setId={set.id} srsActive={set.srsActive} title={set.title} />
+						{!set.srsActive && hasResolvedWords && set.itemCount > 0 && (
+							<p className="mt-2 text-xs text-muted">
+								Bật ôn SRS để {set.items.filter((i) => i.wordId).length} từ có dữ liệu vào hàng đợi /review.
+							</p>
+						)}
+					</div>
 				</div>
 
 				{set.srsActive && set.dueCount > 0 && (
@@ -41,18 +52,8 @@ export default function SetStudyPanel({ set }: Props) {
 				)}
 
 				<p className="mt-3 text-xs text-muted">
-					Luyện tập trong bộ này không ảnh hưởng tiến độ SRS.
+					Luyện tập giúp app biết kênh nào yếu; ôn SRS vẫn là lịch chính thức.
 				</p>
-
-				<div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-					<Link
-						href={`/practice/${set.id}?mode=integrated_recall`}
-						className="btn-primary w-full justify-center sm:w-auto"
-					>
-						<MaterialIcon name="hub" size={16} />
-						Kiểm tra toàn diện
-					</Link>
-				</div>
 
 				<div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap md:hidden">
 					<Link
@@ -98,13 +99,6 @@ export default function SetStudyPanel({ set }: Props) {
 
 				{/* Desktop: show all modes inline */}
 				<div className="mt-4 hidden flex-wrap gap-2 md:flex">
-					<Link
-						href={`/practice/${set.id}?mode=integrated_recall`}
-						className="btn-primary"
-					>
-						<MaterialIcon name="hub" size={16} />
-						Kiểm tra toàn diện
-					</Link>
 					{PRACTICE_MODES.map((m) => (
 						<Link
 							key={m.mode}

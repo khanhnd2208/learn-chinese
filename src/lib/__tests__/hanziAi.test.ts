@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeHanziAiTerm, isValidHanziAiTerm, containsUnsafeAiText } from '@/services/chinese/hanziAi/hanziNormalization';
-import { hanziAnalysisResultSchema } from '@/services/chinese/hanziAi/hanziAnalysisSchema';
+import { hanziAiDraftSchema, hanziAnalysisResultSchema } from '@/services/chinese/hanziAi/hanziAnalysisSchema';
 import { validateHanziAnalysis } from '@/services/chinese/hanziAi/hanziAnalysisValidator';
 import { hashKnownFacts } from '@/services/chinese/hanziAi/hanziKnownFacts';
 import type { HanziKnownFacts } from '@/services/chinese/hanziAi/hanziAiTypes';
+import { validV2Result } from './hanziTrustFixtures';
 
-const result = {
+const draft = {
 	schemaVersion: 1 as const,
 	term: '学习', normalizedTerm: '学习', script: 'simplified' as const,
 	simplified: '学习', traditional: '學習', pinyin: 'xuéxí', hanViet: 'HỌC TẬP',
@@ -49,15 +50,17 @@ describe('Hanzi AI normalization and validation', () => {
 		expect(isValidHanziAiTerm('学习123')).toBe(false);
 	});
 
-	it('accepts a complete result and enforces exact examples', () => {
-		expect(hanziAnalysisResultSchema.safeParse(result).success).toBe(true);
-		expect(validateHanziAnalysis(result, '学习', facts).errors).toEqual([]);
-		const invalid = { ...result, examples: [{ ...result.examples[0], chinese: '我每天读书。' }] };
+	it('accepts a complete draft and produces v2 result with exact examples', () => {
+		expect(hanziAiDraftSchema.safeParse(draft).success).toBe(true);
+		expect(hanziAnalysisResultSchema.safeParse(validV2Result).success).toBe(true);
+		expect(validateHanziAnalysis(draft, '学习', facts).errors).toEqual([]);
+		expect(validateHanziAnalysis(draft, '学习', facts).result?.schemaVersion).toBe(2);
+		const invalid = { ...draft, examples: [{ ...draft.examples[0], chinese: '我每天读书。' }] };
 		expect(validateHanziAnalysis(invalid, '学习', facts).errors.join(' ')).toContain('phải chứa đúng');
 	});
 
 	it('rejects hard-fact conflicts and unsafe output', () => {
-		const conflict = { ...result, pinyin: 'xué xí' };
+		const conflict = { ...draft, pinyin: 'xué xí' };
 		expect(validateHanziAnalysis(conflict, '学习', facts).category).toBe('curated_conflict');
 		expect(containsUnsafeAiText('[xem](https://example.com)')).toBe(true);
 	});
@@ -72,4 +75,3 @@ describe('Hanzi AI normalization and validation', () => {
 		expect(hashKnownFacts(readingsA).hardFactsHash).toBe(hashKnownFacts(readingsB).hardFactsHash);
 	});
 });
-

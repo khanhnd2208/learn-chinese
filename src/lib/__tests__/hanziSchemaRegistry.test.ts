@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { getCurrentHanziSchemaVersion, isHanziSchemaReadable, parseHanziRevisionResult } from '@/services/chinese/hanziAi/hanziSchemaRegistry';
+import { validV2Result } from './hanziTrustFixtures';
 
 describe('hanziSchemaRegistry', () => {
-	it('reads schema version 1 results', () => {
-		const result = {
+	it('reads schema version 2 results and treats v1 as stale', () => {
+		const v1Result = {
 			schemaVersion: 1,
 			term: '学', normalizedTerm: '学', script: 'simplified',
 			simplified: '学', traditional: '學', pinyin: 'xué', hanViet: 'HỌC',
@@ -13,9 +14,11 @@ describe('hanziSchemaRegistry', () => {
 			examples: [{ chinese: '我学中文。', pinyin: 'x', meaningVi: 'y', usageNoteVi: null }],
 			warnings: [],
 		};
-		expect(getCurrentHanziSchemaVersion()).toBe(1);
+		expect(getCurrentHanziSchemaVersion()).toBe(2);
 		expect(isHanziSchemaReadable(1)).toBe(true);
+		expect(isHanziSchemaReadable(2)).toBe(true);
 		expect(isHanziSchemaReadable(99)).toBe(false);
-		expect(parseHanziRevisionResult(result, 1).ok).toBe(true);
+		expect(parseHanziRevisionResult(validV2Result, 2).ok).toBe(true);
+		expect(parseHanziRevisionResult(v1Result, 1).ok).toBe(false);
 	});
 });

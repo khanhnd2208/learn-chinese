@@ -35,6 +35,7 @@ function hanziToDTO(h: CnHanzi): CnHanziDTO {
 		radical: h.radical,
 		mnemonicVi: h.mnemonicVi,
 		similarGroupId: h.similarGroupId,
+		componentAnalysisStatus: h.componentAnalysisStatus,
 		status: h.status,
 	};
 }
@@ -48,7 +49,16 @@ function wordToDTO(w: CnWord): CnWordDTO {
 		meaningVi: w.meaningVi,
 		partOfSpeech: w.partOfSpeech,
 		mnemonicVi: w.mnemonicVi,
+		usageNoteVi: w.usageNoteVi || undefined,
 		hskLevel: w.hskLevel,
+		pinyinPlain: w.pinyinPlain || undefined,
+		pinyinNumbered: w.pinyinNumbered || undefined,
+		pinyinSyllables: w.pinyinSyllables.length ? w.pinyinSyllables : undefined,
+		tones: w.tones.length ? w.tones : undefined,
+		frequencyRank: w.frequencyRank,
+		difficultyLevel: w.difficultyLevel,
+		isFunctionWord: w.isFunctionWord,
+		learningPriority: w.learningPriority,
 		status: w.status,
 	};
 }
@@ -103,31 +113,21 @@ export async function lookupTerms(terms: string[]): Promise<CnLookupResultDTO[]>
 		const hasCharAnalysis = chars.length > 0 && chars.every((c) => c.components.length > 0 || c.radical);
 		const status = resolveLookupStatus(word, hanziList.filter((h) => splitHanzi(term).includes(h.char)));
 
-		const exampleHanzi = word?.examples[0]?.hanzi ?? null;
-		const patternSamples = word?.patterns[0]
-			? (Array.isArray(word.patterns[0].samples)
-				? (word.patterns[0].samples as Array<{ hanzi: string; pinyin: string; meaningVi: string }>)
-				: [])
-			: [];
 		const readiness = word
 			? assessLookupReadiness({
 				simplified: word.simplified,
 				meaningVi: word.meaningVi,
 				pinyin: word.pinyin,
-				exampleHanzi,
-				patternSamples,
-				chars: chars.map((c) => ({
-					radical: c.radical,
-					components: c.components,
-					similarGroupId: c.similarGroupId,
+				examples: word.examples.map((e) => ({
+					hanzi: e.hanzi,
+					targetWordStart: e.targetWordStart,
+					targetWordEnd: e.targetWordEnd,
+					naturalnessStatus: e.naturalnessStatus,
 				})),
 			})
 			: {
 				hasExample: false,
-				hasPattern: false,
 				supportsSentence: false,
-				supportsHanziMemory: false,
-				supportsSimilarChar: false,
 			};
 
 		return {
@@ -140,10 +140,8 @@ export async function lookupTerms(terms: string[]): Promise<CnLookupResultDTO[]>
 			hasAudio: !!word?.pinyin,
 			hasCharAnalysis,
 			hasExample: readiness.hasExample,
-			hasPattern: readiness.hasPattern,
+			hasPattern: !!word?.patterns.length,
 			supportsSentence: readiness.supportsSentence,
-			supportsHanziMemory: readiness.supportsHanziMemory,
-			supportsSimilarChar: readiness.supportsSimilarChar,
 		};
 	});
 }
@@ -160,8 +158,6 @@ export function buildCoverageReport(results: CnLookupResultDTO[]): CnCoverageRep
 		hasExample: results.filter((r) => r.hasExample).length,
 		hasPattern: results.filter((r) => r.hasPattern).length,
 		supportsSentence: results.filter((r) => r.supportsSentence).length,
-		supportsHanziMemory: results.filter((r) => r.supportsHanziMemory).length,
-		supportsSimilarChar: results.filter((r) => r.supportsSimilarChar).length,
 		pending,
 	};
 }
@@ -203,7 +199,6 @@ export async function getWordCard(wordId: string, userId?: string): Promise<CnWo
 			{ channel: 'listening' as const, rate: progress.listeningRate, total: progress.listeningTotal },
 			{ channel: 'pinyin' as const, rate: progress.pinyinRate, total: progress.pinyinTotal },
 			{ channel: 'sentence' as const, rate: progress.sentenceRate, total: progress.sentenceTotal },
-			{ channel: 'hanzi' as const, rate: progress.charRate, total: progress.charTotal },
 		].map((ch) => {
 			const level = channelMasteryLevel(ch.rate, ch.total);
 			return { ...ch, level, label: channelMasteryLabel(level) };
@@ -217,6 +212,9 @@ export async function getWordCard(wordId: string, userId?: string): Promise<CnWo
 			hanzi: e.hanzi,
 			pinyin: e.pinyin,
 			meaningVi: e.meaningVi,
+			targetWordStart: e.targetWordStart,
+			targetWordEnd: e.targetWordEnd,
+			naturalnessStatus: e.naturalnessStatus,
 		})),
 		patterns: word.patterns.map(patternToDTO),
 		chars: word.chars.map((wc) => ({ ...hanziToDTO(wc.hanzi), position: wc.position })),
@@ -241,8 +239,6 @@ export async function getHanziAnalysis(term: string): Promise<CnHanziAnalysisDTO
 		hasExample: false,
 		hasPattern: false,
 		supportsSentence: false,
-		supportsHanziMemory: false,
-		supportsSimilarChar: false,
 	};
 
 	let word: CnWordCardDTO | null = null;
@@ -264,6 +260,10 @@ export async function getHanziAnalysis(term: string): Promise<CnHanziAnalysisDTO
 				id: group.id,
 				key: group.key,
 				note: group.note,
+				confusionType: group.confusionType,
+				explanationVi: group.explanationVi,
+				difficultyLevel: group.difficultyLevel,
+				minimalDifferenceNote: group.minimalDifferenceNote,
 				hanzi: group.hanzi.map(hanziToDTO),
 			};
 		}

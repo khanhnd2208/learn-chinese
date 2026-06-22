@@ -5,16 +5,12 @@ import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
 import SpeakButton from '@/components/chinese/SpeakButton';
 import StickingPointCard from '@/components/chinese/StickingPointCard';
-import { channelLabel, isAudioQuestion, questionTypeLabel } from '@/lib/chinese/questionLabels';
-import { questionChannel } from '@/lib/chinese/practiceTaxonomy';
+import { channelLabel, isAudioQuestion, learnerSessionLabel } from '@/lib/chinese/questionLabels';
+import { questionChannel } from '@/lib/chinese/coreQuestionTypes';
 import { useSpeech } from '@/lib/chinese/useSpeech';
-import type { CnPracticeQuestionDTO, CnQuestionType } from '@/types/chinese';
+import type { CnPracticeSubmitItem, CnPracticeQuestionDTO } from '@/types/chinese';
 
-export interface QuestionAnswerResult {
-	wordId: string;
-	questionType: CnQuestionType;
-	correct: boolean;
-}
+export type QuestionAnswerResult = CnPracticeSubmitItem;
 
 export interface SessionProgressDisplay {
 	reviewed: number;
@@ -46,12 +42,12 @@ export default function QuestionRenderer({
 }: Props) {
 	const [idx, setIdx] = useState(0);
 	const [selected, setSelected] = useState<string | null>(null);
-	const [textAnswer, setTextAnswer] = useState('');
 	const [results, setResults] = useState<QuestionAnswerResult[]>([]);
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const [showMarkConfirm, setShowMarkConfirm] = useState(false);
 	const [markingKnown, setMarkingKnown] = useState(false);
 	const [sessionHeavyLapses, setSessionHeavyLapses] = useState<Record<string, number>>({});
+	const [markKnownDiagnostic, setMarkKnownDiagnostic] = useState<CnPracticeQuestionDTO[] | null>(null);
 	const { speak, supported } = useSpeech();
 	const autoPlayedRef = useRef<string | null>(null);
 
@@ -72,6 +68,10 @@ export default function QuestionRenderer({
 
 	if (!q) return null;
 
+	const isFeedbackWrong = !!feedback && !['Đúng', 'Đã ghi nhận', 'Đã bỏ'].some((prefix) => feedback.startsWith(prefix));
+
+	const gradeAnswer = (answer: string): boolean => answer.trim() === q.correctAnswer.trim();
+
 	const handleExit = () => {
 		if (waiting && !isExiting) return;
 		void onExit?.();
@@ -80,21 +80,30 @@ export default function QuestionRenderer({
 	const advance = (nextResults: QuestionAnswerResult[]) => {
 		setFeedback(null);
 		setSelected(null);
-		setTextAnswer('');
 		if (idx + 1 >= questions.length) onComplete?.(nextResults);
 		else setIdx(idx + 1);
 	};
 
 	const submitAnswer = (answer: string, skipped = false) => {
-		const correct = !skipped && answer.trim() === q.correctAnswer.trim();
-		const item: QuestionAnswerResult = { wordId: q.wordId, questionType: q.type, correct };
+		let correct = false;
+		let feedbackText = '';
+
+		if (skipped) {
+			feedbackText = 'Đã bỏ qua';
+		} else {
+			correct = gradeAnswer(answer);
+			feedbackText = correct ? 'Đúng!' : `Sai — đáp án: ${q.correctAnswer}`;
+		}
+
+		const item: QuestionAnswerResult = {
+			wordId: q.wordId,
+			questionType: q.type,
+			correct,
+		};
 		const next = [...results, item];
 		setResults(next);
 		onAnswer?.(item);
-		setFeedback(
-			skipped ? 'Đã bỏ qua' :
-			correct ? 'Đúng!' : `Sai — đáp án: ${q.correctAnswer}`,
-		);
+		setFeedback(feedbackText);
 		if (!correct && !skipped) {
 			setSessionHeavyLapses((prev) => ({
 				...prev,
@@ -108,19 +117,41 @@ export default function QuestionRenderer({
 		if (sessionType !== 'review' || !q.canMarkKnown || markingKnown || waiting) return;
 		setMarkingKnown(true);
 		try {
+			const res = await fetch('/api/review/mark-known/diagnostic', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ wordId: q.wordId }),
+			});
+			const json = await res.json() as { ok: boolean; data?: { questions: CnPracticeQuestionDTO[] }; error?: string };
+			if (!json.ok || !json.data?.questions.length) throw new Error(json.error ?? 'Không tạo được bài kiểm tra');
+			setShowMarkConfirm(false);
+			setMarkKnownDiagnostic(json.data.questions);
+		} catch (e) {
+			setFeedback(e instanceof Error ? e.message : 'Không thể bắt đầu kiểm tra');
+		} finally {
+			setMarkingKnown(false);
+		}
+	};
+
+	const finishMarkKnownDiagnostic = async (items: QuestionAnswerResult[]) => {
+		setMarkingKnown(true);
+		try {
 			const res = await fetch('/api/review/mark-known', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ wordId: q.wordId, questionType: q.type }),
+				body: JSON.stringify({
+					wordId: q.wordId,
+					questionType: q.type,
+					diagnosticItems: items,
+				}),
 			});
 			const json = await res.json() as { ok: boolean; error?: string };
-			if (!json.ok) throw new Error(json.error ?? 'Lỗi');
-			setShowMarkConfirm(false);
-			setFeedback('Đã ghi nhận — sẽ nhắc lại sau');
-			const next = [...results];
-			setResults(next);
-			setTimeout(() => advance(next), 800);
+			if (!json.ok) throw new Error(json.error ?? 'Chưa đủ chắc — hãy ôn thêm');
+			setMarkKnownDiagnostic(null);
+			setFeedback('Đã xác nhận — sẽ nhắc lại sau');
+			setTimeout(() => advance(results), 800);
 		} catch (e) {
+			setMarkKnownDiagnostic(null);
 			setFeedback(e instanceof Error ? e.message : 'Không thể đánh dấu');
 		} finally {
 			setMarkingKnown(false);
@@ -132,6 +163,23 @@ export default function QuestionRenderer({
 		: `Câu ${idx + 1} / ${questions.length}`;
 
 	const resolvedExitLabel = exitLabel ?? (incremental ? 'Dừng & lưu' : 'Thoát');
+
+	if (markKnownDiagnostic?.length) {
+		return (
+			<div className="w-full max-w-2xl">
+				<p className="mb-4 text-center text-sm font-bold text-foreground-secondary">
+					Kiểm tra nhanh — trả lời đúng ít nhất 2/3 câu
+				</p>
+				<QuestionRenderer
+					questions={markKnownDiagnostic}
+					sessionType="practice"
+					exitLabel="Hủy kiểm tra"
+					onExit={() => setMarkKnownDiagnostic(null)}
+					onComplete={(items) => { void finishMarkKnownDiagnostic(items); }}
+				/>
+			</div>
+		);
+	}
 
 	return (
 		<div className="w-full max-w-2xl">
@@ -146,7 +194,7 @@ export default function QuestionRenderer({
 						<MaterialIcon name={isExiting ? 'hourglass_empty' : 'close'} size={16} />
 						{isExiting ? 'Đang lưu...' : resolvedExitLabel}
 					</button>
-					<span className="label-caps text-muted">{questionTypeLabel(q.type)}</span>
+					<span className="label-caps text-muted">{learnerSessionLabel(q.type)}</span>
 				</div>
 			)}
 
@@ -156,7 +204,7 @@ export default function QuestionRenderer({
 					{sessionProgress && (
 						<span className="text-muted">Câu {idx + 1}/{questions.length}</span>
 					)}
-					{!onExit && !sessionProgress && <span>{questionTypeLabel(q.type)}</span>}
+					{!onExit && !sessionProgress && <span>{learnerSessionLabel(q.type)}</span>}
 				</div>
 				<ProgressBar value={sessionProgress ? Math.min(100, (sessionProgress.reviewed / Math.max(1, sessionProgress.reviewed + sessionProgress.dueRemaining)) * 100) : batchProgress} />
 			</div>
@@ -199,30 +247,7 @@ export default function QuestionRenderer({
 						);
 					})}
 				</div>
-			) : (
-				<div>
-					<input
-						value={textAnswer}
-						onChange={(e) => setTextAnswer(e.target.value)}
-						disabled={waiting}
-						placeholder="Nhập đáp án..."
-						inputMode="text"
-						autoComplete="off"
-						autoCorrect="off"
-						spellCheck={false}
-						className="w-full rounded-xl border border-border bg-surface px-4 py-3 text-base focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
-						onKeyDown={(e) => e.key === 'Enter' && textAnswer && submitAnswer(textAnswer)}
-					/>
-					<button
-						type="button"
-						disabled={!textAnswer || waiting}
-						onClick={() => submitAnswer(textAnswer)}
-						className="btn-primary mt-3 disabled:opacity-50"
-					>
-						Trả lời
-					</button>
-				</div>
-			)}
+			) : null}
 
 			{feedback && (
 				<p className={`mt-6 text-center text-sm font-bold ${
@@ -232,6 +257,21 @@ export default function QuestionRenderer({
 				}`}>
 					{feedback}
 				</p>
+			)}
+
+			{isFeedbackWrong && (q.usageNoteVi || q.mnemonicVi) && (
+				<div className="mt-3 space-y-2">
+					{q.usageNoteVi && (
+						<div className="rounded-lg border border-border bg-surface p-3 text-sm text-foreground-secondary">
+							<span className="font-bold text-foreground">Lưu ý: </span>{q.usageNoteVi}
+						</div>
+					)}
+					{q.mnemonicVi && (
+						<div className="rounded-lg border border-border bg-surface p-3 text-sm text-foreground-secondary">
+							<span className="font-bold text-foreground">Mẹo nhớ: </span>{q.mnemonicVi}
+						</div>
+					)}
+				</div>
 			)}
 
 			{feedback?.startsWith('Sai') && (sessionHeavyLapses[q.wordId] ?? 0) >= 2 && (
@@ -248,14 +288,14 @@ export default function QuestionRenderer({
 							className="btn-secondary w-full min-h-[48px] justify-center !normal-case !tracking-normal"
 						>
 							<MaterialIcon name="verified" size={18} />
-							Đã biết — nhắc lại sau
+							Đã biết — kiểm tra nhanh
 						</button>
 					)}
 					{showMarkConfirm && (
 						<div className="space-y-2 text-center">
 							<p className="text-sm text-foreground-secondary">
-								Xác nhận bạn đã thuộc kỹ năng{' '}
-								<strong>{channelLabel(questionChannel(q.type) ?? 'meaning')}</strong> của từ này?
+								Làm 3 câu ngắn để xác nhận kỹ năng{' '}
+								<strong>{channelLabel(questionChannel(q.type) ?? 'meaning')}</strong>.
 							</p>
 							<div className="flex gap-2">
 								<button type="button" onClick={() => setShowMarkConfirm(false)} className="btn-secondary flex-1 min-h-[44px]">
@@ -312,7 +352,7 @@ function QuestionHeroCard({ question: q, audioOnly }: { question: CnPracticeQues
 		);
 	}
 
-	if (q.type === 'meaning_to_hanzi' || (q.type === 'similar_char' && q.meaningVi)) {
+	if (q.type === 'meaning_to_hanzi' && q.meaningVi) {
 		return (
 			<div className="card-paper mx-auto max-w-md p-6 text-center shadow-sm">
 				<p className="label-caps text-muted">Nghĩa</p>
@@ -326,19 +366,6 @@ function QuestionHeroCard({ question: q, audioOnly }: { question: CnPracticeQues
 			<div className="card-paper mx-auto flex min-h-[160px] max-w-md flex-col items-center justify-center gap-3 p-8 shadow-sm">
 				<p className="hanzi-lg text-3xl font-bold leading-relaxed text-foreground">{q.sentenceTemplate}</p>
 				{q.audioText && <SpeakButton text={q.audioText} label="Nghe câu" />}
-			</div>
-		);
-	}
-
-	if (q.type === 'sentence_order') {
-		return null;
-	}
-
-	if (q.type === 'translate_sentence' && q.meaningVi) {
-		return (
-			<div className="card-paper mx-auto max-w-md p-6 text-center shadow-sm">
-				<p className="label-caps text-muted">Dịch sang tiếng Trung</p>
-				<p className="mt-2 text-lg font-extrabold text-foreground">{q.meaningVi}</p>
 			</div>
 		);
 	}

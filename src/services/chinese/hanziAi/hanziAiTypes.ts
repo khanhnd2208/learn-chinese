@@ -45,6 +45,17 @@ export interface HanziAiProvider {
 	}): Promise<HanziAiGenerationResult>;
 }
 
+export type HanziPartLexiconSource = 'database' | 'radical_meta' | 'ai_hint';
+
+export interface HanziPartLexiconEntry {
+	pinyin: string | null;
+	hanViet: string | null;
+	meaningVi: string | null;
+	source: HanziPartLexiconSource;
+}
+
+export type HanziPartLexicon = Record<string, HanziPartLexiconEntry>;
+
 export interface HanziAiPublicAnalysis {
 	id: string;
 	status: 'ready' | 'empty' | 'generating' | 'needs_review' | 'blocked' | 'stale' | 'failed';
@@ -52,5 +63,10 @@ export interface HanziAiPublicAnalysis {
 	contentVersion: number;
 	openReportCount: number;
 	factsSoftStale?: boolean;
+	promptVersion?: string | null;
+	legacyPrompt?: boolean;
+	pedagogyReviewPending?: boolean;
+	decompositionLimited?: boolean;
+	partLexicon?: HanziPartLexicon;
 }
 

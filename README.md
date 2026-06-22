@@ -66,15 +66,21 @@ Hệ thống ôn **không phải SM-2/FSRS/Anki**. Mỗi từ có 5 kênh kỹ n
 
 **Đơn vị lập lịch:** `(word, channel)` — số "ôn hôm nay" = số cặp từ×kênh đến hạn.
 
+**Ramp kênh mới:** từ mới chỉ `(word, meaning)` due; `listening`/`pinyin` mở sau khi `meaningIntervalIdx ≥ 1`.
+
+**Due eligibility:** theo lịch Leitner (`*DueAt`) + ramp + cooldown 30 phút lần sai đầu trên kênh — **không** kéo due sớm vì lifetime rate thấp.
+
+**Priority review:** thuần theo kênh (overdue, weakness có sample weight) — không boost theo `p.state` cấp từ.
+
 **Thang interval:** 10 phút → 1d → 3d → 7d → 14d → 30d → 90d → 180d → 360d.
 
-**Khi sai:** lùi 1 bậc (lỗi nhẹ) hoặc về sàn 1 ngày (lỗi nặng: quên nghĩa/hán tự/nghe không ra) — không reset về 10 phút.
+**Khi sai:** lùi 1 bậc (lỗi nhẹ) hoặc về sàn 1 ngày (lỗi nặng) — lần sai đầu trên kênh: cooldown 30 phút.
 
-**Nhảy 2 bậc:** chỉ với câu sản xuất (`translate_sentence`, `sentence_order`) khi trả lời đúng.
+**Nhảy 2 bậc:** `translate_sentence`, `hanzi_from_meaning` (free_recall/production) khi trả lời đúng.
 
-**Mở khóa kênh:** `sentence` và `hanzi` mở khi kênh `meaning` đạt bậc familiar (≥3 ngày).
+**Mở khóa kênh:** `sentence` và `hanzi` mở khi kênh `meaning` đạt bậc familiar (idx ≥ 2).
 
-**Perf đã biết:** `getDueChannels` / `countDueChannels` load toàn bộ progress user rồi lọc JS; `listUserSets` gọi `countDueAndWeak` mỗi set. Tối ưu aggregate SQL — deferred.
+**Perf:** `getDueChannels` / `countDueChannels` dùng SQL superset prefilter (`cnSrsDueQuery.ts`) rồi `isChannelDue` trong JS; `listUserSets` vẫn N+1 query dueCount mỗi set.
 
 **Hạn chế đã biết (chưa xử lý):**
 - Chữ đa âm/đa nghĩa: `CnWord.simplified` là unique — một chuỗi Hán = một mục từ
@@ -89,6 +95,27 @@ Logic: `src/services/chinese/cnSrsService.ts`, `src/lib/chinese/practiceTaxonomy
 Hanzi Lab gọi DeepSeek qua server, cache theo từ và lưu nội dung theo revision. Generation chạy đồng bộ với hard deadline 50 giây và lease 75 giây. Kết quả AI không được ghi vào `CnWord`, `CnHanzi` hoặc SRS.
 
 Production hiện yêu cầu một Node.js process (`PM2 instances=1`, `exec_mode=fork`) vì rate limit theo phút nằm trong memory. Daily quota, lease và circuit breaker nằm trong PostgreSQL.
+
+### Harness & chất lượng code
+
+```bash
+npm run quality              # test + lint + build
+npm run harness:hanzi        # golden cases offline (trust + pedagogy)
+npm run harness:hanzi:report # báo cáo text; thêm --json cho agent/CI
+npm run hanzi:batch          # live DeepSeek (thủ công, tốn API)
+npm run hanzi:cache          # xem cache DB cho corpus 8 từ
+```
+
+Agent context: xem **[AGENTS.md](AGENTS.md)** và `.cursor/rules/`.
+
+**Checklist khi đổi trust policy / registry version:**
+
+1. Cập nhật golden cases trong `src/lib/harness/hanziGoldenCases.ts`
+2. Chạy `npm run harness:hanzi` và `npm run harness:hanzi:report -- --json`
+3. Admin reconcile: `POST /api/admin/hanzi-ai` action `reconcile` hoặc `mark_legacy_stale`
+4. Cập nhật `AGENTS.md` nếu pipeline thay đổi
+
+Manual QA theo domain: **[docs/testing/README.md](docs/testing/README.md)** (thay cho đọc toàn bộ `TEST_SCENARIOS.md`).
 
 ## Demo auto-seed
 
@@ -108,6 +135,6 @@ Không deploy cùng bundle với my-teaching-platform.
 2. **DB:** `npx prisma migrate deploy` (không dùng `db push` trên prod)
 3. **Seed nội dung:** `npm run db:seed` (hoặc import admin CMS)
 4. **Xác nhận schema:** `npx prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code` (kỳ vọng: no diff; cần shadow DB — tự tạo `prisma_migrate_shadow` hoặc đặt `SHADOW_DATABASE_URL`)
-5. **Build:** `npm run build`
-6. **Test:** `npm test`
+5. **Quality:** `npm run quality` (hoặc tách `npm test`, `npm run lint`, `npm run build`)
+6. **Hanzi harness (nếu đổi trust policy):** `npm run harness:hanzi`
 7. **Chạy:** `npm start` hoặc `./scripts/deploy.sh` + PM2

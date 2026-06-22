@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { diffHanziAnalysisResults } from '@/lib/chinese/hanziAiDiff';
+import { validV2Result } from './hanziTrustFixtures';
 
 const base = {
-	schemaVersion: 1 as const,
-	term: '学习', normalizedTerm: '学习', script: 'simplified' as const,
-	simplified: '学习', traditional: '學習', pinyin: 'xuéxí', hanViet: 'HỌC TẬP',
-	primaryMeaningVi: 'học tập', otherMeaningsVi: [], wordClasses: [], usageNoteVi: null,
-	overallExplanationVi: 'Giải thích A', overallMnemonicVi: 'Mẹo A',
+	...validV2Result,
+	overallExplanationVi: 'Giải thích A',
+	overallMnemonicVi: 'Mẹo A',
 	characters: [],
-	examples: [{ chinese: '我每天学习中文。', pinyin: 'x', meaningVi: 'y', usageNoteVi: null }],
-	warnings: [],
 };
 
 describe('diffHanziAnalysisResults', () => {

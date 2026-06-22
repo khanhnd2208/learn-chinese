@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { AppError } from '@/lib/appError';
 import { validateHanziAnalysis } from './hanziAnalysisValidator';
 import { loadHanziKnownFacts, hashKnownFacts } from './hanziKnownFacts';
+import { isLegacyPromptVersion, HANZI_PEDAGOGY_PROMPT_VERSION } from './hanziPedagogy';
 import { getCurrentHanziSchemaVersion, parseHanziRevisionResult } from './hanziSchemaRegistry';
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
@@ -294,6 +295,27 @@ export async function reconcileHanziAiDependencies(type?: 'word' | 'hanzi', sour
 		const triggers = type && sourceId ? [{ type, id: sourceId } as HanziAiReconcileTrigger] : undefined;
 		return reconcileHanziAiInTransaction(tx, triggers);
 	});
+}
+
+export async function markLegacyPromptAnalysesStale(): Promise<{ marked: number }> {
+	const analyses = await prisma.cnHanziAiAnalysis.findMany({
+		where: { contentStatus: { in: ['ready', 'needs_review'] }, currentRevisionId: { not: null } },
+		include: { currentRevision: { select: { promptVersion: true } } },
+	});
+	let marked = 0;
+	for (const analysis of analyses) {
+		if (!isLegacyPromptVersion(analysis.currentRevision?.promptVersion)) continue;
+		await prisma.cnHanziAiAnalysis.update({
+			where: { id: analysis.id },
+			data: {
+				hardFactsHash: `__legacy_prompt_${HANZI_PEDAGOGY_PROMPT_VERSION}__`,
+				sourceFactsChangedAt: new Date(),
+				contentVersion: { increment: 1 },
+			},
+		});
+		marked += 1;
+	}
+	return { marked };
 }
 
 export async function purgeOldHanziAiAttempts(retentionDays = 30): Promise<number> {

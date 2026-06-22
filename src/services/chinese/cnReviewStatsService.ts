@@ -67,10 +67,6 @@ export async function getReviewStats(userId: string): Promise<CnReviewStatsDTO> 
 		progress.reduce((s, p) => s + p.sentenceCorrect, 0),
 		progress.reduce((s, p) => s + p.sentenceTotal, 0),
 	);
-	const charRate = rate(
-		progress.reduce((s, p) => s + p.charCorrect, 0),
-		progress.reduce((s, p) => s + p.charTotal, 0),
-	);
 
 	const weakWords = progress
 		.filter((p) => p.state === 'weak' || p.state === 'learning')
@@ -90,7 +86,6 @@ export async function getReviewStats(userId: string): Promise<CnReviewStatsDTO> 
 		listeningRate,
 		pinyinRate,
 		sentenceRate,
-		charRate,
 		weakWords,
 		recentSessions,
 	};

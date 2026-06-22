@@ -86,6 +86,15 @@ export default function HanziCard({ word, setId }: Props) {
 								<p className="text-sm leading-relaxed text-foreground-secondary">{word.mnemonicVi}</p>
 							</article>
 						)}
+						{word.usageNoteVi && (
+							<article className="rounded-lg border border-border bg-surface p-4">
+								<h3 className="mb-2 flex items-center gap-2 text-lg font-extrabold text-foreground">
+									<MaterialIcon name="info" className="text-accent" size={20} />
+									Ghi chú cách dùng
+								</h3>
+								<p className="text-sm leading-relaxed text-foreground-secondary">{word.usageNoteVi}</p>
+							</article>
+						)}
 						{word.relatedWords.length > 0 && (
 							<div>
 								<h3 className="mb-2 flex items-center gap-2 text-lg font-extrabold text-foreground">

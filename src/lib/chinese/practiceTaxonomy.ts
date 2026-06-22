@@ -2,55 +2,54 @@
    practiceTaxonomy.ts — Skill groups, channel unlock, smart question selection
    ════════════════════════════════════════════════════════════════════════ */
 import { CN_STATE_THRESHOLDS } from '@/config/constants';
+import {
+	ALL_SKILL_CHANNELS,
+	questionChannel,
+	type SkillChannel,
+} from '@/lib/chinese/coreQuestionTypes';
+import { pickFillExample } from '@/lib/chinese/verifiedExample';
 import type {
 	CnQuestionType,
 	CnWordCardDTO,
 	CnWordProgressDTO,
 } from '@/types/chinese';
 
-export type SkillChannel = 'meaning' | 'listening' | 'pinyin' | 'sentence' | 'hanzi';
-
-export const ALL_SKILL_CHANNELS: SkillChannel[] = [
-	'meaning', 'listening', 'pinyin', 'sentence', 'hanzi',
-];
+export type { SkillChannel };
+export { ALL_SKILL_CHANNELS, questionChannel };
 
 export type PracticeGroup =
 	| 'core_vocab'
 	| 'listening'
 	| 'sentence_usage'
-	| 'hanzi_memory'
-	| 'smart_mixed'
-	| 'integrated_recall';
+	| 'smart_mixed';
+
+export type SessionContext = 'review' | 'practice';
 
 export interface GoalWeights {
 	meaning: number;
 	listening: number;
 	pinyin: number;
 	sentence: number;
-	hanzi: number;
 }
 
 export const DEFAULT_GOAL_WEIGHTS: GoalWeights = {
-	meaning: 35,
-	listening: 30,
+	meaning: 38,
+	listening: 32,
 	pinyin: 15,
 	sentence: 15,
-	hanzi: 5,
 };
 
-export const GROUP_QUESTION_MAP: Record<Exclude<PracticeGroup, 'smart_mixed' | 'integrated_recall'>, CnQuestionType[]> = {
-	core_vocab: ['hanzi_to_meaning', 'meaning_to_hanzi', 'pinyin_to_hanzi', 'hanzi_from_meaning'],
-	listening: ['audio_to_hanzi', 'audio_to_meaning', 'audio_to_pinyin', 'audio_to_pinyin_typed'],
-	sentence_usage: ['fill_sentence', 'sentence_order', 'translate_sentence'],
-	hanzi_memory: ['radical_pick', 'char_components', 'similar_char'],
+export const GROUP_QUESTION_MAP: Record<Exclude<PracticeGroup, 'smart_mixed'>, CnQuestionType[]> = {
+	core_vocab: ['hanzi_to_meaning', 'meaning_to_hanzi', 'pinyin_to_hanzi'],
+	listening: ['audio_to_meaning', 'audio_to_hanzi'],
+	sentence_usage: ['fill_sentence'],
 };
 
-export const CHANNEL_TO_GROUP: Record<SkillChannel, Exclude<PracticeGroup, 'smart_mixed' | 'integrated_recall'>> = {
+export const CHANNEL_TO_GROUP: Record<SkillChannel, Exclude<PracticeGroup, 'smart_mixed'>> = {
 	meaning: 'core_vocab',
 	listening: 'listening',
 	pinyin: 'core_vocab',
 	sentence: 'sentence_usage',
-	hanzi: 'hanzi_memory',
 };
 
 const WEAK_MASTERY_THRESHOLD = 60;
@@ -58,15 +57,6 @@ const WEAK_MASTERY_THRESHOLD = 60;
 const ALWAYS_UNLOCKED_CHANNELS: ReadonlySet<SkillChannel> = new Set([
 	'meaning', 'listening', 'pinyin',
 ]);
-
-export function questionChannel(type: CnQuestionType): SkillChannel | null {
-	if (['hanzi_to_meaning', 'meaning_to_hanzi', 'hanzi_from_meaning'].includes(type)) return 'meaning';
-	if (['audio_to_hanzi', 'audio_to_meaning', 'audio_to_pinyin', 'audio_to_pinyin_typed'].includes(type)) return 'listening';
-	if (type === 'pinyin_to_hanzi') return 'pinyin';
-	if (['fill_sentence', 'sentence_order', 'translate_sentence'].includes(type)) return 'sentence';
-	if (['radical_pick', 'char_components', 'similar_char'].includes(type)) return 'hanzi';
-	return null;
-}
 
 export function practiceModeToGroup(mode: string): PracticeGroup {
 	const normalized = mode.trim().toLowerCase();
@@ -78,9 +68,6 @@ export function practiceModeToGroup(mode: string): PracticeGroup {
 		listening: 'listening',
 		sentence: 'sentence_usage',
 		sentence_usage: 'sentence_usage',
-		hanzi: 'hanzi_memory',
-		hanzi_memory: 'hanzi_memory',
-		integrated_recall: 'integrated_recall',
 	};
 	return map[normalized] ?? 'smart_mixed';
 }
@@ -96,14 +83,13 @@ function shuffle<T>(arr: T[]): T[] {
 
 function channelRates(progress: CnWordProgressDTO | null): Record<SkillChannel, number | null> {
 	if (!progress) {
-		return { meaning: null, listening: null, pinyin: null, sentence: null, hanzi: null };
+		return { meaning: null, listening: null, pinyin: null, sentence: null };
 	}
 	return {
 		meaning: progress.meaningRate,
 		listening: progress.listeningRate,
 		pinyin: progress.pinyinRate,
 		sentence: progress.sentenceRate,
-		hanzi: progress.charRate,
 	};
 }
 
@@ -114,11 +100,10 @@ function channelIntervalIdx(progress: CnWordProgressDTO | null, channel: SkillCh
 		case 'listening': return progress.listeningIntervalIdx;
 		case 'pinyin': return progress.pinyinIntervalIdx;
 		case 'sentence': return progress.sentenceIntervalIdx;
-		case 'hanzi': return progress.hanziIntervalIdx;
 	}
 }
 
-/** Advanced channels unlock when meaning channel reaches familiar threshold */
+/** Sentence channel unlocks when meaning channel reaches familiar threshold */
 export function isChannelUnlocked(
 	progress: CnWordProgressDTO | null,
 	channel: SkillChannel,
@@ -130,7 +115,6 @@ export function isChannelUnlocked(
 export function getUnlockedGroups(progress: CnWordProgressDTO | null): PracticeGroup[] {
 	const groups: PracticeGroup[] = ['core_vocab', 'listening'];
 	if (isChannelUnlocked(progress, 'sentence')) groups.push('sentence_usage');
-	if (isChannelUnlocked(progress, 'hanzi')) groups.push('hanzi_memory');
 	if (progress?.state === 'mastered') {
 		return groups.filter((g) => g !== 'core_vocab');
 	}
@@ -150,16 +134,13 @@ function channelWeaknessScore(
 			listening: progress.listeningTotal,
 			pinyin: progress.pinyinTotal,
 			sentence: progress.sentenceTotal,
-			hanzi: progress.charTotal,
 		}
-		: { meaning: 0, listening: 0, pinyin: 0, sentence: 0, hanzi: 0 };
+		: { meaning: 0, listening: 0, pinyin: 0, sentence: 0 };
 	const practiced = totals[channel] > 0;
 	const effectiveRate = practiced && rate !== null ? rate : 0;
 	let score = (100 - effectiveRate) * goalWeights[channel];
-	if (channel === 'sentence' && (totals.sentence ?? 0) < 3) score *= 0.4;
-	else if (channel === 'hanzi' && (totals.hanzi ?? 0) < 3) score *= 0.4;
-	else if (channel === 'sentence' && (totals.sentence ?? 0) < 10) score *= 0.7;
-	else if (channel === 'hanzi' && (totals.hanzi ?? 0) < 10) score *= 0.7;
+	if (channel === 'sentence' && totals.sentence < 3) score *= 0.4;
+	else if (channel === 'sentence' && totals.sentence < 10) score *= 0.7;
 	return score;
 }
 
@@ -222,45 +203,25 @@ function resolveAllowedGroups(
 function typesForGroups(groups: PracticeGroup[]): CnQuestionType[] {
 	const types: CnQuestionType[] = [];
 	for (const g of groups) {
-		if (g === 'smart_mixed' || g === 'integrated_recall') continue;
+		if (g === 'smart_mixed') continue;
 		types.push(...GROUP_QUESTION_MAP[g]);
 	}
 	return [...new Set(types)];
 }
 
 export function wordSupportsQuestionType(word: CnWordCardDTO, type: CnQuestionType): boolean {
-	const example = word.examples[0];
-	const pattern = word.patterns[0];
 	switch (type) {
 		case 'fill_sentence':
-			return !!example?.hanzi && example.hanzi.includes(word.simplified);
-		case 'sentence_order': {
-			if (!example?.hanzi) return false;
-			return example.hanzi.replace(/[。！？]/g, '').length >= 2;
-		}
-		case 'translate_sentence':
-			return !!pattern?.samples?.some((s) => s.meaningVi && s.hanzi);
-		case 'radical_pick':
-			return word.chars.some((c) => !!c.radical);
-		case 'char_components':
-			return word.chars.some((c) => c.components.length > 0);
-		case 'similar_char':
-			return word.chars.some((c) => !!c.similarGroupId);
-		case 'hanzi_from_meaning':
-			return !!word.simplified && !!word.meaningVi;
-		case 'audio_to_pinyin_typed':
-			return !!word.simplified && !!word.pinyin;
+			return pickFillExample(word) != null;
 		case 'hanzi_to_meaning':
 		case 'meaning_to_hanzi':
 			return !!word.simplified && !!word.meaningVi;
 		case 'pinyin_to_hanzi':
-			return !!word.simplified && !!word.pinyin;
 		case 'audio_to_hanzi':
 		case 'audio_to_meaning':
-		case 'audio_to_pinyin':
 			return !!word.simplified && !!word.pinyin;
 		default:
-			return !!word.simplified;
+			return false;
 	}
 }
 
@@ -272,9 +233,15 @@ export function selectQuestionTypesForWord(
 		goalWeights?: GoalWeights;
 		count?: number;
 		targetChannel?: SkillChannel;
+		sessionContext?: SessionContext;
 	},
 ): CnQuestionType[] {
-	const { group, goalWeights = DEFAULT_GOAL_WEIGHTS, count = 3, targetChannel } = options;
+	const {
+		group,
+		goalWeights = DEFAULT_GOAL_WEIGHTS,
+		count = 3,
+		targetChannel,
+	} = options;
 	const allowedGroups = resolveAllowedGroups(group, progress, goalWeights);
 	let types = typesForGroups(allowedGroups).filter((t) => wordSupportsQuestionType(word, t));
 

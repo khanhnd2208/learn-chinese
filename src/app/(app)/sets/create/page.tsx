@@ -120,7 +120,7 @@ export default function CreateChineseSetPage() {
 							<p className="text-sm font-bold text-foreground">Đưa bộ này vào SRS (ôn tập hàng ngày)</p>
 							<p className="mt-1 text-xs text-muted">
 								Bật: từ sẽ vào <strong>/review</strong> và trộn với các bộ SRS khác.
-								Tắt: chỉ luyện trong bộ, không ảnh hưởng tiến độ ôn. Có thể bật/tắt sau trong danh sách bộ từ.
+								Tắt SRS chỉ tạm dừng ôn — tiến độ được giữ. Kênh câu mở sau khi bạn ôn đúng nghĩa đủ lên mốc 3 ngày (ít nhất 2 lần củng cố).
 							</p>
 						</div>
 					</label>

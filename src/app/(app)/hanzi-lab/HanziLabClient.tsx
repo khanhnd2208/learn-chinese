@@ -10,7 +10,7 @@ import { HANZI_AI_POLL_INTERVAL_MS, HANZI_AI_POLL_MAX_MS } from '@/config/hanziA
 
 const VALID_TERM = /^\p{Script=Han}{1,4}$/u;
 const LOADING_COPY = [
-	'Đang tra từ điển và kiểm tra dữ liệu…',
+	'Đang chuẩn bị phân tích…',
 	'Đang phân tích cấu tạo từng chữ…',
 	'Đang viết giải thích và ví dụ bằng tiếng Việt…',
 ];
@@ -52,6 +52,26 @@ export default function HanziLabClient() {
 		setLoading(false);
 	}, []);
 
+	const runAnalyze = useCallback(async (termOverride?: string) => {
+		const term = (termOverride ?? normalized).trim().normalize('NFKC');
+		if (!VALID_TERM.test(term) || loading) return;
+		stopPolling();
+		setLoading(true); setLoadingStep(0); setError(null); setAnalysis(null);
+		try {
+			const response = await fetch('/api/hanzi/analyze', {
+				method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ term }),
+			});
+			const json = await response.json() as { ok: boolean; data?: HanziAiPublicAnalysis; error?: string };
+			if (!json.ok) throw new Error(json.error ?? 'Không thể phân tích');
+			if (response.status === 202 && json.data) return void poll(json.data.id, Date.now());
+			setAnalysis(json.data ?? null);
+		} catch (e) {
+			setError(e instanceof Error ? e.message : 'Không thể phân tích');
+		} finally {
+			if (!pollingRef.current) setLoading(false);
+		}
+	}, [normalized, loading, poll, stopPolling]);
+
 	const loadCached = useCallback(async (term: string) => {
 		if (!VALID_TERM.test(term)) return;
 		const [aiResponse, curatedResponse] = await Promise.all([
@@ -60,14 +80,21 @@ export default function HanziLabClient() {
 		]);
 		const aiJson = await aiResponse.json() as { ok: boolean; data?: { analysis: HanziAiPublicAnalysis | null } };
 		const curatedJson = await curatedResponse.json() as { ok: boolean; data?: { term: CnHanziAnalysisDTO | null } };
-		if (aiJson.ok) setAnalysis(aiJson.data?.analysis ?? null);
 		if (curatedJson.ok) setCurated(curatedJson.data?.term ?? null);
 		const cached = aiJson.data?.analysis;
 		if (cached?.status === 'generating') {
+			setAnalysis(cached);
 			setLoading(true);
 			void poll(cached.id, Date.now());
+			return;
 		}
-	}, [poll]);
+		if (cached?.status === 'stale') {
+			// Bản cũ không còn dùng được — tự tạo lại, không hiện jargon kỹ thuật.
+			void runAnalyze(term);
+			return;
+		}
+		if (aiJson.ok) setAnalysis(cached ?? null);
+	}, [poll, runAnalyze]);
 
 	useEffect(() => {
 		mountedRef.current = true;
@@ -83,24 +110,7 @@ export default function HanziLabClient() {
 		return () => clearInterval(timer);
 	}, [loading]);
 
-	const analyze = async () => {
-		if (!valid || loading) return;
-		stopPolling();
-		setLoading(true); setLoadingStep(0); setError(null); setAnalysis(null);
-		try {
-			const response = await fetch('/api/hanzi/analyze', {
-				method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ term: normalized }),
-			});
-			const json = await response.json() as { ok: boolean; data?: HanziAiPublicAnalysis; error?: string };
-			if (!json.ok) throw new Error(json.error ?? 'Không thể phân tích');
-			if (response.status === 202 && json.data) return void poll(json.data.id, Date.now());
-			setAnalysis(json.data ?? null);
-		} catch (e) {
-			setError(e instanceof Error ? e.message : 'Không thể phân tích');
-		} finally {
-			if (!pollingRef.current) setLoading(false);
-		}
-	};
+	const analyze = () => void runAnalyze();
 
 	return (
 		<div className="mx-auto max-w-5xl space-y-8 px-4 py-8 md:px-8">
@@ -126,22 +136,17 @@ export default function HanziLabClient() {
 				{error && <p className="mt-3 text-sm text-accent">{error}</p>}
 			</section>
 
-			{analysis?.status === 'ready' && (
+			{analysis && ['ready', 'needs_review'].includes(analysis.status) && analysis.analysis && (
 				<>
-					{analysis.factsSoftStale && (
-						<p className="rounded-lg border border-border bg-surface p-3 text-sm text-muted">
-							Từ điển đã được cập nhật gần đây. Bản phân tích hiện tại vẫn dùng được; bạn có thể bấm Xem phân tích để làm mới nếu muốn.
+					{analysis.status === 'needs_review' && (
+						<p className="rounded-lg border border-warning/30 bg-warning/10 p-3 text-sm text-foreground-secondary">
+							Một số phần cấu tạo hoặc từ nguyên đang chờ kiểm tra — bạn vẫn có thể đọc phần nghĩa và cách nhận diện mặt chữ bên dưới.
 						</p>
 					)}
 					<HanziAiResultPanel value={analysis} />
 				</>
 			)}
-			{analysis?.status === 'stale' && (
-				<p className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm">
-					Thông tin từ điển đã đổi nên bản phân tích cũ tạm ẩn. Bấm <strong>Xem phân tích</strong> để tạo bản mới.
-				</p>
-			)}
-			{analysis && ['needs_review', 'blocked'].includes(analysis.status) && (
+			{analysis && ['blocked'].includes(analysis.status) && (
 				<p className="rounded-lg border border-warning/30 bg-warning/10 p-4 text-sm">Bản phân tích này đang được kiểm tra và tạm thời chưa hiển thị.</p>
 			)}
 			{analysis?.status === 'empty' && (

@@ -5,21 +5,13 @@ import type { CnErrorType, CnQuestionType } from '@/types/chinese';
 
 export type ErrorSeverity = 'light' | 'heavy';
 
-const QUESTION_ERROR_MAP: Partial<Record<CnQuestionType, CnErrorType>> = {
+const QUESTION_ERROR_MAP: Record<CnQuestionType, CnErrorType> = {
 	hanzi_to_meaning: 'sai_nghia',
 	meaning_to_hanzi: 'quen_hanzi',
 	pinyin_to_hanzi: 'sai_pinyin',
 	audio_to_hanzi: 'nghe_khong_ra',
 	audio_to_meaning: 'nghe_khong_ra',
-	audio_to_pinyin: 'sai_thanh_dieu',
-	audio_to_pinyin_typed: 'sai_thanh_dieu',
-	hanzi_from_meaning: 'quen_hanzi',
 	fill_sentence: 'sai_mau_cau',
-	sentence_order: 'sai_vi_tri',
-	radical_pick: 'nham_chu',
-	char_components: 'nham_chu',
-	similar_char: 'nham_chu',
-	translate_sentence: 'sai_mau_cau',
 };
 
 const HEAVY_ERROR_TYPES: ReadonlySet<CnErrorType> = new Set([
