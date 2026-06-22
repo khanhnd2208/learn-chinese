@@ -32,16 +32,7 @@ const mockAnalysis = {
 	normalizedTerm: '学习',
 };
 
-const validResult = {
-	schemaVersion: 1,
-	term: '学习', normalizedTerm: '学习', script: 'simplified',
-	simplified: '学习', traditional: '學習', pinyin: 'xuéxí', hanViet: 'HỌC TẬP',
-	primaryMeaningVi: 'học tập', otherMeaningsVi: [], wordClasses: [], usageNoteVi: null,
-	overallExplanationVi: 'x', overallMnemonicVi: null,
-	characters: [{ position: 0, char: '学', pinyin: 'xué', dictionaryReadings: ['xué'], hanViet: 'HỌC', meaningVi: 'học', radical: null, structureType: 'single', components: [], structureExplanationVi: 'x', mnemonicVi: null, etymologyStatus: 'not_provided', similarCharacters: [] }, { position: 1, char: '习', pinyin: 'xí', dictionaryReadings: ['xí'], hanViet: 'TẬP', meaningVi: 'tập', radical: null, structureType: 'single', components: [], structureExplanationVi: 'x', mnemonicVi: null, etymologyStatus: 'not_provided', similarCharacters: [] }],
-	examples: [{ chinese: '我每天学习中文。', pinyin: 'Wǒ měitiān xuéxí Zhōngwén.', meaningVi: 'Tôi học tiếng Trung mỗi ngày.', usageNoteVi: null }],
-	warnings: [],
-};
+import { validV2Result } from './hanziTrustFixtures';
 
 beforeEach(() => {
 	vi.mocked(prisma.cnHanziAiAnalysis.findUnique).mockReset();
@@ -54,7 +45,7 @@ describe('acceptHanziAiCandidate', () => {
 		vi.mocked(prisma.cnHanziAiAnalysisRevision.findUnique).mockResolvedValue({
 			id: 'cand-1', analysisId: 'a1', candidateStatus: 'candidate',
 			baseRevisionId: 'rev-current', baseContentVersion: 2,
-			hardFactsHash: 'hash-a', schemaVersion: 1, resultJson: validResult,
+			hardFactsHash: 'hash-a', schemaVersion: 2, resultJson: validV2Result,
 		} as never);
 
 		await expect(acceptHanziAiCandidate('a1', 'cand-1', 'admin', 1)).rejects.toSatisfy(
@@ -67,7 +58,7 @@ describe('acceptHanziAiCandidate', () => {
 		vi.mocked(prisma.cnHanziAiAnalysisRevision.findUnique).mockResolvedValue({
 			id: 'cand-1', analysisId: 'a1', candidateStatus: 'candidate',
 			baseRevisionId: 'old-rev', baseContentVersion: 2,
-			hardFactsHash: 'hash-a', schemaVersion: 1, resultJson: validResult,
+			hardFactsHash: 'hash-a', schemaVersion: 2, resultJson: validV2Result,
 		} as never);
 
 		await expect(acceptHanziAiCandidate('a1', 'cand-1', 'admin', 2)).rejects.toSatisfy(

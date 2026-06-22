@@ -7,9 +7,8 @@ import {
 	type PracticeGroup,
 	practiceModeToGroup,
 } from '@/lib/chinese/practiceTaxonomy';
-import { generatePracticeSession, enrichQuestionWithProgress, mergeWordPools } from '@/lib/chinese/generateQuestions';
-import { buildIntegratedBundles, flattenIntegratedBundles } from '@/lib/chinese/integratedRecall';
-import { CN_DEFAULT_INTEGRATED_COUNT, CN_DEFAULT_PRACTICE_COUNT, CN_DEFAULT_REVIEW_COUNT, CN_MAX_CHANNELS_PER_WORD_REVIEW } from '@/config/constants';
+import { generatePracticeSession, enrichQuestionWithProgress, mergeWordPools, generateQuestionForWord } from '@/lib/chinese/generateQuestions';
+import { CN_DEFAULT_PRACTICE_COUNT, CN_DEFAULT_REVIEW_COUNT, CN_MAX_CHANNELS_PER_WORD_REVIEW } from '@/config/constants';
 import { getWordCard, getUserDistractorPool } from '@/services/chinese/cnContentService';
 import { getReviewSession, progressToDTO } from '@/services/chinese/cnSrsService';
 import type {
@@ -66,17 +65,6 @@ export async function buildPracticeSession(
 		? words
 		: mergeWordPools(words, await getUserDistractorPool(userId));
 
-	if (group === 'integrated_recall') {
-		const bundles = buildIntegratedBundles(
-			words,
-			Math.min(count, CN_DEFAULT_INTEGRATED_COUNT),
-			progressMap,
-			distractorPool,
-		);
-		const flat = flattenIntegratedBundles(bundles);
-		return flat.map((q) => enrichQuestionWithProgress(q, progressMap.get(q.wordId) ?? null, false));
-	}
-
 	return generatePracticeSession(words, count, { group, progressMap, distractorPool, allowMarkKnown: false });
 }
 
@@ -128,6 +116,7 @@ export async function buildReviewQuestions(
 			distractorPool,
 			targetChannel: entry.channel,
 			allowMarkKnown: true,
+			sessionContext: 'review',
 		});
 		if (!batch.length) {
 			batch = generatePracticeSession([word], 1, {
@@ -163,4 +152,29 @@ export function summarizeSession(
 		byType,
 		weakWords: [...wrongWords],
 	};
+}
+
+const MARK_KNOWN_DIAGNOSTIC_TYPES: CnQuestionType[] = [
+	'hanzi_to_meaning',
+	'audio_to_meaning',
+	'meaning_to_hanzi',
+];
+
+export async function buildMarkKnownDiagnostic(
+	userId: string,
+	wordId: string,
+): Promise<CnPracticeQuestionDTO[]> {
+	const card = await getWordCard(wordId, userId);
+	if (!card) return [];
+
+	const distractorPool = mergeWordPools([card], await getUserDistractorPool(userId));
+	const questions: CnPracticeQuestionDTO[] = [];
+
+	for (let i = 0; i < MARK_KNOWN_DIAGNOSTIC_TYPES.length; i++) {
+		const type = MARK_KNOWN_DIAGNOSTIC_TYPES[i];
+		const q = generateQuestionForWord(card, distractorPool, type, i);
+		if (q) questions.push(enrichQuestionWithProgress(q, card.progress ?? null, false));
+	}
+
+	return questions;
 }

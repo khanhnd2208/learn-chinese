@@ -6,15 +6,18 @@ import { checkRateLimit, rateLimitKey } from '@/lib/rateLimit';
 import { normalizeHanziAiTerm, isValidHanziAiTerm } from './hanziNormalization';
 import { loadHanziKnownFacts, hashKnownFacts } from './hanziKnownFacts';
 import { validateHanziAnalysis } from './hanziAnalysisValidator';
+import { isLegacyPromptVersion, isTrustResultStale } from './hanziTrustPolicy';
 import type { HanziAnalysisResult } from './hanziAnalysisSchema';
 import { getCurrentHanziSchemaVersion, parseHanziRevisionResult } from './hanziSchemaRegistry';
+import { HANZI_TRUST_PROMPT_VERSION } from './hanziTrustRegistry';
+import { buildHanziPartLexicon } from './hanziPartLexicon';
 import { DeepSeekHanziProvider, HanziProviderError } from './providers/deepseekHanziProvider';
 import type { HanziAiPublicAnalysis, HanziKnownFacts } from './hanziAiTypes';
 
 const ATTEMPT_TIMEOUT_MS = Number(process.env.HANZI_AI_ATTEMPT_TIMEOUT_MS ?? '20000');
 const JOB_TIMEOUT_MS = Number(process.env.HANZI_AI_JOB_TIMEOUT_MS ?? '50000');
 const LEASE_TTL_MS = Number(process.env.HANZI_AI_LEASE_TTL_MS ?? '75000');
-const PROMPT_VERSION = process.env.HANZI_AI_PROMPT_VERSION ?? 'hanzi-v1';
+const PROMPT_VERSION = process.env.HANZI_AI_PROMPT_VERSION ?? HANZI_TRUST_PROMPT_VERSION;
 const SCHEMA_VERSION = getCurrentHanziSchemaVersion();
 const MAX_RAW_OUTPUT = 32 * 1024;
 const GENERATION_LIMIT_PER_MIN = 5;
@@ -234,11 +237,16 @@ async function commitValidResult(input: {
 		});
 		if (!analysis) throw new AppError('Generation lease đã hết hạn', 409);
 		const revisionNumber = await tx.cnHanziAiAnalysisRevision.count({ where: { analysisId: analysis.id } }) + 1;
-		const autoAccept = !analysis.currentRevisionId;
+		const isFirst = !analysis.currentRevisionId;
+		const publishReady = isFirst
+			&& input.result.lexicalStatus === 'ready'
+			&& input.result.exampleStatus === 'ready';
+		const publishNeedsReview = isFirst && !publishReady;
 		const revision = await tx.cnHanziAiAnalysisRevision.create({
 			data: {
 				analysisId: analysis.id, revisionNumber,
-				candidateStatus: autoAccept ? 'accepted' : 'candidate', kind: autoAccept ? 'ai_initial' : 'ai_regenerate',
+				candidateStatus: publishReady || publishNeedsReview ? 'accepted' : 'candidate',
+				kind: isFirst ? 'ai_initial' : 'ai_regenerate',
 				resultJson: asJson(input.result), schemaVersion: SCHEMA_VERSION, promptVersion: PROMPT_VERSION,
 				provider: input.provider, model: input.model, baseRevisionId: analysis.currentRevisionId,
 				baseContentVersion: analysis.contentVersion, hardFactsHash: input.hashes.hardFactsHash,
@@ -248,15 +256,18 @@ async function commitValidResult(input: {
 		await tx.cnHanziAiGenerationJob.update({
 			where: { id: input.jobId },
 			data: {
-				status: autoAccept ? 'succeeded' : 'candidate_ready', candidateRevisionId: revision.id,
+				status: publishReady || publishNeedsReview ? 'succeeded' : 'candidate_ready',
+				candidateRevisionId: revision.id,
 				completedAt: new Date(),
 			},
 		});
-		if (autoAccept) {
+		if (publishReady || publishNeedsReview) {
 			await tx.cnHanziAiAnalysis.update({
 				where: { id: analysis.id },
 				data: {
-					currentRevisionId: revision.id, contentStatus: 'ready', contentVersion: { increment: 1 },
+					currentRevisionId: revision.id,
+					contentStatus: publishReady ? 'ready' : 'needs_review',
+					contentVersion: { increment: 1 },
 					hardFactsHash: input.hashes.hardFactsHash, allFactsHash: input.hashes.allFactsHash,
 					contentFailureCount: 0, transientFailureCount: 0, nextRetryAt: null, lastErrorCode: null,
 					generationLeaseToken: null, generationLeaseAt: null,
@@ -273,8 +284,15 @@ async function commitValidResult(input: {
 				where: { id: analysis.id }, data: { generationLeaseToken: null, generationLeaseAt: null },
 			});
 		}
-		return autoAccept ? 'accepted' : 'candidate';
+		return publishReady || publishNeedsReview ? 'accepted' : 'candidate';
 	});
+}
+
+async function withPartLexicon(
+	base: Omit<HanziAiPublicAnalysis, 'partLexicon'> & { analysis: HanziAnalysisResult },
+): Promise<HanziAiPublicAnalysis> {
+	const partLexicon = await buildHanziPartLexicon(base.analysis);
+	return { ...base, partLexicon };
 }
 
 export async function getCachedHanziAiAnalysis(rawTerm: string): Promise<HanziAiPublicAnalysis | null> {
@@ -289,12 +307,34 @@ export async function getCachedHanziAiAnalysis(rawTerm: string): Promise<HanziAi
 	if (activeLease && !analysis.currentRevision) {
 		return { id: analysis.id, status: 'generating', analysis: null, contentVersion: analysis.contentVersion, openReportCount: analysis.openReportCount };
 	}
-	if (analysis.contentStatus !== 'ready' || !analysis.currentRevision) {
-		return { id: analysis.id, status: analysis.contentStatus, analysis: null, contentVersion: analysis.contentVersion, openReportCount: analysis.openReportCount };
+	if (!analysis.currentRevision) {
+		return {
+			id: analysis.id, status: analysis.contentStatus, analysis: null,
+			contentVersion: analysis.contentVersion, openReportCount: analysis.openReportCount,
+		};
 	}
 	const parsed = parseHanziRevisionResult(analysis.currentRevision.resultJson, analysis.currentRevision.schemaVersion);
 	if (!parsed.ok) {
-		return { id: analysis.id, status: 'needs_review', analysis: null, contentVersion: analysis.contentVersion, openReportCount: analysis.openReportCount };
+		return { id: analysis.id, status: 'stale', analysis: null, contentVersion: analysis.contentVersion, openReportCount: analysis.openReportCount };
+	}
+	if (isTrustResultStale(parsed.data)) {
+		return { id: analysis.id, status: 'stale', analysis: null, contentVersion: analysis.contentVersion, openReportCount: analysis.openReportCount };
+	}
+	const promptVersion = analysis.currentRevision.promptVersion;
+	const legacyPrompt = isLegacyPromptVersion(promptVersion);
+	const decompositionLimited = parsed.data.decompositionStatus !== 'full';
+	if (analysis.contentStatus === 'blocked') {
+		return { id: analysis.id, status: 'blocked', analysis: null, contentVersion: analysis.contentVersion, openReportCount: analysis.openReportCount };
+	}
+	if (analysis.contentStatus === 'needs_review') {
+		return withPartLexicon({
+			id: analysis.id, status: 'needs_review', analysis: parsed.data,
+			contentVersion: analysis.contentVersion, openReportCount: analysis.openReportCount,
+			promptVersion, legacyPrompt, pedagogyReviewPending: true, decompositionLimited,
+		});
+	}
+	if (analysis.contentStatus !== 'ready') {
+		return { id: analysis.id, status: analysis.contentStatus, analysis: null, contentVersion: analysis.contentVersion, openReportCount: analysis.openReportCount };
 	}
 	const { facts } = await loadHanziKnownFacts(term);
 	const hashes = hashKnownFacts(facts);
@@ -302,12 +342,15 @@ export async function getCachedHanziAiAnalysis(rawTerm: string): Promise<HanziAi
 		return { id: analysis.id, status: 'stale', analysis: null, contentVersion: analysis.contentVersion, openReportCount: analysis.openReportCount };
 	}
 	if (hashes.allFactsHash !== analysis.allFactsHash) {
-		return {
+		return withPartLexicon({
 			id: analysis.id, status: 'ready', analysis: parsed.data, contentVersion: analysis.contentVersion,
-			openReportCount: analysis.openReportCount, factsSoftStale: true,
-		};
+			openReportCount: analysis.openReportCount, factsSoftStale: true, promptVersion, legacyPrompt, decompositionLimited,
+		});
 	}
-	return { id: analysis.id, status: 'ready', analysis: parsed.data, contentVersion: analysis.contentVersion, openReportCount: analysis.openReportCount };
+	return withPartLexicon({
+		id: analysis.id, status: 'ready', analysis: parsed.data, contentVersion: analysis.contentVersion,
+		openReportCount: analysis.openReportCount, promptVersion, legacyPrompt, decompositionLimited,
+	});
 }
 
 export async function generateHanziAiAnalysis(
@@ -386,7 +429,7 @@ export async function generateHanziAiAnalysis(
 				});
 				const result = await getCachedHanziAiAnalysis(term);
 				if (!result) throw new AppError('Không đọc được kết quả vừa tạo', 500);
-				return { status: result.status === 'ready' ? 'ready' : 'generating', data: result };
+				return { status: result.status === 'generating' ? 'generating' : 'ready', data: result };
 			} finally {
 				clearTimeout(timeout);
 			}

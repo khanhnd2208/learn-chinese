@@ -14,28 +14,12 @@ export type CnWordProgressState =
 
 export type CnLookupStatus = 'full' | 'charsOnly' | 'none';
 
-export type CnQuestionType =
-	| 'hanzi_to_meaning'
-	| 'meaning_to_hanzi'
-	| 'pinyin_to_hanzi'
-	| 'audio_to_hanzi'
-	| 'audio_to_meaning'
-	| 'audio_to_pinyin'
-	| 'audio_to_pinyin_typed'
-	| 'hanzi_from_meaning'
-	| 'fill_sentence'
-	| 'sentence_order'
-	| 'radical_pick'
-	| 'char_components'
-	| 'similar_char'
-	| 'translate_sentence';
+import type { CoreQuestionType, SkillChannel } from '@/lib/chinese/coreQuestionTypes';
 
-export type RecallDepth =
-	| 'recognition'
-	| 'cued_recall'
-	| 'cross_modal'
-	| 'free_recall'
-	| 'production';
+export type { CoreQuestionType, SkillChannel };
+
+/** Active practice/SRS question types (MVP core set) */
+export type CnQuestionType = CoreQuestionType;
 
 export type CnErrorType =
 	| 'sai_nghia'
@@ -58,6 +42,7 @@ export interface CnHanziDTO {
 	radical: string;
 	mnemonicVi: string;
 	similarGroupId: string | null;
+	componentAnalysisStatus?: string;
 	status: CnContentStatus;
 }
 
@@ -65,6 +50,10 @@ export interface CnSimilarGroupDTO {
 	id: string;
 	key: string;
 	note: string;
+	confusionType?: string | null;
+	explanationVi?: string;
+	difficultyLevel?: string | null;
+	minimalDifferenceNote?: string;
 	hanzi: CnHanziDTO[];
 }
 
@@ -73,6 +62,9 @@ export interface CnExampleDTO {
 	hanzi: string;
 	pinyin: string;
 	meaningVi: string;
+	targetWordStart?: number | null;
+	targetWordEnd?: number | null;
+	naturalnessStatus?: string;
 }
 
 export interface CnSentencePatternDTO {
@@ -89,7 +81,16 @@ export interface CnWordDTO {
 	meaningVi: string;
 	partOfSpeech: string;
 	mnemonicVi: string;
+	usageNoteVi?: string;
 	hskLevel: number | null;
+	pinyinPlain?: string;
+	pinyinNumbered?: string;
+	pinyinSyllables?: string[];
+	tones?: number[];
+	frequencyRank?: number | null;
+	difficultyLevel?: string | null;
+	isFunctionWord?: boolean;
+	learningPriority?: number | null;
 	status: CnContentStatus;
 }
 
@@ -103,22 +104,19 @@ export interface CnWordProgressDTO {
 	listeningRate: number;
 	pinyinRate: number;
 	sentenceRate: number;
-	charRate: number;
 	meaningTotal: number;
 	listeningTotal: number;
 	pinyinTotal: number;
 	sentenceTotal: number;
-	charTotal: number;
 	meaningIntervalIdx: number;
 	listeningIntervalIdx: number;
 	pinyinIntervalIdx: number;
 	sentenceIntervalIdx: number;
-	hanziIntervalIdx: number;
 	isStickingPoint?: boolean;
 }
 
 export interface CnChannelMasteryDTO {
-	channel: 'meaning' | 'listening' | 'pinyin' | 'sentence' | 'hanzi';
+	channel: SkillChannel;
 	rate: number;
 	total: number;
 	level: 'not_practiced' | 'weak' | 'ok' | 'good';
@@ -146,8 +144,6 @@ export interface CnLookupResultDTO {
 	hasExample: boolean;
 	hasPattern: boolean;
 	supportsSentence: boolean;
-	supportsHanziMemory: boolean;
-	supportsSimilarChar: boolean;
 }
 
 export interface CnCoverageReportDTO {
@@ -160,8 +156,6 @@ export interface CnCoverageReportDTO {
 	hasExample: number;
 	hasPattern: number;
 	supportsSentence: number;
-	supportsHanziMemory: number;
-	supportsSimilarChar: number;
 	pending: string[];
 }
 
@@ -215,6 +209,8 @@ export interface CnPracticeQuestionDTO {
 	components?: string[];
 	radical?: string;
 	explanation?: string;
+	usageNoteVi?: string;
+	mnemonicVi?: string;
 	/** Channel interval index for mark-known eligibility */
 	channelIntervalIdx?: number;
 	canMarkKnown?: boolean;
@@ -255,7 +251,6 @@ export interface CnReviewStatsDTO {
 	listeningRate: number;
 	pinyinRate: number;
 	sentenceRate: number;
-	charRate: number;
 	weakWords: Array<{ wordId: string; simplified: string; state: CnWordProgressState }>;
 	recentSessions: CnReviewSessionSummaryDTO[];
 }
@@ -271,7 +266,6 @@ export interface CnDashboardDTO {
 	pinyinRate: number;
 	sentenceRate: number;
 	meaningRate: number;
-	charRate: number;
 	topErrors: Array<{ errorType: CnErrorType; count: number }>;
 	weakWords: Array<{ wordId: string; simplified: string; state: CnWordProgressState }>;
 	suggestions: string[];

@@ -12,12 +12,10 @@ interface Props {
 	onChanged?: (active: boolean) => void;
 }
 
-export default function SetSrsToggle({ setId, srsActive, title, compact, onChanged }: Props) {
+export default function SetSrsToggle({ setId, srsActive, compact, onChanged }: Props) {
 	const router = useRouter();
 	const [active, setActive] = useState(srsActive);
 	const [loading, setLoading] = useState(false);
-	const [showConfirm, setShowConfirm] = useState(false);
-	const [pendingOff, setPendingOff] = useState<{ exclusiveWordCount: number } | null>(null);
 
 	const applyToggle = async (next: boolean) => {
 		setLoading(true);
@@ -30,7 +28,7 @@ export default function SetSrsToggle({ setId, srsActive, title, compact, onChang
 			const json = await res.json() as {
 				ok: boolean;
 				error?: string;
-				data?: { srsActive: boolean; purgedWordCount?: number };
+				data?: { srsActive: boolean };
 			};
 			if (!json.ok) throw new Error(json.error ?? 'Không cập nhật được');
 			setActive(json.data!.srsActive);
@@ -40,66 +38,8 @@ export default function SetSrsToggle({ setId, srsActive, title, compact, onChang
 			alert(e instanceof Error ? e.message : 'Lỗi');
 		} finally {
 			setLoading(false);
-			setShowConfirm(false);
-			setPendingOff(null);
 		}
 	};
-
-	const handleChange = async (next: boolean) => {
-		if (next) {
-			await applyToggle(true);
-			return;
-		}
-		setLoading(true);
-		try {
-			const res = await fetch(`/api/sets/${setId}/srs?preview=deactivate`);
-			const json = await res.json() as {
-				ok: boolean;
-				data?: { exclusiveWordCount: number; wouldLoseProgress: boolean };
-			};
-			if (!json.ok || !json.data) throw new Error('Không tải được thông tin');
-			if (json.data.wouldLoseProgress) {
-				setPendingOff({ exclusiveWordCount: json.data.exclusiveWordCount });
-				setShowConfirm(true);
-			} else {
-				await applyToggle(false);
-			}
-		} catch (e) {
-			alert(e instanceof Error ? e.message : 'Lỗi');
-		} finally {
-			setLoading(false);
-		}
-	};
-
-	if (showConfirm && pendingOff) {
-		return (
-			<div className={compact ? 'space-y-2' : 'card-paper space-y-3 p-4'}>
-				<p className="text-sm text-foreground-secondary">
-					Tắt SRS cho <strong>{title}</strong> sẽ xóa tiến độ ôn của{' '}
-					<strong>{pendingOff.exclusiveWordCount}</strong> từ không còn trong bộ SRS nào khác.
-					Lịch sử luyện tập vẫn được giữ.
-				</p>
-				<div className="flex gap-2">
-					<button
-						type="button"
-						className="btn-secondary flex-1"
-						disabled={loading}
-						onClick={() => { setShowConfirm(false); setPendingOff(null); }}
-					>
-						Hủy
-					</button>
-					<button
-						type="button"
-						className="btn-primary flex-1 !bg-warning !text-foreground"
-						disabled={loading}
-						onClick={() => { void applyToggle(false); }}
-					>
-						{loading ? 'Đang xử lý...' : 'Tắt SRS'}
-					</button>
-				</div>
-			</div>
-		);
-	}
 
 	return (
 		<label className={`flex cursor-pointer items-center gap-2 ${compact ? '' : 'rounded-lg border border-border p-3'}`}>
@@ -107,7 +47,7 @@ export default function SetSrsToggle({ setId, srsActive, title, compact, onChang
 				type="checkbox"
 				checked={active}
 				disabled={loading}
-				onChange={(e) => { void handleChange(e.target.checked); }}
+				onChange={(e) => { void applyToggle(e.target.checked); }}
 				className="h-4 w-4 accent-accent"
 			/>
 			<span className="text-sm font-bold text-foreground-secondary">

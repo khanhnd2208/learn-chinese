@@ -31,15 +31,17 @@ enum CnWordProgressState {
 }
 
 enum CnQuestionType {
+  // Active MVP types (app generates these only)
   hanzi_to_meaning
   meaning_to_hanzi
   pinyin_to_hanzi
   audio_to_hanzi
   audio_to_meaning
+  fill_sentence
+  // Legacy — kept for historical CnAnswerLog rows
   audio_to_pinyin
   audio_to_pinyin_typed
   hanzi_from_meaning
-  fill_sentence
   sentence_order
   radical_pick
   char_components
@@ -132,12 +134,16 @@ enum CnErrorType {
 }
 
 model CnSimilarGroup {
-  id        String   @id @default(cuid())
-  key       String   @unique
-  note      String   @default("")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  hanzi     CnHanzi[]
+  id                    String   @id @default(cuid())
+  key                   String   @unique
+  note                  String   @default("")
+  confusionType         String?
+  explanationVi         String   @default("")
+  difficultyLevel       String?
+  minimalDifferenceNote String   @default("")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  hanzi                 CnHanzi[]
 }
 
 model CnHanzi {
@@ -148,9 +154,12 @@ model CnHanzi {
   meaningVi      String          @default("")
   components     String[]        @default([])
   radical        String          @default("")
-  mnemonicVi     String          @default("")
-  similarGroupId String?
-  status         CnContentStatus @default(draft)
+  mnemonicVi              String          @default("")
+  similarGroupId          String?
+  componentAnalysisStatus String          @default("basic")
+  structureType           String?
+  strokeCount             Int?
+  status                  CnContentStatus @default(draft)
   systemCheckedFields  String[] @default([])
   expertVerifiedFields String[] @default([])
   verifiedAt           DateTime?
@@ -170,9 +179,18 @@ model CnWord {
   hanViet      String          @default("")
   meaningVi    String          @default("")
   partOfSpeech String          @default("")
-  mnemonicVi   String          @default("")
-  hskLevel     Int?
-  status       CnContentStatus @default(draft)
+  mnemonicVi           String          @default("")
+  usageNoteVi          String          @default("")
+  hskLevel             Int?
+  pinyinPlain          String          @default("")
+  pinyinNumbered       String          @default("")
+  pinyinSyllables      String[]        @default([])
+  tones                Int[]           @default([])
+  frequencyRank        Int?
+  difficultyLevel      String?
+  isFunctionWord       Boolean         @default(false)
+  learningPriority     Int?
+  status               CnContentStatus @default(draft)
   systemCheckedFields  String[] @default([])
   expertVerifiedFields String[] @default([])
   verifiedAt           DateTime?
@@ -180,6 +198,7 @@ model CnWord {
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   chars        CnWordChar[]
+  senses       CnWordSense[]
   examples     CnExample[]
   patterns     CnSentencePattern[]
   setItems     CnWordSetItem[]
@@ -200,14 +219,37 @@ model CnWordChar {
   @@index([hanziId])
 }
 
-model CnExample {
-  id        String @id @default(cuid())
-  wordId    String
-  hanzi     String
-  pinyin    String @default("")
-  meaningVi String @default("")
-  word      CnWord @relation(fields: [wordId], references: [id], onDelete: Cascade)
+model CnWordSense {
+  id           String   @id @default(cuid())
+  wordId       String
+  meaningVi    String
+  partOfSpeech String   @default("")
+  usageNoteVi  String   @default("")
+  isPrimary    Boolean  @default(false)
+  level        String?
+  word         CnWord   @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  examples     CnExample[]
   @@index([wordId])
+}
+
+model CnExample {
+  id                  String       @id @default(cuid())
+  wordId              String
+  senseId             String?
+  hanzi               String
+  pinyin              String       @default("")
+  meaningVi           String       @default("")
+  targetWordStart     Int?
+  targetWordEnd       Int?
+  difficultyLevel     String?
+  grammarTags         String[]     @default([])
+  naturalnessStatus   String       @default("draft")
+  unknownWordEstimate Int?
+  source              String       @default("admin")
+  word                CnWord       @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  sense               CnWordSense? @relation(fields: [senseId], references: [id], onDelete: SetNull)
+  @@index([wordId])
+  @@index([senseId])
 }
 
 model CnSentencePattern {
@@ -260,8 +302,6 @@ model CnWordProgress {
   pinyinTotal      Int                 @default(0)
   sentenceCorrect  Int                 @default(0)
   sentenceTotal    Int                 @default(0)
-  charCorrect      Int                 @default(0)
-  charTotal        Int                 @default(0)
   meaningDueAt     DateTime?
   meaningIntervalIdx Int               @default(0)
   listeningDueAt   DateTime?
@@ -270,26 +310,19 @@ model CnWordProgress {
   pinyinIntervalIdx Int                @default(0)
   sentenceDueAt    DateTime?
   sentenceIntervalIdx Int              @default(0)
-  hanziDueAt       DateTime?
-  hanziIntervalIdx Int                @default(0)
   sentenceUnlockedAt DateTime?
-  hanziUnlockedAt    DateTime?
   lastExampleId      String?
   meaningHeavyLapses   Int @default(0)
   listeningHeavyLapses Int @default(0)
   pinyinHeavyLapses    Int @default(0)
   sentenceHeavyLapses  Int @default(0)
-  hanziHeavyLapses     Int @default(0)
   isStickingPoint      Boolean @default(false)
   meaningMarkedKnownAt   DateTime?
   listeningMarkedKnownAt DateTime?
   pinyinMarkedKnownAt    DateTime?
   sentenceMarkedKnownAt  DateTime?
-  hanziMarkedKnownAt     DateTime?
   sentenceIntroDayKey    String?
   sentenceIntroDayCount  Int @default(0)
-  hanziIntroDayKey       String?
-  hanziIntroDayCount     Int @default(0)
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   word             CnWord              @relation(fields: [wordId], references: [id], onDelete: Cascade)
@@ -298,6 +331,8 @@ model CnWordProgress {
   @@index([userId, state])
   @@index([userId, meaningDueAt])
   @@index([userId, listeningDueAt])
+  @@index([userId, pinyinDueAt])
+  @@index([userId, sentenceDueAt])
 }
 
 model CnAnswerLog {
@@ -313,20 +348,6 @@ model CnAnswerLog {
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, wordId])
   @@index([userId, errorType])
-}
-
-model CnUserComponentProgress {
-  id            String   @id @default(cuid())
-  userId        String
-  componentKey  String
-  familiarity   Int      @default(0)
-  correctCount  Int      @default(0)
-  totalCount    Int      @default(0)
-  lastSeenAt    DateTime @default(now())
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  @@unique([userId, componentKey])
-  @@index([userId])
 }
 
 model CnHanziAiAnalysis {

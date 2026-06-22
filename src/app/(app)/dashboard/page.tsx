@@ -56,7 +56,6 @@ export default function ChineseDashboardPage() {
 					<ChannelRate label="Nghe" rate={dashboard.listeningRate} barClassName="bg-success" />
 					<ChannelRate label="Pinyin" rate={dashboard.pinyinRate} />
 					<ChannelRate label="Dùng câu" rate={dashboard.sentenceRate} />
-					<ChannelRate label="Chữ Hán" rate={dashboard.charRate} />
 				</div>
 			</section>
 

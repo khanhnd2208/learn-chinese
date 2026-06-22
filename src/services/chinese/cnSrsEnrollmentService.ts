@@ -74,7 +74,16 @@ export async function activateSetInSrs(userId: string, setId: string): Promise<v
 	await enrollWordsInSrs(userId, wordIds);
 }
 
-export async function deactivateSetFromSrs(
+/** Turn off SRS for a set — excludes words from review queue but keeps CnWordProgress */
+export async function deactivateSetFromSrs(userId: string, setId: string): Promise<void> {
+	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
+	if (!set) throw new Error('Bộ từ không tồn tại');
+
+	await prisma.cnWordSet.update({ where: { id: setId }, data: { srsActive: false } });
+}
+
+/** Explicit purge: delete SRS progress for words only in this set (not in other active sets) */
+export async function purgeSrsProgressForSet(
 	userId: string,
 	setId: string,
 ): Promise<{ purgedWordCount: number }> {
@@ -82,7 +91,6 @@ export async function deactivateSetFromSrs(
 	if (!set) throw new Error('Bộ từ không tồn tại');
 
 	const exclusive = await getExclusiveWordIdsForSet(userId, setId);
-	await prisma.cnWordSet.update({ where: { id: setId }, data: { srsActive: false } });
 	const purgedWordCount = await purgeSrsForWordIds(userId, exclusive);
 	return { purgedWordCount };
 }
@@ -103,6 +111,31 @@ export async function previewDeactivateSet(
 	return {
 		exclusiveWordCount: exclusive.length,
 		wouldLoseProgress: exclusive.length > 0,
+	};
+}
+
+/** Preview SRS impact of removing one word from an SRS-active set */
+export async function previewRemoveWordFromSet(
+	userId: string,
+	setId: string,
+	wordId: string,
+): Promise<{ wouldPurgeProgress: boolean; inOtherActiveSet: boolean }> {
+	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
+	if (!set?.srsActive) {
+		return { wouldPurgeProgress: false, inOtherActiveSet: false };
+	}
+
+	const otherActiveItems = await prisma.cnWordSetItem.findMany({
+		where: {
+			wordId,
+			set: { userId, srsActive: true, id: { not: setId } },
+		},
+		select: { wordId: true },
+	});
+	const inOtherActiveSet = otherActiveItems.length > 0;
+	return {
+		wouldPurgeProgress: !inOtherActiveSet,
+		inOtherActiveSet,
 	};
 }
 

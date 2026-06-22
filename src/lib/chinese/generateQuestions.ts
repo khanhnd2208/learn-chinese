@@ -1,15 +1,16 @@
 /* ════════════════════════════════════════════════════════════════════════
-   generateQuestions.ts — Practice question generator (12 types)
+   generateQuestions.ts — Practice question generator (6 core types)
    ════════════════════════════════════════════════════════════════════════ */
 import {
 	type PracticeGroup,
 	type SkillChannel,
+	type SessionContext,
 	questionChannel,
 	selectQuestionTypesForWord,
 } from '@/lib/chinese/practiceTaxonomy';
-import {
-	CN_MARK_KNOWN_HIDE_IDX,
-} from '@/config/constants';
+import { buildMcqOptionsForType } from '@/lib/chinese/distractorSelect';
+import { blankVerifiedExample, pickFillExample } from '@/lib/chinese/verifiedExample';
+import { CN_MARK_KNOWN_HIDE_IDX } from '@/config/constants';
 import type { CnExampleDTO, CnPracticeQuestionDTO, CnQuestionType, CnWordCardDTO, CnWordProgressDTO } from '@/types/chinese';
 
 export const MIN_MCQ_OPTIONS = 2;
@@ -18,12 +19,10 @@ export interface GenerateSessionOptions {
 	group?: PracticeGroup;
 	progressMap?: Map<string, CnWordProgressDTO | null>;
 	types?: CnQuestionType[];
-	/** Target a specific skill channel (review sessions) */
 	targetChannel?: SkillChannel;
-	/** Broader vocabulary pool for MCQ distractors (e.g. all due words in review) */
 	distractorPool?: CnWordCardDTO[];
-	/** Allow mark-known affordance (review only) */
 	allowMarkKnown?: boolean;
+	sessionContext?: SessionContext;
 }
 
 export function mergeWordPools(
@@ -50,34 +49,15 @@ function unique(values: string[]): string[] {
 	return [...new Set(values.filter(Boolean))];
 }
 
-function pickDistractors(
-	correct: string,
-	pool: string[],
-	count = 3,
-	prefer?: string[],
-): string[] {
-	const dedupedPool = unique(pool).filter((v) => v !== correct);
-	const preferred = unique(prefer ?? []).filter((v) => v !== correct && dedupedPool.includes(v));
-	const rest = shuffle(dedupedPool.filter((v) => !preferred.includes(v)));
-
-	const picked: string[] = [];
-	for (const candidate of [...preferred, ...rest]) {
-		if (picked.includes(candidate)) continue;
-		picked.push(candidate);
-		if (picked.length >= count) break;
-	}
-	return picked;
+function makeId(wordId: string, type: CnQuestionType, idx: number): string {
+	return `${wordId}-${type}-${idx}`;
 }
 
-export function buildMcqOptions(
-	correct: string,
-	pool: string[],
-	count = 3,
-	prefer?: string[],
-): string[] | null {
-	const distractors = pickDistractors(correct, pool, count, prefer);
-	if (distractors.length < 1) return null;
-	return shuffle(unique([correct, ...distractors]));
+function wordLearningExtras(word: CnWordCardDTO): Pick<CnPracticeQuestionDTO, 'usageNoteVi' | 'mnemonicVi'> {
+	return {
+		usageNoteVi: word.usageNoteVi || undefined,
+		mnemonicVi: word.mnemonicVi || undefined,
+	};
 }
 
 /** Chữ cùng nhóm similar — loại hán tự đã có trong từ hiện tại */
@@ -95,71 +75,17 @@ function collectSimilarChars(word: CnWordCardDTO, allWords: CnWordCardDTO[]): st
 	return unique(collected.filter((ch) => !ownChars.has(ch)));
 }
 
-function makeId(wordId: string, type: CnQuestionType, idx: number, suffix = ''): string {
-	return `${wordId}-${type}-${idx}${suffix}`;
-}
-
-/** Rotate examples — avoid always using examples[0] */
-export function pickExample(
-	word: CnWordCardDTO,
-	lastExampleId?: string | null,
-): CnExampleDTO | null {
-	if (!word.examples.length) return null;
-	if (word.examples.length === 1) return word.examples[0];
-	const candidates = lastExampleId
-		? word.examples.filter((e) => e.id !== lastExampleId)
-		: word.examples;
-	const pool = candidates.length ? candidates : word.examples;
-	return pool[Math.floor(Math.random() * pool.length)];
-}
-
-function pickPatternSample(pattern: CnWordCardDTO['patterns'][0] | undefined) {
-	if (!pattern?.samples?.length) return null;
-	return pattern.samples[Math.floor(Math.random() * pattern.samples.length)];
-}
-
-function pickTargetChar(word: CnWordCardDTO, needs: 'radical' | 'components' | 'similar') {
-	const chars = word.chars;
-	if (!chars.length) return null;
-	const filtered = chars.filter((c) => {
-		if (needs === 'radical') return !!c.radical;
-		if (needs === 'components') return c.components.length > 0;
-		return !!c.similarGroupId;
-	});
-	const pool = filtered.length ? filtered : chars;
-	return pool[Math.floor(Math.random() * pool.length)];
-}
-
-function componentDistractors(
-	target: CnWordCardDTO['chars'][0],
-	allWords: CnWordCardDTO[],
-	correct: string,
-): string[] {
-	const sameGroup = allWords.flatMap((w) =>
-		w.chars
-			.filter((c) =>
-				c.similarGroupId && c.similarGroupId === target.similarGroupId ||
-				c.radical && c.radical === target.radical,
-			)
-			.map((c) => c.components.join(' + ')),
-	);
-	const rest = allWords.flatMap((w) => w.chars.map((c) => c.components.join(' + ')));
-	return unique([...sameGroup, ...rest].filter((v) => v && v !== correct));
-}
-
 export function enrichQuestionWithProgress(
 	q: CnPracticeQuestionDTO,
 	progress: CnWordProgressDTO | null,
 	allowMarkKnown = false,
 ): CnPracticeQuestionDTO {
 	const channel = questionChannel(q.type);
-	if (!channel) return q;
 	const channelIdx = progress
 		? (channel === 'meaning' ? progress.meaningIntervalIdx
 			: channel === 'listening' ? progress.listeningIntervalIdx
 			: channel === 'pinyin' ? progress.pinyinIntervalIdx
-			: channel === 'sentence' ? progress.sentenceIntervalIdx
-			: progress.hanziIntervalIdx)
+			: progress.sentenceIntervalIdx)
 		: 0;
 	return {
 		...q,
@@ -174,19 +100,13 @@ export function generateQuestionForWord(
 	allWords: CnWordCardDTO[],
 	type: CnQuestionType,
 	idx: number,
-	opts?: { example?: CnExampleDTO | null; lastExampleId?: string | null },
+	opts?: { example?: CnExampleDTO | null },
 ): CnPracticeQuestionDTO | null {
-	const poolHanzi = unique(allWords.map((w) => w.simplified));
-	const poolMeaning = unique(allWords.map((w) => w.meaningVi));
-	const poolPinyin = unique(allWords.map((w) => w.pinyin));
 	const similarChars = collectSimilarChars(word, allWords);
-
-	const example = opts?.example ?? pickExample(word, opts?.lastExampleId);
-	const pattern = word.patterns[0];
 
 	switch (type) {
 		case 'hanzi_to_meaning': {
-			const options = buildMcqOptions(word.meaningVi, poolMeaning);
+			const options = buildMcqOptionsForType(type, word, allWords, word.meaningVi);
 			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
 			return {
 				id: makeId(word.id, type, idx),
@@ -196,10 +116,11 @@ export function generateQuestionForWord(
 				hanzi: word.simplified,
 				options,
 				correctAnswer: word.meaningVi,
+				...wordLearningExtras(word),
 			};
 		}
 		case 'meaning_to_hanzi': {
-			const options = buildMcqOptions(word.simplified, poolHanzi, 3, similarChars);
+			const options = buildMcqOptionsForType(type, word, allWords, word.simplified, 3, similarChars);
 			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
 			return {
 				id: makeId(word.id, type, idx),
@@ -209,10 +130,11 @@ export function generateQuestionForWord(
 				meaningVi: word.meaningVi,
 				options,
 				correctAnswer: word.simplified,
+				...wordLearningExtras(word),
 			};
 		}
 		case 'pinyin_to_hanzi': {
-			const options = buildMcqOptions(word.simplified, poolHanzi, 3, similarChars);
+			const options = buildMcqOptionsForType(type, word, allWords, word.simplified, 3, similarChars);
 			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
 			return {
 				id: makeId(word.id, type, idx),
@@ -222,10 +144,11 @@ export function generateQuestionForWord(
 				pinyin: word.pinyin,
 				options,
 				correctAnswer: word.simplified,
+				...wordLearningExtras(word),
 			};
 		}
 		case 'audio_to_hanzi': {
-			const options = buildMcqOptions(word.simplified, poolHanzi, 3, similarChars);
+			const options = buildMcqOptionsForType(type, word, allWords, word.simplified, 3, similarChars);
 			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
 			return {
 				id: makeId(word.id, type, idx),
@@ -235,6 +158,7 @@ export function generateQuestionForWord(
 				audioText: word.simplified,
 				options,
 				correctAnswer: word.simplified,
+				...wordLearningExtras(word),
 			};
 		}
 		case 'audio_to_meaning': {
@@ -248,7 +172,7 @@ export function generateQuestionForWord(
 					)
 					.map((w) => w.meaningVi),
 			);
-			const options = buildMcqOptions(word.meaningVi, poolMeaning, 3, similarMeanings);
+			const options = buildMcqOptionsForType(type, word, allWords, word.meaningVi, 3, similarMeanings);
 			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
 			return {
 				id: makeId(word.id, type, idx),
@@ -258,43 +182,23 @@ export function generateQuestionForWord(
 				audioText: word.simplified,
 				options,
 				correctAnswer: word.meaningVi,
+				...wordLearningExtras(word),
 			};
 		}
-		case 'audio_to_pinyin': {
-			const options = buildMcqOptions(word.pinyin, poolPinyin);
-			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
-			return {
-				id: makeId(word.id, type, idx),
-				wordId: word.id,
-				type,
-				prompt: 'Nghe và chọn pinyin đúng',
-				audioText: word.simplified,
-				options,
-				correctAnswer: word.pinyin,
-			};
-		}
-		case 'audio_to_pinyin_typed':
-			return {
-				id: makeId(word.id, type, idx),
-				wordId: word.id,
-				type,
-				prompt: 'Nghe và gõ pinyin đúng',
-				audioText: word.simplified,
-				correctAnswer: word.pinyin,
-			};
-		case 'hanzi_from_meaning':
-			return {
-				id: makeId(word.id, type, idx),
-				wordId: word.id,
-				type,
-				prompt: `Gõ Hán tự cho nghĩa: ${word.meaningVi}`,
-				meaningVi: word.meaningVi,
-				correctAnswer: word.simplified,
-			};
 		case 'fill_sentence': {
+			const example = opts?.example ?? pickFillExample(word);
 			if (!example) return null;
-			const blanked = example.hanzi.replace(word.simplified, '____');
-			const options = buildMcqOptions(word.simplified, poolHanzi, 3, similarChars);
+			const blanked = blankVerifiedExample(example);
+			if (!blanked) return null;
+			const options = buildMcqOptionsForType(
+				'fill_sentence',
+				word,
+				allWords,
+				word.simplified,
+				3,
+				similarChars,
+				example.hanzi,
+			);
 			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
 			return {
 				id: makeId(word.id, type, idx),
@@ -304,79 +208,8 @@ export function generateQuestionForWord(
 				sentenceTemplate: blanked,
 				options,
 				correctAnswer: word.simplified,
-			};
-		}
-		case 'sentence_order': {
-			if (!example) return null;
-			const parts = example.hanzi.replace(/[。！？]/g, '').split('');
-			const shuffled = shuffle(parts).join('');
-			return {
-				id: makeId(word.id, type, idx),
-				wordId: word.id,
-				type,
-				prompt: `Sắp xếp lại: ${shuffled}`,
-				correctAnswer: example.hanzi.replace(/[。！？]/g, ''),
 				explanation: example.meaningVi,
-			};
-		}
-		case 'radical_pick': {
-			const char = pickTargetChar(word, 'radical');
-			if (!char?.radical) return null;
-			const radicals = unique(allWords.flatMap((w) => w.chars.map((c) => c.radical).filter(Boolean)));
-			const options = buildMcqOptions(char.radical, radicals);
-			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
-			return {
-				id: makeId(word.id, type, idx, `-${char.char}`),
-				wordId: word.id,
-				type,
-				prompt: `Chọn bộ thủ của chữ: ${char.char}`,
-				hanzi: char.char,
-				radical: char.radical,
-				options,
-				correctAnswer: char.radical,
-			};
-		}
-		case 'char_components': {
-			const char = pickTargetChar(word, 'components');
-			if (!char?.components.length) return null;
-			const correct = char.components.join(' + ');
-			const fake = componentDistractors(char, allWords, correct);
-			const options = buildMcqOptions(correct, fake);
-			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
-			return {
-				id: makeId(word.id, type, idx, `-${char.char}`),
-				wordId: word.id,
-				type,
-				prompt: `Chọn thành phần của: ${char.char}`,
-				components: char.components,
-				options,
-				correctAnswer: correct,
-			};
-		}
-		case 'similar_char': {
-			if (!similarChars.length) return null;
-			const options = buildMcqOptions(word.simplified, poolHanzi, 3, similarChars);
-			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
-			return {
-				id: makeId(word.id, type, idx),
-				wordId: word.id,
-				type,
-				prompt: 'Chọn Hán tự đúng',
-				meaningVi: word.meaningVi,
-				options,
-				correctAnswer: word.simplified,
-			};
-		}
-		case 'translate_sentence': {
-			const sample = pickPatternSample(pattern);
-			if (!sample?.meaningVi) return null;
-			return {
-				id: makeId(word.id, type, idx),
-				wordId: word.id,
-				type,
-				prompt: `Dịch sang tiếng Trung: ${sample.meaningVi}`,
-				meaningVi: sample.meaningVi,
-				correctAnswer: sample.hanzi,
+				...wordLearningExtras(word),
 			};
 		}
 		default:
@@ -410,6 +243,7 @@ export function generatePracticeSession(
 				group,
 				count: perWord * 4,
 				targetChannel: options.targetChannel,
+				sessionContext: options.sessionContext ?? (options.allowMarkKnown ? 'review' : 'practice'),
 			});
 
 		for (let ti = 0; ti < typePool.length && questions.length < count; ti++) {

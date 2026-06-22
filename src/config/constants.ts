@@ -1,5 +1,3 @@
-import type { CnQuestionType, RecallDepth } from '@/types/chinese';
-
 export const MAX_CN_TERMS_PER_SET = 200;
 export const MAX_HANZI_LAB_TERMS = 15;
 export const CN_MAX_SUBMIT_ITEMS = 200;
@@ -18,6 +16,12 @@ export const CN_SRS_INTERVALS_MINUTES = [
 	10, 1440, 4320, 10080, 20160, 43200, 129600, 259200, 518400,
 ] as const;
 
+/** Minimum wait before re-queuing a (word, channel) pair after the first wrong answer on that channel */
+export const CN_FIRST_WRONG_RETRY_MINUTES = 30;
+
+/** listening/pinyin ramp opens when meaning interval index reaches this (1 day tier) */
+export const CN_RAMP_MEANING_INTERVAL_IDX = 1;
+
 /** Interval index thresholds for aggregate word state */
 export const CN_STATE_THRESHOLDS = {
 	familiar: 2,
@@ -32,7 +36,6 @@ export const CN_LAPSE_FLOOR_IDX = 1;
 export const CN_LAPSE_HEAVY_IDX = CN_LAPSE_FLOOR_IDX;
 
 export const CN_DEFAULT_PRACTICE_COUNT = 20;
-export const CN_DEFAULT_INTEGRATED_COUNT = 10;
 export const CN_DEFAULT_REVIEW_COUNT = 25;
 /** Questions fetched per review batch (infinite queue) */
 export const CN_REVIEW_PREFETCH_SIZE = 5;
@@ -57,51 +60,3 @@ export const CN_INTRO_RAMP_TOTAL = 10;
 
 /** Heavy lapses before sticking-point flag */
 export const CN_STICKING_POINT_HEAVY_LAPSES = 3;
-
-/** Recall depth per question type */
-export const CN_QUESTION_RECALL_DEPTH: Record<CnQuestionType, RecallDepth> = {
-	hanzi_to_meaning: 'recognition',
-	audio_to_meaning: 'recognition',
-	audio_to_hanzi: 'recognition',
-	pinyin_to_hanzi: 'recognition',
-	radical_pick: 'recognition',
-	char_components: 'recognition',
-	similar_char: 'recognition',
-	meaning_to_hanzi: 'cued_recall',
-	fill_sentence: 'cued_recall',
-	sentence_order: 'cued_recall',
-	audio_to_pinyin: 'cued_recall',
-	audio_to_pinyin_typed: 'cross_modal',
-	hanzi_from_meaning: 'free_recall',
-	translate_sentence: 'production',
-};
-
-/** @deprecated Use CN_QUESTION_RECALL_DEPTH */
-export const CN_PRODUCTION_QUESTION_TYPES: ReadonlySet<CnQuestionType> = new Set([
-	'translate_sentence',
-	'hanzi_from_meaning',
-]);
-
-export const CN_PRODUCTION_STEP_CONFIDENCE = 0.9;
-
-/** Confidence weight for SRS (legacy; depth drives step size) */
-export const CN_QUESTION_CONFIDENCE: Record<CnQuestionType, number> = {
-	hanzi_to_meaning: 0.6,
-	meaning_to_hanzi: 0.9,
-	pinyin_to_hanzi: 0.6,
-	audio_to_hanzi: 0.6,
-	audio_to_meaning: 0.6,
-	audio_to_pinyin: 0.7,
-	audio_to_pinyin_typed: 0.85,
-	hanzi_from_meaning: 1.0,
-	fill_sentence: 0.9,
-	sentence_order: 0.8,
-	radical_pick: 0.5,
-	char_components: 0.5,
-	similar_char: 0.7,
-	translate_sentence: 1.0,
-};
-
-export function recallDepthAllowsDoubleStep(depth: RecallDepth): boolean {
-	return depth === 'free_recall' || depth === 'production';
-}

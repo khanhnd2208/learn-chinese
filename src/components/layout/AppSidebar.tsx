@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import { MAIN_NAV, isNavActive } from '@/config/navigation';
+import { useDueTodayCount } from '@/lib/chinese/useDueTodayCount';
 
 interface Props {
 	dimmed?: boolean;
@@ -14,6 +15,7 @@ interface Props {
 export default function AppSidebar({ dimmed = false }: Props) {
 	const pathname = usePathname();
 	const { data: session } = useSession();
+	const dueToday = useDueTodayCount();
 
 	return (
 		<aside className={`fixed inset-y-0 left-0 z-40 hidden w-[var(--sidebar-width)] flex-col border-r border-border bg-surface md:flex ${dimmed ? 'opacity-80' : ''}`}>
@@ -36,6 +38,7 @@ export default function AppSidebar({ dimmed = false }: Props) {
 			<nav className="flex flex-1 flex-col gap-1">
 				{MAIN_NAV.map((item) => {
 					const active = isNavActive(pathname, item.href);
+					const showDueBadge = item.href === '/review' && dueToday != null && dueToday > 0;
 					return (
 						<Link
 							key={item.href}
@@ -43,7 +46,14 @@ export default function AppSidebar({ dimmed = false }: Props) {
 							className={active ? 'nav-pill-active' : 'nav-pill'}
 						>
 							<MaterialIcon name={item.icon} filled={active} size={20} />
-							{item.label}
+							<span className="flex flex-1 items-center justify-between gap-2">
+								{item.label}
+								{showDueBadge && (
+									<span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-black text-background">
+										{dueToday > 99 ? '99+' : dueToday}
+									</span>
+								)}
+							</span>
 						</Link>
 					);
 				})}

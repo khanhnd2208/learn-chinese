@@ -90,7 +90,6 @@ export default function ReviewStatsClient() {
 					<ChannelRate label="Nghe" rate={stats.listeningRate} barClassName="bg-success" />
 					<ChannelRate label="Pinyin" rate={stats.pinyinRate} />
 					<ChannelRate label="Dùng câu" rate={stats.sentenceRate} />
-					<ChannelRate label="Chữ Hán" rate={stats.charRate} />
 				</div>
 			</section>
 

@@ -90,9 +90,11 @@ export default function HanziAiAdminPanel() {
 			const response = await fetch('/api/admin/hanzi-ai', {
 				method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
 			});
-			const json = await response.json() as { ok: boolean; data?: { purged?: number; reconciled?: number }; error?: string };
+			const json = await response.json() as { ok: boolean; data?: { purged?: number; reconciled?: number; marked?: number }; error?: string };
 			if (!json.ok) throw new Error(json.error ?? 'Không thể thực hiện');
-			setMessage(body.action === 'purge_attempts' ? `Đã xóa ${json.data?.purged ?? 0} attempt cũ` : `Đã reconcile ${json.data?.reconciled ?? 0} analysis`);
+			if (body.action === 'purge_attempts') setMessage(`Đã xóa ${json.data?.purged ?? 0} attempt cũ`);
+			else if (body.action === 'mark_legacy_stale') setMessage(`Đã đánh dấu ${json.data?.marked ?? 0} bản phân tích cũ cần tạo lại`);
+			else setMessage(`Đã reconcile ${json.data?.reconciled ?? 0} analysis`);
 			await refresh();
 		} catch (error) {
 			setMessage(error instanceof Error ? error.message : 'Lỗi');
@@ -127,6 +129,7 @@ export default function HanziAiAdminPanel() {
 				<div><h2 className="font-bold">Hanzi AI governance</h2><p className="mt-1 text-xs text-muted">Revision, candidate, report và provider health.</p></div>
 				<div className="flex flex-wrap gap-2">
 					<button type="button" disabled={busy} onClick={() => void adminAction({ action: 'reconcile' })} className="btn-secondary text-xs">Reconcile all</button>
+					<button type="button" disabled={busy} onClick={() => void adminAction({ action: 'mark_legacy_stale' })} className="btn-secondary text-xs">Đánh dấu bản cũ (v1)</button>
 					<button type="button" disabled={busy} onClick={() => void adminAction({ action: 'purge_attempts' })} className="btn-secondary text-xs">Purge attempts 30d</button>
 				</div>
 				{health && <div className="text-right text-xs"><p className={health.configured ? 'text-success' : 'text-accent'}>{health.configured ? 'Provider đã cấu hình' : 'Thiếu API key'}</p><p>{health.model}</p><p className="text-muted">{health.lastErrorCode ?? 'Không có lỗi gần nhất'}</p></div>}

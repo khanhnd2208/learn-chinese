@@ -20,9 +20,7 @@ export default function CoverageReport({ coverage }: Props) {
 			<ul className="mt-2 space-y-1 text-foreground-secondary">
 				<li>{coverage.hasExample}/{total} từ có ví dụ câu</li>
 				<li>{coverage.hasPattern}/{total} từ có mẫu câu</li>
-				<li>{coverage.supportsSentence}/{total} từ luyện được câu (điền/sắp xếp/dịch)</li>
-				<li>{coverage.supportsHanziMemory}/{total} từ luyện được chữ Hán (bộ thủ/thành phần)</li>
-				<li>{coverage.supportsSimilarChar}/{total} từ luyện được chữ tương tự</li>
+				<li>{coverage.supportsSentence}/{total} từ luyện được điền câu (example verified)</li>
 			</ul>
 			{coverage.pending.length > 0 && (
 				<div className="mt-3 rounded-lg border border-warning/30 bg-warning/10 p-3">

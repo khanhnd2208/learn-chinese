@@ -7,14 +7,10 @@ import {
 	MAX_IMPORT_FILE_BYTES,
 	MAX_IMPORT_ROWS,
 } from '@/config/constants';
-import type { CnPracticeSubmitItem, CnQuestionType, CnErrorType } from '@/types/chinese';
+import { CORE_QUESTION_TYPE_SET } from '@/lib/chinese/coreQuestionTypes';
+import type { CnPracticeSubmitItem, CnErrorType } from '@/types/chinese';
 
-const VALID_QUESTION_TYPES = new Set<CnQuestionType>([
-	'hanzi_to_meaning', 'meaning_to_hanzi', 'pinyin_to_hanzi',
-	'audio_to_hanzi', 'audio_to_meaning', 'audio_to_pinyin',
-	'audio_to_pinyin_typed', 'hanzi_from_meaning',
-	'fill_sentence', 'sentence_order', 'radical_pick', 'char_components', 'similar_char', 'translate_sentence',
-]);
+const VALID_QUESTION_TYPES = CORE_QUESTION_TYPE_SET;
 
 const VALID_ERROR_TYPES = new Set<CnErrorType>([
 	'sai_nghia', 'sai_pinyin', 'sai_thanh_dieu', 'nghe_khong_ra',
@@ -32,7 +28,7 @@ export function validatePracticeSubmitItems(items: unknown): items is CnPractice
 			&& row.wordId.length > 0
 			&& typeof row.correct === 'boolean'
 			&& typeof row.questionType === 'string'
-			&& VALID_QUESTION_TYPES.has(row.questionType as CnQuestionType)
+			&& VALID_QUESTION_TYPES.has(row.questionType)
 			&& (row.errorType === undefined
 				|| row.errorType === null
 				|| (typeof row.errorType === 'string' && VALID_ERROR_TYPES.has(row.errorType as CnErrorType)));

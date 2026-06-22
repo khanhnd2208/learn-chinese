@@ -39,10 +39,6 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 		progress.reduce((s, p) => s + p.sentenceCorrect, 0),
 		progress.reduce((s, p) => s + p.sentenceTotal, 0),
 	);
-	const charRate = rate(
-		progress.reduce((s, p) => s + p.charCorrect, 0),
-		progress.reduce((s, p) => s + p.charTotal, 0),
-	);
 
 	const totalAnswers = logs.length;
 	const correctAnswers = logs.filter((l) => l.correct).length;
@@ -91,7 +87,6 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 		pinyinRate,
 		sentenceRate,
 		meaningRate,
-		charRate,
 		topErrors,
 		weakWords,
 		suggestions,

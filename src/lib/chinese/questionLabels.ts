@@ -1,4 +1,29 @@
 import type { CnQuestionType } from '@/types/chinese';
+import type { SkillChannel } from '@/lib/chinese/coreQuestionTypes';
+
+export function learnerQuestionLabel(type: CnQuestionType): string {
+	const labels: Record<CnQuestionType, string> = {
+		hanzi_to_meaning: 'Nhận biết nghĩa',
+		meaning_to_hanzi: 'Nhớ chữ từ nghĩa',
+		pinyin_to_hanzi: 'Nối pinyin với chữ',
+		audio_to_hanzi: 'Nghe → chọn chữ',
+		audio_to_meaning: 'Nghe → hiểu nghĩa',
+		fill_sentence: 'Dùng từ trong câu',
+	};
+	return labels[type];
+}
+
+export function learnerSessionLabel(type: CnQuestionType): string {
+	const channel: Record<CnQuestionType, SkillChannel> = {
+		hanzi_to_meaning: 'meaning',
+		meaning_to_hanzi: 'meaning',
+		pinyin_to_hanzi: 'pinyin',
+		audio_to_hanzi: 'listening',
+		audio_to_meaning: 'listening',
+		fill_sentence: 'sentence',
+	};
+	return channelLabel(channel[type]);
+}
 
 export function questionTypeLabel(type: CnQuestionType): string {
 	const labels: Record<CnQuestionType, string> = {
@@ -7,15 +32,7 @@ export function questionTypeLabel(type: CnQuestionType): string {
 		pinyin_to_hanzi: 'Pinyin → Hán tự',
 		audio_to_hanzi: 'Nghe → Hán tự',
 		audio_to_meaning: 'Nghe → Nghĩa',
-		audio_to_pinyin: 'Nghe → Pinyin',
-		audio_to_pinyin_typed: 'Nghe → Gõ pinyin',
-		hanzi_from_meaning: 'Nghĩa → Gõ Hán tự',
 		fill_sentence: 'Điền từ vào câu',
-		sentence_order: 'Sắp xếp câu',
-		radical_pick: 'Chọn bộ thủ',
-		char_components: 'Thành phần chữ',
-		similar_char: 'Phân biệt chữ',
-		translate_sentence: 'Dịch câu',
 	};
 	return labels[type];
 }
@@ -27,22 +44,17 @@ export function practiceModeLabel(mode: string): string {
 		listening: 'Nghe nhận ra',
 		sentence_usage: 'Dùng trong câu',
 		sentence: 'Dùng trong câu',
-		hanzi_memory: 'Nhớ mặt chữ',
-		hanzi: 'Nhớ mặt chữ',
-		smart_mixed: 'Ôn tổng hợp',
-		mixed: 'Ôn tổng hợp',
-		integrated_recall: 'Kiểm tra toàn diện',
+		smart_mixed: 'Ôn nhanh',
+		mixed: 'Ôn nhanh',
 	};
 	return labels[mode] ?? 'Luyện tập';
 }
 
 export const PRACTICE_MODES = [
-	{ mode: 'core_vocab', label: 'Nhớ nghĩa', icon: 'menu_book' },
-	{ mode: 'listening', label: 'Nghe nhận ra', icon: 'hearing' },
-	{ mode: 'sentence_usage', label: 'Dùng trong câu', icon: 'edit_note' },
-	{ mode: 'hanzi_memory', label: 'Nhớ mặt chữ', icon: 'biotech' },
-	{ mode: 'smart_mixed', label: 'Ôn tổng hợp', icon: 'shuffle' },
-	{ mode: 'integrated_recall', label: 'Kiểm tra toàn diện', icon: 'hub' },
+	{ mode: 'core_vocab', label: 'Học từ mới', icon: 'menu_book' },
+	{ mode: 'listening', label: 'Luyện nghe', icon: 'hearing' },
+	{ mode: 'sentence_usage', label: 'Luyện dùng câu', icon: 'edit_note' },
+	{ mode: 'smart_mixed', label: 'Ôn nhanh', icon: 'shuffle' },
 ] as const;
 
 export function channelLabel(channel: string): string {
@@ -51,7 +63,6 @@ export function channelLabel(channel: string): string {
 		listening: 'Nghe',
 		pinyin: 'Pinyin',
 		sentence: 'Câu',
-		hanzi: 'Chữ Hán',
 	};
 	return labels[channel] ?? channel;
 }

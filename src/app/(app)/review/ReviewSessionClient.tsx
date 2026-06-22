@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import QuestionRenderer from '@/components/chinese/QuestionRenderer';
 import SessionSummaryCard from '@/components/chinese/SessionSummaryCard';
+import SrsVocabManager from '@/components/chinese/SrsVocabManager';
 import { CN_REVIEW_PREFETCH_SIZE } from '@/config/constants';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
 import type { CnPracticeQuestionDTO } from '@/types/chinese';
@@ -42,6 +43,7 @@ export default function ReviewSessionClient() {
 	const [isExiting, setIsExiting] = useState(false);
 	const [isFetchingMore, setIsFetchingMore] = useState(false);
 	const [summaryReason, setSummaryReason] = useState<'exit' | 'complete'>('complete');
+	const [showManager, setShowManager] = useState(false);
 
 	const seenIdsRef = useRef<Set<string>>(new Set());
 	const prefetchingRef = useRef(false);
@@ -155,20 +157,49 @@ export default function ReviewSessionClient() {
 		}
 	}, [isExiting, flushAndWait, showSummary, router]);
 
+	const managerButton = (
+		<button
+			type="button"
+			onClick={() => setShowManager(true)}
+			className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent transition-colors hover:bg-accent/20"
+		>
+			<MaterialIcon name="playlist_add_check" size={16} />
+			Quản lí từ vựng SRS
+		</button>
+	);
+
+	const managerModal = (
+		<SrsVocabManager
+			open={showManager}
+			onClose={() => setShowManager(false)}
+			onUpdated={() => {
+				void loadInitial();
+			}}
+		/>
+	);
+
 	if (phase === 'loading') {
 		return (
-			<div className="mx-auto flex min-h-[60vh] max-w-2xl items-center justify-center px-4 text-muted">
-				Đang tải phiên ôn...
-			</div>
+			<>
+				<div className="mx-auto max-w-2xl px-4 pt-6">
+					<div className="flex justify-end">{managerButton}</div>
+				</div>
+				<div className="mx-auto flex min-h-[50vh] max-w-2xl items-center justify-center px-4 text-muted">
+					Đang tải phiên ôn...
+				</div>
+				{managerModal}
+			</>
 		);
 	}
 
 	if (phase === 'empty') {
 		return (
-			<div className="mx-auto max-w-2xl px-4 py-8">
-				<div className="card-paper w-full p-8 text-center">
+			<>
+				<div className="mx-auto max-w-2xl px-4 py-8">
+					<div className="mb-4 flex justify-end">{managerButton}</div>
+					<div className="card-paper w-full p-8 text-center">
 					<MaterialIcon name="celebration" className="mx-auto text-success" size={48} />
-					<p className="mt-4 text-muted">Không có từ cần ôn hôm nay.</p>
+					<p className="mt-4 text-muted">Không có mục cần ôn hôm nay.</p>
 					<p className="mt-2 text-sm text-foreground-secondary">
 						Bật <strong>Ôn SRS</strong> trên bộ từ trong{' '}
 						<Link href="/sets" className="font-bold text-accent hover:underline">Danh sách bộ từ</Link>{' '}
@@ -184,14 +215,20 @@ export default function ReviewSessionClient() {
 							Chọn bộ từ
 						</Link>
 					</div>
+					</div>
 				</div>
-			</div>
+				{managerModal}
+			</>
 		);
 	}
 
 	if (phase === 'summary') {
 		return (
-			<SessionSummaryCard
+			<>
+				<div className="mx-auto max-w-2xl px-4 pt-6">
+					<div className="flex justify-end">{managerButton}</div>
+				</div>
+				<SessionSummaryCard
 				summary={sessionResult}
 				dueRemaining={dueRemaining}
 				title={summaryReason === 'exit' ? 'Đã dừng & lưu' : 'Ôn xong!'}
@@ -203,25 +240,33 @@ export default function ReviewSessionClient() {
 					void loadInitial();
 				}}
 				primaryLabel="Ôn tiếp"
-			/>
+				/>
+				{managerModal}
+			</>
 		);
 	}
 
 	return (
-		<div className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 py-8 md:py-12">
-			<div className="mb-6 w-full text-center">
-				<div className="flex items-center justify-center gap-3">
-					<p className="label-caps text-accent">Ôn tập SRS</p>
-					<Link href="/review/stats" className="label-caps text-muted transition-colors hover:text-accent">
-						Xem tiến độ
-					</Link>
+		<>
+			<div className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 py-8 md:py-12">
+				<div className="mb-6 w-full">
+					<div className="flex items-start justify-between gap-3">
+						<div className="text-center sm:flex-1">
+							<div className="flex items-center justify-center gap-3">
+								<p className="label-caps text-accent">Ôn tập SRS</p>
+								<Link href="/review/stats" className="label-caps text-muted transition-colors hover:text-accent">
+									Xem tiến độ
+								</Link>
+							</div>
+							<h1 className="mt-2 text-2xl font-black text-foreground">Ôn hôm nay</h1>
+							<p className="mt-1 text-sm text-muted">
+								Dừng bất cứ lúc nào · {dueToday} mục đến hạn
+								{isFetchingMore && ' · đang tải thêm...'}
+							</p>
+						</div>
+						<div className="shrink-0 pt-1">{managerButton}</div>
+					</div>
 				</div>
-				<h1 className="mt-2 text-2xl font-black text-foreground">Ôn hôm nay</h1>
-				<p className="mt-1 text-sm text-muted">
-					Dừng bất cứ lúc nào · {dueToday} mục đến hạn
-					{isFetchingMore && ' · đang tải thêm...'}
-				</p>
-			</div>
 
 			{questions.length > 0 && (
 				<QuestionRenderer
@@ -239,6 +284,8 @@ export default function ReviewSessionClient() {
 					}}
 				/>
 			)}
-		</div>
+			</div>
+			{managerModal}
+		</>
 	);
 }

@@ -3,6 +3,7 @@
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
 import { splitHanzi } from '@/lib/chinese/hanziUtils';
+import { enrichExampleForFill } from '@/lib/chinese/fillExampleValidator';
 import type { CnImportHanziRow, CnImportPreview, CnImportWordRow } from '@/lib/chinese/parseChineseFile';
 import type { Prisma } from '@prisma/client';
 import type { HanziAiReconcileTrigger } from '@/services/chinese/hanziAi/hanziAiAdminService';
@@ -119,12 +120,18 @@ export async function publishWordRows(
 					: [];
 			if (examples.length) {
 				await db.cnExample.createMany({
-					data: examples.map((ex) => ({
-						wordId: word.id,
-						hanzi: ex.hanzi,
-						pinyin: ex.pinyin,
-						meaningVi: ex.meaningVi,
-					})),
+					data: examples.map((ex) => {
+						const fillMeta = enrichExampleForFill(ex.hanzi, row.simplified);
+						return {
+							wordId: word.id,
+							hanzi: ex.hanzi,
+							pinyin: ex.pinyin,
+							meaningVi: ex.meaningVi,
+							naturalnessStatus: fillMeta.naturalnessStatus,
+							targetWordStart: fillMeta.targetWordStart,
+							targetWordEnd: fillMeta.targetWordEnd,
+						};
+					}),
 				});
 			}
 		}

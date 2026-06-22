@@ -3,7 +3,6 @@
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
 import { MAX_CN_TERMS_PER_SET } from '@/config/constants';
-import { ensureDemoDataForUser } from '../../../prisma/seed-data/demo-user';
 import { buildCoverageReport, lookupTerms } from '@/services/chinese/cnContentService';
 import {
 	activateSetInSrs,
@@ -11,7 +10,7 @@ import {
 	onSetDeleted,
 	onWordRemovedFromActiveSet,
 } from '@/services/chinese/cnSrsEnrollmentService';
-import { countDueChannelsForProgressList } from '@/services/chinese/cnSrsService';
+import { countDueChannelsForProgressList, fetchProgressDueCandidates } from '@/services/chinese/cnSrsService';
 import { normalizeTerm, uniqueTerms } from '@/lib/chinese/hanziUtils';
 import type {
 	CnCoverageReportDTO,
@@ -38,11 +37,15 @@ function wordToBrief(w: CnWord) {
 async function countDueAndWeak(userId: string, wordIds: string[], srsActive: boolean) {
 	if (!srsActive || !wordIds.length) return { dueCount: 0, weakCount: 0 };
 	const now = new Date();
-	const progress = await prisma.cnWordProgress.findMany({
-		where: { userId, wordId: { in: wordIds } },
-	});
-	const dueCount = countDueChannelsForProgressList(progress, now);
-	const weakCount = progress.filter((p) => p.state === 'weak' || p.state === 'learning').length;
+	const [candidates, allProgress] = await Promise.all([
+		fetchProgressDueCandidates(userId, wordIds, now),
+		prisma.cnWordProgress.findMany({
+			where: { userId, wordId: { in: wordIds } },
+			select: { state: true },
+		}),
+	]);
+	const dueCount = countDueChannelsForProgressList(candidates, now);
+	const weakCount = allProgress.filter((p) => p.state === 'weak' || p.state === 'learning').length;
 	return { dueCount, weakCount };
 }
 
@@ -65,8 +68,6 @@ function setToListItem(
 }
 
 export async function listUserSets(userId: string): Promise<CnWordSetListItemDTO[]> {
-	await ensureDemoDataForUser(prisma, userId);
-
 	const sets = await prisma.cnWordSet.findMany({
 		where: { userId },
 		include: { items: true },
@@ -192,7 +193,7 @@ export async function addTermsToSet(
 	userId: string,
 	setId: string,
 	terms: string[],
-): Promise<{ set: CnWordSetDTO; coverage: CnCoverageReportDTO } | null> {
+): Promise<{ set: CnWordSetDTO; coverage: CnCoverageReportDTO; enrolledCount: number } | null> {
 	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
 	if (!set) return null;
 
@@ -218,22 +219,32 @@ export async function addTermsToSet(
 
 	await prisma.cnWordSet.update({ where: { id: setId }, data: { updatedAt: new Date() } });
 	const full = await getUserSet(userId, setId);
-	return { set: full!, coverage };
+	return {
+		set: full!,
+		coverage,
+		enrolledCount: set.srsActive ? newWordIds.length : 0,
+	};
 }
 
-export async function removeItemFromSet(userId: string, setId: string, itemId: string): Promise<boolean> {
+export async function removeItemFromSet(
+	userId: string,
+	setId: string,
+	itemId: string,
+): Promise<{ ok: boolean; purgedProgress: boolean }> {
 	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
-	if (!set) return false;
+	if (!set) return { ok: false, purgedProgress: false };
 
 	const item = await prisma.cnWordSetItem.findFirst({ where: { id: itemId, setId } });
-	if (!item) return false;
+	if (!item) return { ok: false, purgedProgress: false };
 
 	await prisma.cnWordSetItem.deleteMany({ where: { id: itemId, setId } });
 
+	let purgedProgress = false;
 	if (item.wordId) {
-		await onWordRemovedFromActiveSet(userId, setId, item.wordId);
+		const purgedCount = await onWordRemovedFromActiveSet(userId, setId, item.wordId);
+		purgedProgress = purgedCount > 0;
 	}
-	return true;
+	return { ok: true, purgedProgress };
 }
 
 export async function moveItemToSet(
