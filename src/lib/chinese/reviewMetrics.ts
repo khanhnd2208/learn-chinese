@@ -9,7 +9,7 @@ import {
 	clampSrsIntervalIdx,
 } from '@/config/constants';
 import { isTypedQuestion } from '@/lib/chinese/questionLabels';
-import type { CnQuestionType, CnWordProgressState } from '@/types/chinese';
+import type { CnWordProgressState } from '@/types/chinese';
 
 export interface DailyActivityRow {
 	dayKey: string;
@@ -260,7 +260,7 @@ export function computeMaturePct(progressList: ProgressForMetrics[]): number {
 }
 
 export function splitRecallAccuracy(
-	logs: Array<{ questionType: CnQuestionType; correct: boolean }>,
+	logs: Array<{ questionType: string; correct: boolean }>,
 ): RecallSplit {
 	let recallCorrect = 0;
 	let recallTotal = 0;

@@ -76,6 +76,6 @@ export function isAudioQuestion(type: CnQuestionType): boolean {
 	return type.startsWith('audio_');
 }
 
-export function isTypedQuestion(type: CnQuestionType): boolean {
+export function isTypedQuestion(type: string): boolean {
 	return type.endsWith('_typed');
 }
