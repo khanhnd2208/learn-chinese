@@ -7,13 +7,14 @@ import { config } from 'dotenv';
 import { expand } from 'dotenv-expand';
 import { resolve } from 'path';
 import { ObjectId } from 'mongodb';
-import { mongoClientPromise } from '@/lib/mongodbClient';
-import { ensureGlobalSampleSets } from '@/services/chinese/cnSampleSetService';
 
 expand(config({ path: resolve(process.cwd(), '.env.local') }));
 expand(config({ path: resolve(process.cwd(), '.env') }));
 
 async function main() {
+	const { mongoClientPromise } = await import('@/lib/mongodbClient');
+	const { ensureGlobalSampleSets } = await import('@/services/chinese/cnSampleSetService');
+
 	const client = await mongoClientPromise;
 	const users = await client.db().collection('users').find({}, { projection: { _id: 1 } }).toArray();
 
