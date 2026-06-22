@@ -1,0 +1,28 @@
+---
+description: React UI and Tailwind design tokens summary
+globs: src/components/**,src/app/**/*.tsx
+alwaysApply: false
+---
+
+# UI components
+
+Full spec: `DESIGN.md` (load only for visual/design work).
+
+## Tailwind tokens (summary)
+
+- Surfaces: `bg-surface`, `bg-surface-hover`, `border-border`
+- Text: `text-foreground`, `text-muted-foreground`, `text-accent`
+- Chinese text: `hanzi-lg`, `hanzi-xl` utility classes
+- Accent: warm gold/amber theme — use `text-accent`, `border-accent`, `hover:text-accent`
+
+## Patterns
+
+- Functional components; extract hooks for reusable client logic
+- Vietnamese UI copy for user-facing strings
+- Use existing components in `src/components/ui/` before adding new primitives
+- App Router: `'use client'` only when needed (state, effects, browser APIs)
+
+## Do not
+
+- Paste full `DESIGN.md` into changes — reference token names only
+- Add inline styles when Tailwind utilities exist in the codebase

@@ -1,0 +1,34 @@
+---
+description: API route auth and response patterns
+globs: src/app/api/**
+alwaysApply: false
+---
+
+# API routes
+
+## Auth
+
+- User routes: require session; scope all queries by `session.user.id`
+- Admin routes: check admin via `ADMIN_EMAILS` / role helper in `src/lib/auth.ts`
+- Unauthenticated: `{ ok: false, error: "Unauthorized" }` with HTTP 401
+- Forbidden admin: HTTP 403
+
+## Response shape
+
+Use helpers from `src/lib/api.ts`:
+
+```typescript
+return apiSuccess({ ok: true, ...data });
+return apiError('message', 400);
+```
+
+Prefer `{ ok: boolean, error?: string }` — consistent with existing routes.
+
+## Rate limits
+
+In-memory per-user limits in `src/config/constants.ts`. Only reliable on single instance (PM2 fork, instances=1).
+
+## Validation
+
+- Validate request body/query with Zod or shared validators in `src/lib/`
+- Return 400 with clear Vietnamese or English error messages matching existing routes

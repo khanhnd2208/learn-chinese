@@ -1,0 +1,37 @@
+---
+description: Core stack, layout, and quality commands for Learn Chinese
+alwaysApply: true
+---
+
+# Learn Chinese — core
+
+## Stack
+
+Next.js 16 App Router, React 19, TypeScript strict, Tailwind 4, Prisma 7 (PostgreSQL + MongoDB auth).
+
+## Layout
+
+- `src/app/` — pages and API routes (no `/chinese` prefix)
+- `src/services/chinese/` — business logic (prefer adding logic here, not in route handlers)
+- `src/lib/` — shared utils, hooks, tests under `src/lib/__tests__/`
+- `src/lib/harness/` — offline evaluation harness (Hanzi golden cases)
+- `@/` alias → `src/`
+
+## Before finishing a change
+
+```bash
+npm run quality    # or at minimum: npm test && npm run lint
+```
+
+Hanzi AI / trust policy changes also run:
+
+```bash
+npm run harness:hanzi
+```
+
+## General rules
+
+- Minimize diff scope; match existing naming and patterns in the file you edit
+- Only mock Prisma in service tests, not pure logic tests
+- Read `AGENTS.md` for domain entry points — do not scan the whole repo
+- Live DeepSeek scripts (`npm run hanzi:batch`) are manual only — never wire into CI or `npm test`

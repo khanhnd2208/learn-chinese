@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import AppSidebar from '@/components/layout/AppSidebar';
 import BottomNavBar from '@/components/layout/BottomNavBar';
 import TopAppBar from '@/components/layout/TopAppBar';
+import UserMessageModal from '@/components/ui/UserMessageModal';
 
 interface Props {
 	children: React.ReactNode;
@@ -26,6 +27,7 @@ export default function AppShell({ children }: Props) {
 				{children}
 			</main>
 			{!focusSession && <BottomNavBar />}
+			<UserMessageModal />
 		</div>
 	);
 }

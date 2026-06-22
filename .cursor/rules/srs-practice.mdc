@@ -1,0 +1,43 @@
+---
+description: SRS Leitner multi-channel and practice engine conventions
+globs: src/services/chinese/cnSrs*.ts,src/services/chinese/cnPracticeService.ts,src/lib/chinese/generateQuestions.ts,src/lib/chinese/practiceTaxonomy.ts,src/lib/chinese/channelRamp.ts,src/lib/chinese/cnSrsDueQuery.ts
+alwaysApply: false
+---
+
+# SRS & Practice
+
+## SRS model
+
+- **Not** SM-2/Anki — multi-track Leitner per `(word, channel)`
+- 4 channels: meaning, listening, pinyin, sentence
+- Intervals in `src/config/constants.ts`: `CN_SRS_INTERVALS_MINUTES` (10m → 360d)
+- Ramp: listening/pinyin due only after `meaningIntervalIdx >= CN_RAMP_MEANING_INTERVAL_IDX` (`channelRamp.ts`)
+- First wrong on channel: 30m cooldown (`CN_FIRST_WRONG_RETRY_MINUTES`)
+- Lapse floor: index 1 (1 day), not reset to 10 minutes
+- Due eligibility: schedule + ramp + cooldown — **no** lifetime-rate weak bypass in `isChannelDue`
+- Priority: channel-only (overdue, weakness with sample weight) — no `p.state` boost
+- Sentence unlock when meaning reaches familiar (idx ≥ 2)
+
+## Due query perf
+
+- SQL superset prefilter: `buildDueCandidateWhere` in `cnSrsDueQuery.ts`
+- JS `isChannelDue` remains source of truth
+- Indexes on `userId + *DueAt` per channel
+
+## Practice
+
+- **6 core question types** — `coreQuestionTypes.ts`, taxonomy in `practiceTaxonomy.ts`
+- Question generation: `generateQuestions.ts`
+- Modes filter allowed types; fallback to core/listening if channel locked
+
+## Known perf caveats
+
+- `listUserSets` calls `countDueAndWeak` per set (N+1 risk)
+
+## Tests
+
+- SRS logic: `src/lib/__tests__/cnSrsService.test.ts`
+- Ramp: `src/lib/__tests__/channelRamp.test.ts`
+- SQL superset parity: `src/lib/__tests__/cnSrsDueQuery.test.ts`
+- Questions: `src/lib/__tests__/generateQuestions.test.ts`
+- Taxonomy: `src/lib/__tests__/practiceTaxonomy.test.ts`
