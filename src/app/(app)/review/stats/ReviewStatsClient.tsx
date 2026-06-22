@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import ActivityHeatmap from '@/components/chinese/ActivityHeatmap';
+import ForecastBars from '@/components/chinese/ForecastBars';
+import StateDistributionBar from '@/components/chinese/StateDistributionBar';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
+import { errorTypeLabel } from '@/lib/chinese/errorMapping';
 import type { CnReviewStatsDTO } from '@/types/chinese';
 
 function formatSessionTime(iso: string): string {
@@ -41,31 +45,75 @@ export default function ReviewStatsClient() {
 
 	const todayProgress = stats.dueTotal + stats.reviewedToday > 0
 		? Math.min(100, Math.round((stats.reviewedToday / (stats.dueTotal + stats.reviewedToday)) * 100))
-		: 0;
+		: stats.reviewedToday > 0 ? 100 : 0;
+
+	const showMomentum = stats.dailySeries.some((d) => d.reviewed > 0);
 
 	return (
 		<div className="mx-auto max-w-4xl space-y-8 px-4 py-8 md:px-8">
 			<section>
 				<span className="label-caps tracking-widest">SRS</span>
-				<h1 className="mt-2 text-3xl font-black text-foreground">Tiến độ ôn tập</h1>
+				<h1 className="mt-2 text-3xl font-black text-foreground">Trạng thái học</h1>
 				<p className="mt-1 text-sm text-muted">
-					Xem bất cứ lúc nào · 1 mục = 1 từ × 1 kênh kỹ năng
+					Báo cáo ôn tập · 1 mục = 1 từ × 1 kênh kỹ năng
 				</p>
-				<div className="mt-4 flex flex-wrap gap-3">
+
+				{stats.insights.length > 0 && (
+					<div className="mt-4 space-y-2">
+						{stats.insights.map((insight) => (
+							<p key={insight} className="rounded-lg border border-accent/20 bg-accent-subtle px-4 py-2 text-sm text-foreground-secondary">
+								{insight}
+							</p>
+						))}
+					</div>
+				)}
+
+				<div className="mt-4 flex flex-wrap items-center gap-3">
 					<Link href="/review" className="btn-primary">
 						<MaterialIcon name="play_arrow" size={16} />
 						Ôn ngay
 					</Link>
-					{stats.dueTotal > 0 && (
-						<span className="flex items-center text-sm text-muted">
-							Còn ~{stats.dueTotal} mục — dừng bất cứ lúc nào
+					{stats.dueTotal > 0 ? (
+						<span className="text-sm text-muted">
+							Còn ~{stats.dueTotal} mục
+							{stats.overdueCount > 0 && (
+								<span className="font-bold text-warning"> · {stats.overdueCount} đang trễ</span>
+							)}
+						</span>
+					) : stats.nextDueLabel ? (
+						<span className="text-sm text-success">{stats.nextDueLabel}</span>
+					) : (
+						<span className="text-sm text-success">Đã xong hôm nay</span>
+					)}
+					{stats.streak > 0 && (
+						<span className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-bold text-accent">
+							{stats.streak} ngày liên tiếp
 						</span>
 					)}
 				</div>
 			</section>
 
+			{!stats.hasActiveWords && (
+				<section className="card-paper p-6 text-center">
+					<MaterialIcon name="menu_book" className="mx-auto text-accent" size={40} />
+					<p className="mt-3 font-bold text-foreground">Bắt đầu theo dõi tiến độ</p>
+					<p className="mt-1 text-sm text-muted">
+						Bật <strong>Ôn SRS</strong> trên một bộ từ để đưa từ vào hàng đợi ôn.
+					</p>
+					<Link href="/sets" className="btn-secondary mt-4 inline-flex">
+						Chọn bộ từ
+					</Link>
+				</section>
+			)}
+
 			<section className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-				<StatCard label="Cần ôn" value={stats.dueTotal} icon="calendar_today" color="accent" />
+				<StatCard
+					label="Cần ôn"
+					value={stats.dueTotal}
+					sub={stats.overdueCount > 0 ? `${stats.overdueCount} trễ` : undefined}
+					icon="calendar_today"
+					color="accent"
+				/>
 				<StatCard label="Đã ôn hôm nay" value={stats.reviewedToday} icon="done_all" color="success" />
 				<StatCard label="Đúng hôm nay" value={`${stats.accuracyToday}%`} icon="check_circle" color="foreground" />
 				<StatCard label="Cần chú ý" value={stats.weakCount} icon="psychology_alt" color="warning" />
@@ -83,6 +131,51 @@ export default function ReviewStatsClient() {
 				<p className="mt-2 text-xs text-muted">Mục tiêu nhẹ — không bắt buộc hoàn thành hết</p>
 			</section>
 
+			{stats.hasActiveWords && (
+				<section>
+					<h2 className="label-caps">Dự báo 7 ngày</h2>
+					<p className="mt-1 text-xs text-muted">Số mục đến hạn mỗi ngày · vàng = đang trễ</p>
+					<div className="mt-3">
+						<ForecastBars days={stats.forecast} />
+					</div>
+				</section>
+			)}
+
+			{showMomentum && (
+				<section>
+					<h2 className="label-caps">Đà học</h2>
+					<div className="mt-3 grid gap-4 sm:grid-cols-3">
+						<div className="card-paper p-4">
+							<p className="label-caps">Streak</p>
+							<p className="mt-1 text-3xl font-black text-accent">{stats.streak}</p>
+							<p className="mt-1 text-xs text-muted">Kỷ lục: {stats.bestStreak} ngày</p>
+						</div>
+						<div className="card-paper p-4">
+							<p className="label-caps">TB 7 ngày</p>
+							<p className="mt-1 text-3xl font-black text-foreground">{stats.avgPerDay7}</p>
+							<p className="mt-1 text-xs text-muted">mục/ngày</p>
+						</div>
+						<div className="card-paper p-4">
+							<p className="label-caps">TB 30 ngày</p>
+							<p className="mt-1 text-3xl font-black text-foreground">{stats.avgPerDay30}</p>
+							<p className="mt-1 text-xs text-muted">mục/ngày</p>
+						</div>
+					</div>
+					<div className="mt-4">
+						<ActivityHeatmap series={stats.dailySeries} />
+					</div>
+				</section>
+			)}
+
+			{stats.hasActiveWords && (
+				<section>
+					<h2 className="label-caps">Sức khỏe trí nhớ</h2>
+					<div className="mt-3">
+						<StateDistributionBar distribution={stats.stateDistribution} maturePct={stats.maturePct} />
+					</div>
+				</section>
+			)}
+
 			<section>
 				<h2 className="label-caps">Tỷ lệ theo kênh</h2>
 				<div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -91,22 +184,57 @@ export default function ReviewStatsClient() {
 					<ChannelRate label="Pinyin" rate={stats.pinyinRate} />
 					<ChannelRate label="Dùng câu" rate={stats.sentenceRate} />
 				</div>
+				{(stats.recallTotal > 0 || stats.mcqTotal > 0) && (
+					<div className="mt-4 grid gap-3 sm:grid-cols-2">
+						<div className="card-paper px-4 py-3">
+							<div className="flex justify-between text-sm">
+								<span>Nhớ thật (gõ lại)</span>
+								<span className="font-bold">{stats.recallAccuracy}%</span>
+							</div>
+							<p className="mt-1 text-xs text-muted">{stats.recallTotal} câu hôm nay</p>
+						</div>
+						<div className="card-paper px-4 py-3">
+							<div className="flex justify-between text-sm">
+								<span>Trắc nghiệm</span>
+								<span className="font-bold">{stats.mcqAccuracy}%</span>
+							</div>
+							<p className="mt-1 text-xs text-muted">{stats.mcqTotal} câu hôm nay</p>
+						</div>
+					</div>
+				)}
 			</section>
 
-			{stats.weakWords.length > 0 && (
-				<section>
-					<h2 className="label-caps">Cần chú ý</h2>
-					<div className="mt-3 flex flex-wrap gap-2">
-						{stats.weakWords.map((w) => (
-							<Link
-								key={w.wordId}
-								href={`/words/${w.wordId}`}
-								className="rounded-full border border-accent/30 bg-accent-subtle px-3 py-1 text-sm font-bold text-accent transition-colors hover:border-accent"
-							>
-								{w.simplified}
-							</Link>
-						))}
-					</div>
+			{(stats.weakWords.length > 0 || stats.topErrors.length > 0) && (
+				<section className="grid gap-6 md:grid-cols-2">
+					{stats.weakWords.length > 0 && (
+						<div>
+							<h2 className="label-caps">Cần chú ý</h2>
+							<div className="mt-3 flex flex-wrap gap-2">
+								{stats.weakWords.map((w) => (
+									<Link
+										key={w.wordId}
+										href={`/words/${w.wordId}`}
+										className="rounded-full border border-accent/30 bg-accent-subtle px-3 py-1 text-sm font-bold text-accent transition-colors hover:border-accent"
+									>
+										{w.simplified}
+									</Link>
+								))}
+							</div>
+						</div>
+					)}
+					{stats.topErrors.length > 0 && (
+						<div>
+							<h2 className="label-caps">Lỗi phổ biến</h2>
+							<ul className="mt-3 space-y-2">
+								{stats.topErrors.map((e) => (
+									<li key={e.errorType} className="card-paper flex justify-between px-4 py-2 text-sm">
+										<span>{errorTypeLabel(e.errorType)}</span>
+										<span className="font-bold">{e.count}</span>
+									</li>
+								))}
+							</ul>
+						</div>
+					)}
 				</section>
 			)}
 
@@ -131,9 +259,10 @@ export default function ReviewStatsClient() {
 	);
 }
 
-function StatCard({ label, value, icon, color = 'foreground' }: {
+function StatCard({ label, value, sub, icon, color = 'foreground' }: {
 	label: string;
 	value: string | number;
+	sub?: string;
 	icon: string;
 	color?: 'foreground' | 'accent' | 'success' | 'warning';
 }) {
@@ -149,6 +278,7 @@ function StatCard({ label, value, icon, color = 'foreground' }: {
 			<MaterialIcon name={icon} className="text-accent" size={20} />
 			<p className="label-caps mt-2">{label}</p>
 			<p className={`mt-1 text-3xl font-black ${colorClass}`}>{value}</p>
+			{sub && <p className="mt-0.5 text-xs font-bold text-warning">{sub}</p>}
 		</div>
 	);
 }

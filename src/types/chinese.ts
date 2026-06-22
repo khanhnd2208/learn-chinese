@@ -241,8 +241,32 @@ export interface CnReviewSessionSummaryDTO {
 	accuracy: number;
 }
 
+export interface CnReviewForecastDayDTO {
+	dayKey: string;
+	label: string;
+	dueCount: number;
+	overdueCount: number;
+}
+
+export interface CnReviewDailyActivityDTO {
+	dayKey: string;
+	reviewed: number;
+	correct: number;
+}
+
+export interface CnReviewStateDistributionDTO {
+	new: number;
+	learning: number;
+	weak: number;
+	familiar: number;
+	strong: number;
+	mastered: number;
+	total: number;
+}
+
 export interface CnReviewStatsDTO {
 	dueTotal: number;
+	overdueCount: number;
 	reviewedToday: number;
 	correctToday: number;
 	accuracyToday: number;
@@ -252,8 +276,32 @@ export interface CnReviewStatsDTO {
 	listeningRate: number;
 	pinyinRate: number;
 	sentenceRate: number;
+	recallAccuracy: number;
+	recallTotal: number;
+	mcqAccuracy: number;
+	mcqTotal: number;
+	streak: number;
+	bestStreak: number;
+	avgPerDay7: number;
+	avgPerDay30: number;
+	maturePct: number;
+	stateDistribution: CnReviewStateDistributionDTO;
+	forecast: CnReviewForecastDayDTO[];
+	dailySeries: CnReviewDailyActivityDTO[];
+	nextDueAt: string | null;
+	nextDueLabel: string | null;
+	insights: string[];
+	hasActiveWords: boolean;
 	weakWords: Array<{ wordId: string; simplified: string; state: CnWordProgressState }>;
+	topErrors: Array<{ errorType: CnErrorType; count: number }>;
 	recentSessions: CnReviewSessionSummaryDTO[];
+}
+
+export interface CnReviewStatusDTO {
+	dueTotal: number;
+	overdueCount: number;
+	streak: number;
+	pressure: 'none' | 'mild' | 'moderate' | 'severe';
 }
 
 export interface CnDashboardDTO {
