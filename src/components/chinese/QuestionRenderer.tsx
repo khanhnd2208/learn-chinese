@@ -2,13 +2,14 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
-import ProgressBar from '@/components/ui/ProgressBar';
 import SpeakButton from '@/components/chinese/SpeakButton';
 import StickingPointCard from '@/components/chinese/StickingPointCard';
+import { questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
 import { isAudioQuestion, isTypedQuestion, learnerSessionLabel } from '@/lib/chinese/questionLabels';
 import { gradeAnswer } from '@/lib/chinese/answerGrade';
+import { formatReviewScheduleLabel } from '@/lib/chinese/reviewMetrics';
 import { useSpeech } from '@/lib/chinese/useSpeech';
-import type { CnPracticeSubmitItem, CnPracticeQuestionDTO } from '@/types/chinese';
+import type { CnPracticeSubmitItem, CnPracticeQuestionDTO, CnQuestionType } from '@/types/chinese';
 
 export type QuestionAnswerResult = CnPracticeSubmitItem;
 
@@ -29,6 +30,23 @@ interface Props {
 	headerAction?: ReactNode;
 }
 
+const MAX_PROGRESS_SEGMENTS = 40;
+
+const CHANNEL_PILL: Record<SkillChannel, { icon: string; className: string }> = {
+	meaning: {
+		icon: 'translate',
+		className: 'border-accent/40 bg-accent/15 text-accent',
+	},
+	listening: {
+		icon: 'headphones',
+		className: 'border-success/40 bg-success/15 text-success',
+	},
+	pinyin: {
+		icon: 'text_fields',
+		className: 'border-border bg-surface-hover text-foreground',
+	},
+};
+
 function getHintChars(q: CnPracticeQuestionDTO): string[] {
 	return q.hanzi ? [...q.hanzi] : q.components ?? [];
 }
@@ -36,6 +54,134 @@ function getHintChars(q: CnPracticeQuestionDTO): string[] {
 function questionHasHint(q: CnPracticeQuestionDTO): boolean {
 	const hintChars = getHintChars(q);
 	return hintChars.length > 0 || !!q.usageNoteVi || !!q.mnemonicVi;
+}
+
+function channelFromType(type: CnQuestionType): SkillChannel {
+	return questionChannel(type);
+}
+
+function countConsecutiveCorrect(results: QuestionAnswerResult[]): number {
+	let streak = 0;
+	for (let i = results.length - 1; i >= 0; i--) {
+		if (results[i].correct) streak++;
+		else break;
+	}
+	return streak;
+}
+
+function scaleSegmentCount(count: number, total: number): number {
+	if (total <= MAX_PROGRESS_SEGMENTS) return count;
+	return Math.round((count / total) * MAX_PROGRESS_SEGMENTS);
+}
+
+function SessionProgressDots({
+	results,
+	dueRemaining,
+}: {
+	results: QuestionAnswerResult[];
+	dueRemaining: number;
+}) {
+	const reviewed = results.length;
+	const total = reviewed + dueRemaining;
+	if (total === 0) return null;
+
+	const correct = results.filter((r) => r.correct).length;
+	const wrong = reviewed - correct;
+
+	const green = scaleSegmentCount(correct, total);
+	const amber = scaleSegmentCount(wrong, total);
+	const slots = Math.min(total, MAX_PROGRESS_SEGMENTS);
+	let grey = Math.max(0, slots - green - amber);
+
+	if (green + amber + grey > slots) {
+		grey = Math.max(0, slots - green - amber);
+	}
+	if (green + amber + grey < slots) {
+		grey += slots - (green + amber + grey);
+	}
+
+	const segments: Array<'correct' | 'wrong' | 'remaining'> = [
+		...Array.from({ length: green }, () => 'correct' as const),
+		...Array.from({ length: amber }, () => 'wrong' as const),
+		...Array.from({ length: grey }, () => 'remaining' as const),
+	];
+
+	return (
+		<div
+			className="flex h-2.5 w-full gap-px overflow-hidden rounded-full border border-border/50 bg-surface-hover p-px"
+			role="progressbar"
+			aria-valuenow={reviewed}
+			aria-valuemin={0}
+			aria-valuemax={total}
+			aria-label={`Đã ôn ${reviewed}, còn ${dueRemaining}`}
+		>
+			{segments.map((kind, i) => (
+				<div
+					key={`seg-${i}`}
+					className={`min-w-1 flex-1 rounded-sm ${
+						kind === 'correct'
+							? 'bg-success'
+							: kind === 'wrong'
+								? 'bg-warning'
+								: 'bg-muted/25'
+					}`}
+				/>
+			))}
+		</div>
+	);
+}
+
+function SessionStatsChips({
+	correctCount,
+	wrongCount,
+	dueRemaining,
+	consecutiveCorrect,
+}: {
+	correctCount: number;
+	wrongCount: number;
+	dueRemaining: number;
+	consecutiveCorrect: number;
+}) {
+	return (
+		<div className="flex flex-wrap items-center justify-end gap-1.5">
+			{(correctCount > 0 || consecutiveCorrect >= 3) && (
+				<span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-xs font-bold text-success">
+					<MaterialIcon name="check_circle" size={14} />
+					{correctCount}
+					{consecutiveCorrect >= 3 && (
+						<span className="animate-pulse text-[10px] leading-none">
+							🔥{consecutiveCorrect}
+						</span>
+					)}
+				</span>
+			)}
+			{wrongCount > 0 && (
+				<span className="inline-flex items-center gap-1 rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-bold text-warning">
+					<MaterialIcon name="cancel" size={14} />
+					{wrongCount}
+				</span>
+			)}
+			{dueRemaining > 0 && (
+				<span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-bold text-muted">
+					<MaterialIcon name="replay" size={14} />
+					~{dueRemaining}
+				</span>
+			)}
+		</div>
+	);
+}
+
+function ChannelPill({ type }: { type: CnQuestionType }) {
+	const channel = channelFromType(type);
+	const pill = CHANNEL_PILL[channel];
+	const label = learnerSessionLabel(type);
+
+	return (
+		<span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${pill.className}`}>
+			<MaterialIcon name={pill.icon} size={12} />
+			{label}
+		</span>
+	);
 }
 
 export default function QuestionRenderer({
@@ -61,7 +207,6 @@ export default function QuestionRenderer({
 	const autoPlayedRef = useRef<string | null>(null);
 
 	const q = questions[idx];
-	const batchProgress = q ? ((idx + 1) / questions.length) * 100 : 0;
 	const audioOnly = q ? isAudioQuestion(q.type) : false;
 	const typedOnly = q ? isTypedQuestion(q.type) : false;
 	const waiting = pendingAdvance || isExiting;
@@ -128,22 +273,28 @@ export default function QuestionRenderer({
 		advance(results);
 	};
 
-	const progressValue = sessionProgress
-		? Math.min(100, (sessionProgress.reviewed / Math.max(1, sessionProgress.reviewed + sessionProgress.dueRemaining)) * 100)
-		: batchProgress;
+	const correctCount = results.filter((r) => r.correct).length;
+	const wrongCount = results.length - correctCount;
+	const consecutiveCorrect = countConsecutiveCorrect(results);
+
+	const dueRemaining = sessionProgress?.dueRemaining ?? Math.max(0, questions.length - results.length);
+
+	const scheduleLabel = feedback && q.channelIntervalIdx !== undefined
+		? formatReviewScheduleLabel(q.channelIntervalIdx, isFeedbackCorrect)
+		: null;
 
 	const resolvedExitLabel = exitLabel ?? (incremental ? 'Dừng & lưu' : 'Thoát');
 
 	return (
 		<div className="w-full max-w-2xl">
 			<div className="mb-4 flex flex-col gap-2">
-				<div className="flex items-center justify-between gap-2">
+				<div className="flex items-start justify-between gap-2">
 					{onExit ? (
 						<button
 							type="button"
 							onClick={handleExit}
 							disabled={isExiting}
-							className="flex items-center gap-1 rounded-full p-1.5 label-caps text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-accent disabled:opacity-50 sm:px-3 sm:py-1.5"
+							className="flex shrink-0 items-center gap-1 rounded-full p-1.5 label-caps text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-accent disabled:opacity-50 sm:px-3 sm:py-1.5"
 						>
 							<MaterialIcon name={isExiting ? 'hourglass_empty' : 'close'} size={18} />
 							<span className="hidden sm:inline">
@@ -151,19 +302,29 @@ export default function QuestionRenderer({
 							</span>
 						</button>
 					) : (
-						<span className="label-caps text-muted">{learnerSessionLabel(q.type)}</span>
+						<ChannelPill type={q.type} />
 					)}
-					<div className="flex flex-col items-end gap-0.5">
-						<div className="flex items-center gap-2">
-							<span className="label-caps text-muted">{idx + 1} / {questions.length}</span>
+					<div className="flex min-w-0 flex-col items-end gap-1.5">
+						<div className="flex flex-wrap items-center justify-end gap-1.5">
+							{sessionProgress ? (
+								<SessionStatsChips
+									correctCount={correctCount}
+									wrongCount={wrongCount}
+									dueRemaining={dueRemaining}
+									consecutiveCorrect={consecutiveCorrect}
+								/>
+							) : (
+								<span className="label-caps text-muted">{idx + 1} / {questions.length}</span>
+							)}
+							<ChannelPill type={q.type} />
 							{headerAction}
 						</div>
-						<span className="hidden label-caps text-muted/70 sm:block">
-							{learnerSessionLabel(q.type)}
-						</span>
+						{!sessionProgress && (
+							<span className="label-caps text-muted/70">{learnerSessionLabel(q.type)}</span>
+						)}
 					</div>
 				</div>
-				<ProgressBar value={progressValue} className="h-1" />
+				<SessionProgressDots results={results} dueRemaining={dueRemaining} />
 			</div>
 
 			<div className="mb-6 text-center">
@@ -272,6 +433,21 @@ export default function QuestionRenderer({
 					}`}>
 						{feedback}
 					</p>
+					{scheduleLabel && incremental && (
+						<div
+							className={`mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-all duration-300 ${
+								isFeedbackCorrect
+									? 'border-success/40 bg-success/10 text-success'
+									: 'border-warning/40 bg-warning/10 text-warning'
+							}`}
+						>
+							<MaterialIcon
+								name={isFeedbackCorrect ? 'event_available' : 'replay'}
+								size={14}
+							/>
+							{scheduleLabel}
+						</div>
+					)}
 					{isFeedbackWrong && (q.mnemonicVi || q.usageNoteVi) && (
 						<p className="mt-2 text-sm italic text-foreground-secondary">
 							{q.mnemonicVi ? (
