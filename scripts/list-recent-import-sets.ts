@@ -1,6 +1,12 @@
-import { prisma } from '@/lib/prisma';
+import { config } from 'dotenv';
+import { expand } from 'dotenv-expand';
+import { resolve } from 'path';
+
+expand(config({ path: resolve(process.cwd(), '.env.local') }));
+expand(config({ path: resolve(process.cwd(), '.env') }));
 
 async function main() {
+	const { prisma } = await import('@/lib/prisma');
 	const sets = await prisma.cnWordSet.findMany({
 		where: {
 			OR: [
@@ -15,13 +21,16 @@ async function main() {
 			id: true,
 			title: true,
 			userId: true,
+			source: true,
 			createdAt: true,
 			_count: { select: { items: true } },
 		},
 	});
 	console.log(JSON.stringify(sets, null, 2));
+	await prisma.$disconnect();
 }
 
-main()
-	.catch((e) => console.error(e))
-	.finally(() => prisma.$disconnect());
+main().catch((error: unknown) => {
+	console.error(error);
+	process.exit(1);
+});
