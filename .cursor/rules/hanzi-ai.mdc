@@ -1,0 +1,40 @@
+---
+description: Hanzi AI pipeline, trust policy, and offline harness
+globs: src/services/chinese/hanziAi/**
+alwaysApply: false
+---
+
+# Hanzi AI
+
+## Pipeline (do not skip steps)
+
+```
+provider → hanziPreNormalize → parseHanziDraft → validateHanziAnalysis → applyHanziTrustPolicy → v2 cache
+```
+
+Single validation gate: `validateHanziAnalysis()` in `hanziAnalysisValidator.ts`.
+
+## Trust & versions
+
+- Curated claims / forbidden decompositions: `hanziTrustRegistry.ts`
+- Policy transform: `hanziTrustPolicy.ts`
+- Bump `HANZI_TRUST_POLICY_VERSION` or `HANZI_TRUST_REGISTRY_VERSION` when changing trust rules
+- After bump: update golden cases in `src/lib/harness/hanziGoldenCases.ts`, run `npm run harness:hanzi`
+
+## Schema
+
+- Draft input: `schemaVersion: 1` (`HanziAiDraftResult`)
+- Published cache: `schemaVersion: 2` (`HanziAnalysisResult`)
+- Do not change schema versions casually — update `hanziSchemaRegistry.ts` and all validators
+
+## Constraints
+
+- AI output never writes to `CnWord`, `CnHanzi`, or SRS
+- Production needs PM2 `instances=1` (in-memory rate limits)
+- Repair loop: max 2 attempts in `hanziAnalysisService.ts`
+
+## Testing
+
+- Offline golden cases: `src/lib/harness/` + `npm run harness:hanzi`
+- Fixtures: `hanziFixtures.ts` (`baseDraft`, `draftCharRow`)
+- Live eval: `npm run hanzi:batch` (manual, costs API)
