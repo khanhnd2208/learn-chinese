@@ -1,17 +1,16 @@
 /* ════════════════════════════════════════════════════════════════════════
-   generateQuestions.ts — Practice question generator (6 core types)
+   generateQuestions.ts — Practice question generator (9 core types)
    ════════════════════════════════════════════════════════════════════════ */
 import {
 	type PracticeGroup,
 	type SkillChannel,
 	type SessionContext,
 	questionChannel,
+	reviewQuestionTypeForChannel,
 	selectQuestionTypesForWord,
 } from '@/lib/chinese/practiceTaxonomy';
 import { buildMcqOptionsForType } from '@/lib/chinese/distractorSelect';
-import { blankVerifiedExample, pickFillExample } from '@/lib/chinese/verifiedExample';
-import { CN_MARK_KNOWN_HIDE_IDX } from '@/config/constants';
-import type { CnExampleDTO, CnPracticeQuestionDTO, CnQuestionType, CnWordCardDTO, CnWordProgressDTO } from '@/types/chinese';
+import type { CnPracticeQuestionDTO, CnQuestionType, CnWordCardDTO, CnWordProgressDTO } from '@/types/chinese';
 
 export const MIN_MCQ_OPTIONS = 2;
 
@@ -21,7 +20,6 @@ export interface GenerateSessionOptions {
 	types?: CnQuestionType[];
 	targetChannel?: SkillChannel;
 	distractorPool?: CnWordCardDTO[];
-	allowMarkKnown?: boolean;
 	sessionContext?: SessionContext;
 }
 
@@ -54,8 +52,9 @@ function makeId(wordId: string, type: CnQuestionType, idx: number): string {
 }
 
 function wordLearningExtras(word: CnWordCardDTO): Pick<CnPracticeQuestionDTO, 'usageNoteVi' | 'mnemonicVi'> {
+	const note = word.ghiChu || word.usageNoteVi || word.mnemonicVi;
 	return {
-		usageNoteVi: word.usageNoteVi || undefined,
+		usageNoteVi: note || undefined,
 		mnemonicVi: word.mnemonicVi || undefined,
 	};
 }
@@ -75,22 +74,24 @@ function collectSimilarChars(word: CnWordCardDTO, allWords: CnWordCardDTO[]): st
 	return unique(collected.filter((ch) => !ownChars.has(ch)));
 }
 
+function channelIntervalIdx(progress: CnWordProgressDTO | null, channel: SkillChannel): number {
+	if (!progress) return 0;
+	switch (channel) {
+		case 'meaning': return progress.meaningIntervalIdx;
+		case 'listening': return progress.listeningIntervalIdx;
+		case 'pinyin': return progress.pinyinIntervalIdx;
+	}
+}
+
 export function enrichQuestionWithProgress(
 	q: CnPracticeQuestionDTO,
 	progress: CnWordProgressDTO | null,
-	allowMarkKnown = false,
 ): CnPracticeQuestionDTO {
 	const channel = questionChannel(q.type);
-	const channelIdx = progress
-		? (channel === 'meaning' ? progress.meaningIntervalIdx
-			: channel === 'listening' ? progress.listeningIntervalIdx
-			: channel === 'pinyin' ? progress.pinyinIntervalIdx
-			: progress.sentenceIntervalIdx)
-		: 0;
+	const channelIdx = channelIntervalIdx(progress, channel);
 	return {
 		...q,
 		channelIntervalIdx: channelIdx,
-		canMarkKnown: allowMarkKnown && channelIdx < CN_MARK_KNOWN_HIDE_IDX,
 		isStickingPoint: progress?.isStickingPoint ?? false,
 	};
 }
@@ -100,7 +101,6 @@ export function generateQuestionForWord(
 	allWords: CnWordCardDTO[],
 	type: CnQuestionType,
 	idx: number,
-	opts?: { example?: CnExampleDTO | null },
 ): CnPracticeQuestionDTO | null {
 	const similarChars = collectSimilarChars(word, allWords);
 
@@ -147,6 +147,20 @@ export function generateQuestionForWord(
 				...wordLearningExtras(word),
 			};
 		}
+		case 'hanzi_to_pinyin': {
+			const options = buildMcqOptionsForType(type, word, allWords, word.pinyin);
+			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
+			return {
+				id: makeId(word.id, type, idx),
+				wordId: word.id,
+				type,
+				prompt: `Chọn pinyin của: ${word.simplified}`,
+				hanzi: word.simplified,
+				options,
+				correctAnswer: word.pinyin,
+				...wordLearningExtras(word),
+			};
+		}
 		case 'audio_to_hanzi': {
 			const options = buildMcqOptionsForType(type, word, allWords, word.simplified, 3, similarChars);
 			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
@@ -185,33 +199,36 @@ export function generateQuestionForWord(
 				...wordLearningExtras(word),
 			};
 		}
-		case 'fill_sentence': {
-			const example = opts?.example ?? pickFillExample(word);
-			if (!example) return null;
-			const blanked = blankVerifiedExample(example);
-			if (!blanked) return null;
-			const options = buildMcqOptionsForType(
-				'fill_sentence',
-				word,
-				allWords,
-				word.simplified,
-				3,
-				similarChars,
-				example.hanzi,
-			);
-			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
+		case 'meaning_to_hanzi_typed':
 			return {
 				id: makeId(word.id, type, idx),
 				wordId: word.id,
 				type,
-				prompt: `Điền từ vào câu: ${blanked}`,
-				sentenceTemplate: blanked,
-				options,
+				prompt: 'Gõ Hán tự cho nghĩa sau',
+				meaningVi: word.meaningVi,
 				correctAnswer: word.simplified,
-				explanation: example.meaningVi,
 				...wordLearningExtras(word),
 			};
-		}
+		case 'hanzi_to_pinyin_typed':
+			return {
+				id: makeId(word.id, type, idx),
+				wordId: word.id,
+				type,
+				prompt: `Gõ pinyin của: ${word.simplified}`,
+				hanzi: word.simplified,
+				correctAnswer: word.pinyin,
+				...wordLearningExtras(word),
+			};
+		case 'audio_to_hanzi_typed':
+			return {
+				id: makeId(word.id, type, idx),
+				wordId: word.id,
+				type,
+				prompt: 'Nghe và gõ Hán tự',
+				audioText: word.simplified,
+				correctAnswer: word.simplified,
+				...wordLearningExtras(word),
+			};
 		default:
 			return null;
 	}
@@ -243,14 +260,14 @@ export function generatePracticeSession(
 				group,
 				count: perWord * 4,
 				targetChannel: options.targetChannel,
-				sessionContext: options.sessionContext ?? (options.allowMarkKnown ? 'review' : 'practice'),
+				sessionContext: options.sessionContext ?? 'practice',
 			});
 
 		for (let ti = 0; ti < typePool.length && questions.length < count; ti++) {
 			if (questions.filter((q) => q.wordId === word.id).length >= perWord) break;
 			const q = generateQuestionForWord(word, poolWords, typePool[ti], questions.length);
 			if (q) {
-				questions.push(enrichQuestionWithProgress(q, progress, options.allowMarkKnown ?? false));
+				questions.push(enrichQuestionWithProgress(q, progress));
 			}
 		}
 	}
@@ -266,10 +283,16 @@ export function generateListeningSession(
 	return generatePracticeSession(words, count, { group: 'listening', progressMap });
 }
 
-export function generateSentenceSession(
-	words: CnWordCardDTO[],
-	count = 10,
-	progressMap?: Map<string, CnWordProgressDTO | null>,
-): CnPracticeQuestionDTO[] {
-	return generatePracticeSession(words, count, { group: 'sentence_usage', progressMap });
+/** Generate one review question for a due channel entry */
+export function generateReviewQuestion(
+	word: CnWordCardDTO,
+	allWords: CnWordCardDTO[],
+	channel: SkillChannel,
+	progress: CnWordProgressDTO | null,
+	idx: number,
+): CnPracticeQuestionDTO | null {
+	const intervalIdx = channelIntervalIdx(progress, channel);
+	const type = reviewQuestionTypeForChannel(channel, intervalIdx);
+	const q = generateQuestionForWord(word, allWords, type, idx);
+	return q ? enrichQuestionWithProgress(q, progress) : null;
 }

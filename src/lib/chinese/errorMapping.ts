@@ -8,10 +8,13 @@ export type ErrorSeverity = 'light' | 'heavy';
 const QUESTION_ERROR_MAP: Record<CnQuestionType, CnErrorType> = {
 	hanzi_to_meaning: 'sai_nghia',
 	meaning_to_hanzi: 'quen_hanzi',
+	meaning_to_hanzi_typed: 'quen_hanzi',
 	pinyin_to_hanzi: 'sai_pinyin',
+	hanzi_to_pinyin: 'sai_pinyin',
+	hanzi_to_pinyin_typed: 'sai_pinyin',
 	audio_to_hanzi: 'nghe_khong_ra',
+	audio_to_hanzi_typed: 'nghe_khong_ra',
 	audio_to_meaning: 'nghe_khong_ra',
-	fill_sentence: 'sai_mau_cau',
 };
 
 const HEAVY_ERROR_TYPES: ReadonlySet<CnErrorType> = new Set([

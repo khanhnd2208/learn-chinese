@@ -2,11 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ALL_SKILL_CHANNELS } from '@/lib/chinese/practiceTaxonomy';
 import { progressMatchesDueCandidateSuperset } from '@/lib/chinese/cnSrsDueQuery';
 import { isChannelDue } from '@/services/chinese/cnSrsService';
-import {
-	CN_FIRST_WRONG_RETRY_MINUTES,
-	CN_SRS_INTERVALS_MINUTES,
-	CN_STATE_THRESHOLDS,
-} from '@/config/constants';
+import { addDays, CN_SRS_INTERVAL_DAYS } from '@/config/constants';
 import type { CnWordProgress } from '@prisma/client';
 
 const now = new Date('2026-06-17T10:00:00Z');
@@ -66,22 +62,21 @@ describe('cnSrsDueQuery superset safety', () => {
 			meaningTotal: 2,
 			meaningCorrect: 2,
 			meaningIntervalIdx: 1,
-			meaningDueAt: new Date(now.getTime() + CN_SRS_INTERVALS_MINUTES[1] * 60_000),
+			meaningDueAt: addDays(now, CN_SRS_INTERVAL_DAYS[1]),
 		}),
 		progressFixture({
 			listeningTotal: 1,
 			listeningCorrect: 0,
-			listeningDueAt: new Date(now.getTime() + CN_FIRST_WRONG_RETRY_MINUTES * 60_000),
+			listeningDueAt: addDays(now, CN_SRS_INTERVAL_DAYS[0]),
 		}),
 		progressFixture({
-			meaningIntervalIdx: CN_STATE_THRESHOLDS.familiar,
-			sentenceTotal: 0,
-			sentenceUnlockedAt: now,
+			pinyinTotal: 0,
+			pinyinIntervalIdx: 0,
 		}),
 		progressFixture({
 			listeningTotal: 5,
-			listeningCorrect: 1,
-			listeningDueAt: new Date(now.getTime() + CN_SRS_INTERVALS_MINUTES[4] * 60_000),
+			listeningCorrect: 4,
+			listeningDueAt: addDays(now, CN_SRS_INTERVAL_DAYS[4]),
 			listeningIntervalIdx: 4,
 		}),
 	];

@@ -1,17 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { generatePracticeSession, generateQuestionForWord } from '@/lib/chinese/generateQuestions';
+import {
+	generatePracticeSession,
+	generateQuestionForWord,
+	generateReviewQuestion,
+} from '@/lib/chinese/generateQuestions';
 import { CORE_QUESTION_TYPES } from '@/lib/chinese/coreQuestionTypes';
-import type { CnWordCardDTO } from '@/types/chinese';
-
-const verifiedExample = {
-	id: 'e1',
-	hanzi: '我是学生。',
-	pinyin: 'Wǒ shì xuésheng.',
-	meaningVi: 'Tôi là học sinh.',
-	targetWordStart: 2,
-	targetWordEnd: 4,
-	naturalnessStatus: 'verified',
-};
+import type { CnWordCardDTO, CnWordProgressDTO } from '@/types/chinese';
 
 const sampleWords: CnWordCardDTO[] = [
 	{
@@ -24,7 +18,7 @@ const sampleWords: CnWordCardDTO[] = [
 		mnemonicVi: '',
 		hskLevel: 1,
 		status: 'published',
-		examples: [verifiedExample],
+		examples: [],
 		patterns: [],
 		chars: [
 			{ id: 'h1', char: '学', pinyin: 'xué', hanViet: 'HỌC', meaningVi: 'học', components: [], radical: '子', mnemonicVi: '', similarGroupId: null, status: 'published', position: 0 },
@@ -49,7 +43,27 @@ const sampleWords: CnWordCardDTO[] = [
 	},
 ];
 
-describe('generateQuestions (6 core types)', () => {
+const progressAtRecall: CnWordProgressDTO = {
+	wordId: 'w1',
+	state: 'familiar',
+	dueAt: new Date().toISOString(),
+	intervalIdx: 2,
+	lastReviewedAt: null,
+	meaningRate: 80,
+	listeningRate: 70,
+	pinyinRate: 60,
+	sentenceRate: 0,
+	meaningTotal: 5,
+	listeningTotal: 4,
+	pinyinTotal: 3,
+	sentenceTotal: 0,
+	meaningIntervalIdx: 2,
+	listeningIntervalIdx: 1,
+	pinyinIntervalIdx: 0,
+	sentenceIntervalIdx: 0,
+};
+
+describe('generateQuestions (9 core types)', () => {
 	it('generates requested number of questions', () => {
 		const questions = generatePracticeSession(sampleWords, 10);
 		expect(questions.length).toBeGreaterThan(0);
@@ -72,11 +86,22 @@ describe('generateQuestions (6 core types)', () => {
 		}
 	});
 
-	it('fill_sentence blanks using verified offsets', () => {
-		const q = generateQuestionForWord(sampleWords[0], sampleWords, 'fill_sentence', 0);
+	it('generates typed recall without options', () => {
+		const q = generateQuestionForWord(sampleWords[0], sampleWords, 'meaning_to_hanzi_typed', 0);
 		expect(q).toBeTruthy();
-		expect(q!.sentenceTemplate).toContain('____');
-		expect(q!.sentenceTemplate).not.toContain('学生');
+		expect(q!.options).toBeUndefined();
+		expect(q!.correctAnswer).toBe('学生');
+	});
+
+	it('generates hanzi_to_pinyin MCQ', () => {
+		const q = generateQuestionForWord(sampleWords[0], sampleWords, 'hanzi_to_pinyin', 0);
+		expect(q).toBeTruthy();
+		expect(q!.options).toContain('xuésheng');
+	});
+
+	it('review question follows channel stage', () => {
+		const q = generateReviewQuestion(sampleWords[0], sampleWords, 'meaning', progressAtRecall, 0);
+		expect(q?.type).toBe('meaning_to_hanzi_typed');
 	});
 
 	it('single-word session with distractor pool yields multiple MCQ options', () => {
@@ -88,15 +113,5 @@ describe('generateQuestions (6 core types)', () => {
 		const meaningToHanzi = questions.find((q) => q.type === 'meaning_to_hanzi');
 		expect(meaningToHanzi).toBeTruthy();
 		expect(meaningToHanzi!.options!.length).toBeGreaterThanOrEqual(2);
-	});
-
-	it('sentence_usage generates fill_sentence when verified example exists', () => {
-		const word = sampleWords[0];
-		const questions = generatePracticeSession([word], 3, {
-			group: 'sentence_usage',
-			distractorPool: sampleWords,
-			types: ['fill_sentence'],
-		});
-		expect(questions.some((q) => q.type === 'fill_sentence')).toBe(true);
 	});
 });

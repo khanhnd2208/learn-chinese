@@ -1,29 +1,18 @@
 /* ════════════════════════════════════════════════════════════════════════
-   cnSrsService.ts — Multi-track Leitner SRS for Chinese vocabulary
+   cnSrsService.ts — Multi-track stage-based SRS for Chinese vocabulary
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
 import { AppError } from '@/lib/appError';
 import {
-	CN_FIRST_WRONG_RETRY_MINUTES,
+	addDays,
 	CN_CHANNEL_WEAK_THRESHOLD,
-	CN_LAPSE_FLOOR_IDX,
 	CN_LAPSE_HEAVY_IDX,
-	CN_MARK_KNOWN_COOLDOWN_MS,
-	CN_MARK_KNOWN_CORRECT_STEPS,
-	CN_MARK_KNOWN_HIDE_IDX,
-	CN_SRS_INTERVALS_MINUTES,
+	CN_LAPSE_RECALL_IDX,
+	CN_SRS_INTERVAL_DAYS,
 	CN_STATE_THRESHOLDS,
 	CN_STICKING_POINT_HEAVY_LAPSES,
-	CN_INTRO_PRIORITY_CAP,
+	clampSrsIntervalIdx,
 } from '@/config/constants';
-import {
-	bumpIntroDayCount,
-	getChannelIntroPhase,
-	introPriorityMultiplier,
-	isIntroChannelDueToday,
-	maybeSetChannelUnlocked,
-} from '@/lib/chinese/channelIntro';
-import { isChannelRampEligible } from '@/lib/chinese/channelRamp';
 import { reconcileSubmitItems } from '@/lib/chinese/answerGrading';
 import { buildDueCandidateWhere } from '@/lib/chinese/cnSrsDueQuery';
 import { isCoreQuestionType, questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
@@ -34,7 +23,6 @@ import {
 	ALL_SKILL_CHANNELS,
 	CHANNEL_TO_GROUP,
 	getWeakestChannel,
-	isChannelUnlocked,
 	pickChannelWeighted,
 } from '@/lib/chinese/practiceTaxonomy';
 import type {
@@ -42,7 +30,6 @@ import type {
 	CnWordProgressDTO,
 	CnWordProgressState,
 	CnErrorType,
-	CnQuestionType,
 } from '@/types/chinese';
 import type { CnWord, CnWordProgress } from '@prisma/client';
 
@@ -55,21 +42,12 @@ const CHANNEL_FIELDS: Record<SkillChannel, {
 	meaning: { dueAt: 'meaningDueAt', intervalIdx: 'meaningIntervalIdx', correct: 'meaningCorrect', total: 'meaningTotal' },
 	listening: { dueAt: 'listeningDueAt', intervalIdx: 'listeningIntervalIdx', correct: 'listeningCorrect', total: 'listeningTotal' },
 	pinyin: { dueAt: 'pinyinDueAt', intervalIdx: 'pinyinIntervalIdx', correct: 'pinyinCorrect', total: 'pinyinTotal' },
-	sentence: { dueAt: 'sentenceDueAt', intervalIdx: 'sentenceIntervalIdx', correct: 'sentenceCorrect', total: 'sentenceTotal' },
 };
 
 const HEAVY_LAPSE_FIELDS: Record<SkillChannel, keyof CnWordProgress> = {
 	meaning: 'meaningHeavyLapses',
 	listening: 'listeningHeavyLapses',
 	pinyin: 'pinyinHeavyLapses',
-	sentence: 'sentenceHeavyLapses',
-};
-
-const MARKED_KNOWN_FIELDS: Record<SkillChannel, keyof CnWordProgress> = {
-	meaning: 'meaningMarkedKnownAt',
-	listening: 'listeningMarkedKnownAt',
-	pinyin: 'pinyinMarkedKnownAt',
-	sentence: 'sentenceMarkedKnownAt',
 };
 
 const STATE_RANK: Record<CnWordProgressState, number> = {
@@ -86,17 +64,12 @@ export interface ComputeNextReviewOptions {
 	correct: boolean;
 	now?: Date;
 	lapseSeverity?: 'light' | 'heavy';
-	isFirstChannelAttempt?: boolean;
 }
 
 export interface DueChannelEntry {
 	progress: CnWordProgress & { word: CnWord };
 	channel: SkillChannel;
 	priority: number;
-}
-
-function addMinutes(date: Date, minutes: number): Date {
-	return new Date(date.getTime() + minutes * 60_000);
 }
 
 export function nextStateFromInterval(intervalIdx: number, correct: boolean): CnWordProgressState {
@@ -117,31 +90,31 @@ export function computeNextReview(options: ComputeNextReviewOptions): {
 		correct,
 		now = new Date(),
 		lapseSeverity = 'light',
-		isFirstChannelAttempt = false,
 	} = options;
 
+	const idx = clampSrsIntervalIdx(intervalIdx);
+
 	if (!correct) {
-		if (isFirstChannelAttempt) {
-			return {
-				dueAt: addMinutes(now, CN_FIRST_WRONG_RETRY_MINUTES),
-				intervalIdx: 0,
-				state: 'learning',
-			};
+		let nextIdx: number;
+		if (idx <= 0) {
+			nextIdx = 0;
+		} else if (idx === 1) {
+			nextIdx = 0;
+		} else if (idx === 2) {
+			nextIdx = 1;
+		} else {
+			nextIdx = lapseSeverity === 'heavy' ? CN_LAPSE_HEAVY_IDX : CN_LAPSE_RECALL_IDX;
 		}
-		const nextIdx = lapseSeverity === 'heavy'
-			? CN_LAPSE_HEAVY_IDX
-			: Math.max(intervalIdx - 1, CN_LAPSE_FLOOR_IDX);
 		return {
-			dueAt: addMinutes(now, CN_SRS_INTERVALS_MINUTES[nextIdx]),
+			dueAt: addDays(now, CN_SRS_INTERVAL_DAYS[0]),
 			intervalIdx: nextIdx,
 			state: 'weak',
 		};
 	}
 
-	const step = 1;
-	const nextIdx = Math.min(intervalIdx + step, CN_SRS_INTERVALS_MINUTES.length - 1);
+	const nextIdx = Math.min(idx + 1, CN_SRS_INTERVAL_DAYS.length - 1);
 	return {
-		dueAt: addMinutes(now, CN_SRS_INTERVALS_MINUTES[nextIdx]),
+		dueAt: addDays(now, CN_SRS_INTERVAL_DAYS[nextIdx]),
 		intervalIdx: nextIdx,
 		state: nextStateFromInterval(nextIdx, true),
 	};
@@ -156,7 +129,7 @@ function getChannelDueAt(p: CnWordProgress, channel: SkillChannel, fallback: Dat
 export function getChannelIntervalIdx(p: CnWordProgress, channel: SkillChannel): number {
 	const field = CHANNEL_FIELDS[channel].intervalIdx;
 	const value = p[field];
-	return typeof value === 'number' ? value : 0;
+	return typeof value === 'number' ? clampSrsIntervalIdx(value) : 0;
 }
 
 function channelRate(p: CnWordProgress, channel: SkillChannel): number {
@@ -170,40 +143,26 @@ export function isChannelDue(
 	p: CnWordProgress,
 	channel: SkillChannel,
 	now: Date,
-	dto?: CnWordProgressDTO | null,
+	_dto?: CnWordProgressDTO | null,
 ): boolean {
-	if (!isChannelUnlocked(dto ?? progressToDTO(p), channel)) return false;
-	if (!isIntroChannelDueToday(p, channel, now)) return false;
-	if (!isChannelRampEligible(p, channel)) return false;
-
 	const total = p[CHANNEL_FIELDS[channel].total] as number;
 	if (total === 0) return true;
 
 	const dueAt = getChannelDueAt(p, channel, p.dueAt);
-	if (dueAt <= now) return true;
-	if (total <= 1) return false;
-	return false;
-}
-
-function unlockedChannels(p: CnWordProgress, dto: CnWordProgressDTO): SkillChannel[] {
-	return ALL_SKILL_CHANNELS.filter((ch) => isChannelUnlocked(dto, ch));
+	return dueAt <= now;
 }
 
 function aggregateDueAt(p: CnWordProgress, now: Date): Date {
-	const dto = progressToDTO(p);
-	const channels = unlockedChannels(p, dto);
-	const dates = channels.map((ch) => getChannelDueAt(p, ch, p.dueAt));
+	const dates = ALL_SKILL_CHANNELS.map((ch) => getChannelDueAt(p, ch, p.dueAt));
 	const minDate = dates.reduce((min, d) => (d < min ? d : min), p.dueAt);
 	return minDate <= now ? now : minDate;
 }
 
 function aggregateState(p: CnWordProgress): CnWordProgressState {
-	const dto = progressToDTO(p);
-	const channels = unlockedChannels(p, dto);
 	let lowest: CnWordProgressState | null = null;
 	let hasPracticed = false;
 
-	for (const ch of channels) {
+	for (const ch of ALL_SKILL_CHANNELS) {
 		const total = p[CHANNEL_FIELDS[ch].total] as number;
 		if (total === 0) continue;
 		hasPracticed = true;
@@ -253,8 +212,8 @@ async function loadPracticePriorityAdjustments(
 
 	const adjustments = new Map<string, number>();
 	for (const [key, row] of stats) {
-		const rate = row.total ? (row.correct / row.total) * 100 : 0;
-		if (row.total >= PRACTICE_BOOST_MIN_ATTEMPTS && rate >= PRACTICE_BOOST_MIN_RATE) {
+		const chRate = row.total ? (row.correct / row.total) * 100 : 0;
+		if (row.total >= PRACTICE_BOOST_MIN_ATTEMPTS && chRate >= PRACTICE_BOOST_MIN_RATE) {
 			adjustments.set(key, -PRACTICE_PRIORITY_REDUCTION);
 		}
 	}
@@ -279,12 +238,6 @@ function channelReviewPriority(
 	const sampleWeight = Math.min(1, total / 5);
 	score += (100 - chRate) * 2 * sampleWeight;
 
-	const introPhase = getChannelIntroPhase(p, channel, now);
-	score *= introPriorityMultiplier(introPhase);
-	if (introPhase === 'intro') {
-		score = Math.min(score, CN_INTRO_PRIORITY_CAP);
-	}
-
 	if (total === 0) score += 50;
 
 	score += Math.random() * channelWeaknessJitter(dto, channel);
@@ -298,7 +251,6 @@ function channelWeaknessJitter(dto: CnWordProgressDTO, channel: SkillChannel): n
 		meaning: dto.meaningRate,
 		listening: dto.listeningRate,
 		pinyin: dto.pinyinRate,
-		sentence: dto.sentenceRate,
 	};
 	return (100 - rates[channel]) * 0.5;
 }
@@ -313,7 +265,6 @@ function collectDueChannelsForProgress(
 
 	if (!dueChannels.length) return [];
 
-	// Weighted order among due channels for this word (interleaving)
 	const ordered: SkillChannel[] = [];
 	const remaining = [...dueChannels];
 	while (remaining.length) {
@@ -553,97 +504,6 @@ function incrementHeavyLapse(progress: CnWordProgress, channel: SkillChannel): v
 	}
 }
 
-export function canMarkChannelKnown(
-	progress: CnWordProgress | null | undefined,
-	channel: SkillChannel | null,
-	now = new Date(),
-): boolean {
-	if (!progress || !channel) return false;
-	const idx = getChannelIntervalIdx(progress, channel);
-	if (idx >= CN_MARK_KNOWN_HIDE_IDX) return false;
-	const markedField = MARKED_KNOWN_FIELDS[channel];
-	const markedAt = progress[markedField];
-	if (markedAt instanceof Date && now.getTime() - markedAt.getTime() < CN_MARK_KNOWN_COOLDOWN_MS) {
-		return false;
-	}
-	return true;
-}
-
-export async function markChannelAsKnown(
-	userId: string,
-	wordId: string,
-	questionType: CnQuestionType,
-): Promise<{ intervalIdx: number; dueAt: string }> {
-	const channel = questionChannel(questionType);
-
-	const activeIds = await getSrsActiveWordIds(userId);
-	if (!activeIds.has(wordId)) {
-		throw new AppError('Từ chưa được đưa vào SRS', 400);
-	}
-
-	const now = new Date();
-	const progress = await prisma.cnWordProgress.findUnique({
-		where: { userId_wordId: { userId, wordId } },
-	});
-
-	if (!progress) {
-		throw new AppError('Từ chưa có tiến độ SRS', 400);
-	}
-
-	if (!canMarkChannelKnown(progress, channel, now)) {
-		throw new AppError('Không thể đánh dấu đã biết cho kênh này lúc này', 400);
-	}
-
-	const fields = CHANNEL_FIELDS[channel];
-	let idx = getChannelIntervalIdx(progress, channel);
-
-	for (let i = 0; i < CN_MARK_KNOWN_CORRECT_STEPS; i++) {
-		const next = computeNextReview({
-			intervalIdx: idx,
-			correct: true,
-			now,
-		});
-		idx = next.intervalIdx;
-		(progress[fields.dueAt] as Date | null) = next.dueAt;
-		(progress[fields.intervalIdx] as number) = next.intervalIdx;
-	}
-
-	(progress[fields.correct] as number) = (progress[fields.correct] as number) + CN_MARK_KNOWN_CORRECT_STEPS;
-	(progress[fields.total] as number) = (progress[fields.total] as number) + CN_MARK_KNOWN_CORRECT_STEPS;
-	(progress[MARKED_KNOWN_FIELDS[channel]] as Date | null) = now;
-	progress.lastReviewedAt = now;
-	maybeSetChannelUnlocked(progress, 'sentence', now);
-	progress.dueAt = aggregateDueAt(progress, now);
-	progress.state = aggregateState(progress);
-	progress.intervalIdx = Math.max(
-		getChannelIntervalIdx(progress, 'meaning'),
-		getChannelIntervalIdx(progress, 'listening'),
-		getChannelIntervalIdx(progress, 'pinyin'),
-		getChannelIntervalIdx(progress, 'sentence'),
-	);
-
-	await prisma.$transaction([
-		prisma.cnWordProgress.update({
-			where: { userId_wordId: { userId, wordId } },
-			data: progressToWriteData(progress),
-		}),
-		prisma.cnAnswerLog.create({
-			data: {
-				userId,
-				wordId,
-				questionType,
-				correct: true,
-				source: 'mark_known',
-			},
-		}),
-	]);
-
-	return {
-		intervalIdx: idx,
-		dueAt: (progress[fields.dueAt] as Date ?? progress.dueAt).toISOString(),
-	};
-}
-
 function applyPracticeItem(
 	progress: CnWordProgress,
 	item: CnPracticeSubmitItem,
@@ -655,19 +515,17 @@ function applyPracticeItem(
 		? undefined
 		: errorSeverity(resolveSubmitErrorType(item) ?? inferErrorType(item.questionType));
 
-	const reviewOpts = (idx: number, isFirstChannelAttempt = false): ComputeNextReviewOptions => ({
+	const reviewOpts = (idx: number): ComputeNextReviewOptions => ({
 		intervalIdx: idx,
 		correct: item.correct,
 		now,
 		lapseSeverity,
-		isFirstChannelAttempt,
 	});
 
 	progress.lastReviewedAt = now;
 
 	if (isCreateBranch) {
-		const isFirst = !channel || (progress[CHANNEL_FIELDS[channel].total] as number) === 0;
-		const next = computeNextReview(reviewOpts(0, isFirst && !item.correct));
+		const next = computeNextReview(reviewOpts(0));
 		progress.state = next.state;
 		progress.dueAt = next.dueAt;
 		progress.intervalIdx = next.intervalIdx;
@@ -687,9 +545,7 @@ function applyPracticeItem(
 	if (channel) {
 		const fields = CHANNEL_FIELDS[channel];
 		const chIdx = getChannelIntervalIdx(progress, channel);
-		// Per (word, channel): first attempt when this channel's total is still 0
-		const isFirstAttempt = (progress[fields.total] as number) === 0;
-		const chNext = computeNextReview(reviewOpts(chIdx, isFirstAttempt && !item.correct));
+		const chNext = computeNextReview(reviewOpts(chIdx));
 		(progress[fields.dueAt] as Date | null) = chNext.dueAt;
 		(progress[fields.intervalIdx] as number) = chNext.intervalIdx;
 		(progress[fields.correct] as number) = (progress[fields.correct] as number) + (item.correct ? 1 : 0);
@@ -697,7 +553,6 @@ function applyPracticeItem(
 		if (!item.correct && lapseSeverity === 'heavy') {
 			incrementHeavyLapse(progress, channel);
 		}
-		bumpIntroDayCount(progress, channel, now);
 	} else {
 		const next = computeNextReview(reviewOpts(progress.intervalIdx));
 		progress.dueAt = next.dueAt;
@@ -707,14 +562,10 @@ function applyPracticeItem(
 
 	progress.dueAt = aggregateDueAt(progress, now);
 	progress.state = aggregateState(progress);
-	if (getChannelIntervalIdx(progress, 'meaning') >= CN_STATE_THRESHOLDS.familiar) {
-		maybeSetChannelUnlocked(progress, 'sentence', now);
-	}
 	progress.intervalIdx = Math.max(
 		getChannelIntervalIdx(progress, 'meaning'),
 		getChannelIntervalIdx(progress, 'listening'),
 		getChannelIntervalIdx(progress, 'pinyin'),
-		getChannelIntervalIdx(progress, 'sentence'),
 	);
 }
 

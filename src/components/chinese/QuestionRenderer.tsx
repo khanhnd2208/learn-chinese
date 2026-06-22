@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
 import SpeakButton from '@/components/chinese/SpeakButton';
 import StickingPointCard from '@/components/chinese/StickingPointCard';
-import { channelLabel, isAudioQuestion, learnerSessionLabel } from '@/lib/chinese/questionLabels';
-import { questionChannel } from '@/lib/chinese/coreQuestionTypes';
+import { isAudioQuestion, isTypedQuestion, learnerSessionLabel } from '@/lib/chinese/questionLabels';
+import { gradeAnswer } from '@/lib/chinese/answerGrade';
 import { useSpeech } from '@/lib/chinese/useSpeech';
 import type { CnPracticeSubmitItem, CnPracticeQuestionDTO } from '@/types/chinese';
 
@@ -26,7 +26,16 @@ interface Props {
 	incremental?: boolean;
 	isExiting?: boolean;
 	exitLabel?: string;
-	sessionType?: 'practice' | 'review';
+	headerAction?: ReactNode;
+}
+
+function getHintChars(q: CnPracticeQuestionDTO): string[] {
+	return q.hanzi ? [...q.hanzi] : q.components ?? [];
+}
+
+function questionHasHint(q: CnPracticeQuestionDTO): boolean {
+	const hintChars = getHintChars(q);
+	return hintChars.length > 0 || !!q.usageNoteVi || !!q.mnemonicVi;
 }
 
 export default function QuestionRenderer({
@@ -38,23 +47,25 @@ export default function QuestionRenderer({
 	incremental = false,
 	isExiting = false,
 	exitLabel,
-	sessionType = 'practice',
+	headerAction,
 }: Props) {
 	const [idx, setIdx] = useState(0);
 	const [selected, setSelected] = useState<string | null>(null);
+	const [typedAnswer, setTypedAnswer] = useState('');
 	const [results, setResults] = useState<QuestionAnswerResult[]>([]);
 	const [feedback, setFeedback] = useState<string | null>(null);
-	const [showMarkConfirm, setShowMarkConfirm] = useState(false);
-	const [markingKnown, setMarkingKnown] = useState(false);
+	const [pendingAdvance, setPendingAdvance] = useState(false);
+	const [showHint, setShowHint] = useState(false);
 	const [sessionHeavyLapses, setSessionHeavyLapses] = useState<Record<string, number>>({});
-	const [markKnownDiagnostic, setMarkKnownDiagnostic] = useState<CnPracticeQuestionDTO[] | null>(null);
 	const { speak, supported } = useSpeech();
 	const autoPlayedRef = useRef<string | null>(null);
 
 	const q = questions[idx];
 	const batchProgress = q ? ((idx + 1) / questions.length) * 100 : 0;
 	const audioOnly = q ? isAudioQuestion(q.type) : false;
-	const waiting = !!feedback || isExiting;
+	const typedOnly = q ? isTypedQuestion(q.type) : false;
+	const waiting = pendingAdvance || isExiting;
+	const hasHint = q ? questionHasHint(q) : false;
 
 	useEffect(() => {
 		if (!q?.audioText || !supported || !audioOnly) return;
@@ -68,9 +79,10 @@ export default function QuestionRenderer({
 
 	if (!q) return null;
 
-	const isFeedbackWrong = !!feedback && !['Đúng', 'Đã ghi nhận', 'Đã bỏ'].some((prefix) => feedback.startsWith(prefix));
+	const isFeedbackWrong = !!feedback && !['Đúng', 'Đã ghi nhận'].some((prefix) => feedback.startsWith(prefix));
+	const isFeedbackCorrect = !!feedback && (feedback.startsWith('Đúng') || feedback.startsWith('Đã ghi nhận'));
 
-	const gradeAnswer = (answer: string): boolean => answer.trim() === q.correctAnswer.trim();
+	const gradeCurrentAnswer = (answer: string): boolean => gradeAnswer(q, answer);
 
 	const handleExit = () => {
 		if (waiting && !isExiting) return;
@@ -80,20 +92,16 @@ export default function QuestionRenderer({
 	const advance = (nextResults: QuestionAnswerResult[]) => {
 		setFeedback(null);
 		setSelected(null);
+		setTypedAnswer('');
+		setPendingAdvance(false);
+		setShowHint(false);
 		if (idx + 1 >= questions.length) onComplete?.(nextResults);
 		else setIdx(idx + 1);
 	};
 
-	const submitAnswer = (answer: string, skipped = false) => {
-		let correct = false;
-		let feedbackText = '';
-
-		if (skipped) {
-			feedbackText = 'Đã bỏ qua';
-		} else {
-			correct = gradeAnswer(answer);
-			feedbackText = correct ? 'Đúng!' : `Sai — đáp án: ${q.correctAnswer}`;
-		}
+	const submitAnswer = (answer: string) => {
+		const correct = gradeCurrentAnswer(answer);
+		const feedbackText = correct ? 'Đúng!' : `Sai — đáp án: ${q.correctAnswer}`;
 
 		const item: QuestionAnswerResult = {
 			wordId: q.wordId,
@@ -104,118 +112,80 @@ export default function QuestionRenderer({
 		setResults(next);
 		onAnswer?.(item);
 		setFeedback(feedbackText);
-		if (!correct && !skipped) {
+
+		if (!correct) {
 			setSessionHeavyLapses((prev) => ({
 				...prev,
 				[q.wordId]: (prev[q.wordId] ?? 0) + 1,
 			}));
 		}
-		setTimeout(() => advance(next), skipped ? 600 : 1200);
+
+		setPendingAdvance(true);
 	};
 
-	const handleMarkKnown = async () => {
-		if (sessionType !== 'review' || !q.canMarkKnown || markingKnown || waiting) return;
-		setMarkingKnown(true);
-		try {
-			const res = await fetch('/api/review/mark-known/diagnostic', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ wordId: q.wordId }),
-			});
-			const json = await res.json() as { ok: boolean; data?: { questions: CnPracticeQuestionDTO[] }; error?: string };
-			if (!json.ok || !json.data?.questions.length) throw new Error(json.error ?? 'Không tạo được bài kiểm tra');
-			setShowMarkConfirm(false);
-			setMarkKnownDiagnostic(json.data.questions);
-		} catch (e) {
-			setFeedback(e instanceof Error ? e.message : 'Không thể bắt đầu kiểm tra');
-		} finally {
-			setMarkingKnown(false);
-		}
+	const handleNext = () => {
+		if (!pendingAdvance) return;
+		advance(results);
 	};
 
-	const finishMarkKnownDiagnostic = async (items: QuestionAnswerResult[]) => {
-		setMarkingKnown(true);
-		try {
-			const res = await fetch('/api/review/mark-known', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					wordId: q.wordId,
-					questionType: q.type,
-					diagnosticItems: items,
-				}),
-			});
-			const json = await res.json() as { ok: boolean; error?: string };
-			if (!json.ok) throw new Error(json.error ?? 'Chưa đủ chắc — hãy ôn thêm');
-			setMarkKnownDiagnostic(null);
-			setFeedback('Đã xác nhận — sẽ nhắc lại sau');
-			setTimeout(() => advance(results), 800);
-		} catch (e) {
-			setMarkKnownDiagnostic(null);
-			setFeedback(e instanceof Error ? e.message : 'Không thể đánh dấu');
-		} finally {
-			setMarkingKnown(false);
-		}
-	};
-
-	const progressLabel = sessionProgress
-		? `Đã ôn ${sessionProgress.reviewed} · còn ~${Math.max(0, sessionProgress.dueRemaining)}`
-		: `Câu ${idx + 1} / ${questions.length}`;
+	const progressValue = sessionProgress
+		? Math.min(100, (sessionProgress.reviewed / Math.max(1, sessionProgress.reviewed + sessionProgress.dueRemaining)) * 100)
+		: batchProgress;
 
 	const resolvedExitLabel = exitLabel ?? (incremental ? 'Dừng & lưu' : 'Thoát');
 
-	if (markKnownDiagnostic?.length) {
-		return (
-			<div className="w-full max-w-2xl">
-				<p className="mb-4 text-center text-sm font-bold text-foreground-secondary">
-					Kiểm tra nhanh — trả lời đúng ít nhất 2/3 câu
-				</p>
-				<QuestionRenderer
-					questions={markKnownDiagnostic}
-					sessionType="practice"
-					exitLabel="Hủy kiểm tra"
-					onExit={() => setMarkKnownDiagnostic(null)}
-					onComplete={(items) => { void finishMarkKnownDiagnostic(items); }}
-				/>
-			</div>
-		);
-	}
-
 	return (
 		<div className="w-full max-w-2xl">
-			{onExit && (
-				<div className="mb-6 flex items-center justify-between">
-					<button
-						type="button"
-						onClick={handleExit}
-						disabled={isExiting}
-						className="flex items-center gap-1 rounded-full px-2 py-1.5 label-caps text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-accent disabled:opacity-50"
-					>
-						<MaterialIcon name={isExiting ? 'hourglass_empty' : 'close'} size={16} />
-						{isExiting ? 'Đang lưu...' : resolvedExitLabel}
-					</button>
-					<span className="label-caps text-muted">{learnerSessionLabel(q.type)}</span>
-				</div>
-			)}
-
-			<div className="mb-8 flex flex-col gap-2">
-				<div className="flex items-center justify-between label-caps text-foreground-secondary">
-					<span>{progressLabel}</span>
-					{sessionProgress && (
-						<span className="text-muted">Câu {idx + 1}/{questions.length}</span>
+			<div className="mb-4 flex flex-col gap-2">
+				<div className="flex items-center justify-between gap-2">
+					{onExit ? (
+						<button
+							type="button"
+							onClick={handleExit}
+							disabled={isExiting}
+							className="flex items-center gap-1 rounded-full p-1.5 label-caps text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-accent disabled:opacity-50 sm:px-3 sm:py-1.5"
+						>
+							<MaterialIcon name={isExiting ? 'hourglass_empty' : 'close'} size={18} />
+							<span className="hidden sm:inline">
+								{isExiting ? 'Đang lưu...' : resolvedExitLabel}
+							</span>
+						</button>
+					) : (
+						<span className="label-caps text-muted">{learnerSessionLabel(q.type)}</span>
 					)}
-					{!onExit && !sessionProgress && <span>{learnerSessionLabel(q.type)}</span>}
+					<div className="flex flex-col items-end gap-0.5">
+						<div className="flex items-center gap-2">
+							<span className="label-caps text-muted">{idx + 1} / {questions.length}</span>
+							{headerAction}
+						</div>
+						<span className="hidden label-caps text-muted/70 sm:block">
+							{learnerSessionLabel(q.type)}
+						</span>
+					</div>
 				</div>
-				<ProgressBar value={sessionProgress ? Math.min(100, (sessionProgress.reviewed / Math.max(1, sessionProgress.reviewed + sessionProgress.dueRemaining)) * 100) : batchProgress} />
+				<ProgressBar value={progressValue} className="h-1" />
 			</div>
 
-			<div className="mb-8 text-center">
-				<p className="mb-6 text-lg font-extrabold text-foreground-secondary">{q.prompt}</p>
+			<div className="mb-6 text-center">
+				<p className="mb-4 text-lg font-extrabold text-foreground-secondary">{q.prompt}</p>
 				<QuestionHeroCard question={q} audioOnly={audioOnly} />
+				{hasHint && (
+					<button
+						type="button"
+						onClick={() => setShowHint((v) => !v)}
+						className="mx-auto mt-3 flex items-center gap-1 label-caps text-muted transition-colors hover:text-accent"
+					>
+						<MaterialIcon name="lightbulb" size={14} />
+						{showHint ? 'Ẩn gợi ý' : 'Gợi ý'}
+					</button>
+				)}
+				{showHint && hasHint && (
+					<HintPanel question={q} />
+				)}
 			</div>
 
 			{q.options ? (
-				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+				<div className="mx-auto grid w-full max-w-md grid-cols-1 gap-3 sm:grid-cols-2">
 					{q.options.map((opt, optIdx) => {
 						const isCorrect = feedback && opt === q.correctAnswer;
 						const isWrong = feedback && opt === selected && opt !== q.correctAnswer;
@@ -225,15 +195,20 @@ export default function QuestionRenderer({
 							<button
 								key={`${q.id}-opt-${optIdx}`}
 								type="button"
-								disabled={waiting}
+								disabled={waiting || !!feedback}
 								onClick={() => { setSelected(opt); submitAnswer(opt); }}
-								className={`group min-h-[52px] rounded-xl border px-4 py-5 text-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-background ${
-									isCorrect ? 'border-success bg-success/10' :
+								className={`group relative min-h-[52px] rounded-xl border px-4 py-5 text-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-background ${
+									isCorrect ? 'border-success bg-success/10 shadow-sm ring-1 ring-success/20' :
 									isWrong ? 'border-accent bg-accent-subtle' :
 									isChosen ? 'border-accent bg-accent-subtle' :
 									'border-border bg-surface hover:border-accent'
 								}`}
 							>
+								{isCorrect && (
+									<span className="absolute -top-2.5 -right-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-success text-white shadow-md">
+										<MaterialIcon name="check" size={14} />
+									</span>
+								)}
 								<span className={`font-extrabold transition-colors ${
 									isHanzi ? 'hanzi-lg text-2xl' : 'text-lg'
 								} ${
@@ -247,94 +222,127 @@ export default function QuestionRenderer({
 						);
 					})}
 				</div>
+			) : typedOnly ? (
+				<div className="mx-auto w-full max-w-md">
+					<input
+						type="text"
+						value={typedAnswer}
+						onChange={(e) => setTypedAnswer(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === 'Enter' && typedAnswer.trim() && !waiting && !feedback) {
+								submitAnswer(typedAnswer);
+							}
+						}}
+						disabled={waiting || !!feedback}
+						placeholder={
+							q.type === 'hanzi_to_pinyin_typed'
+								? 'Nhập pinyin...'
+								: 'Nhập Hán tự...'
+						}
+						className={`w-full rounded-xl border px-4 py-4 text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-accent ${
+							q.type === 'meaning_to_hanzi_typed' || q.type === 'audio_to_hanzi_typed'
+								? 'hanzi-lg'
+								: ''
+						} ${
+							feedback && gradeCurrentAnswer(typedAnswer)
+								? 'border-success bg-success/10'
+								: feedback
+									? 'border-accent bg-accent-subtle'
+									: 'border-border bg-surface'
+						}`}
+						autoFocus
+					/>
+					{!feedback && (
+						<button
+							type="button"
+							disabled={waiting || !typedAnswer.trim()}
+							onClick={() => submitAnswer(typedAnswer)}
+							className="btn-primary mt-4 min-h-[44px] w-full"
+						>
+							Kiểm tra
+						</button>
+					)}
+				</div>
 			) : null}
 
 			{feedback && (
-				<p className={`mt-6 text-center text-sm font-bold ${
-					feedback.startsWith('Đúng') || feedback.startsWith('Đã ghi nhận') ? 'text-success' :
-					feedback.startsWith('Đã bỏ') ? 'text-muted' :
-					'text-accent'
-				}`}>
-					{feedback}
-				</p>
-			)}
-
-			{isFeedbackWrong && (q.usageNoteVi || q.mnemonicVi) && (
-				<div className="mt-3 space-y-2">
-					{q.usageNoteVi && (
-						<div className="rounded-lg border border-border bg-surface p-3 text-sm text-foreground-secondary">
-							<span className="font-bold text-foreground">Lưu ý: </span>{q.usageNoteVi}
-						</div>
-					)}
-					{q.mnemonicVi && (
-						<div className="rounded-lg border border-border bg-surface p-3 text-sm text-foreground-secondary">
-							<span className="font-bold text-foreground">Mẹo nhớ: </span>{q.mnemonicVi}
-						</div>
+				<div className="mx-auto mt-6 w-full max-w-md rounded-xl border border-border bg-surface p-4 text-center">
+					<p className={`text-sm font-bold ${
+						isFeedbackCorrect ? 'text-success' : 'text-accent'
+					}`}>
+						{feedback}
+					</p>
+					{isFeedbackWrong && (q.mnemonicVi || q.usageNoteVi) && (
+						<p className="mt-2 text-sm italic text-foreground-secondary">
+							{q.mnemonicVi ? (
+								<>
+									Mẹo nhớ: <span className="font-bold not-italic text-foreground">{q.mnemonicVi}</span>
+								</>
+							) : (
+								<>
+									Lưu ý: <span className="font-bold not-italic text-foreground">{q.usageNoteVi}</span>
+								</>
+							)}
+						</p>
 					)}
 				</div>
 			)}
 
 			{feedback?.startsWith('Sai') && (sessionHeavyLapses[q.wordId] ?? 0) >= 2 && (
-				<StickingPointCard wordId={q.wordId} simplified={q.hanzi} />
-			)}
-
-			{(sessionType === 'review' && q.canMarkKnown) && !feedback && (
-				<div className="sticky bottom-0 z-10 mt-6 space-y-2 rounded-xl border border-border bg-background/95 p-3 backdrop-blur-sm">
-					{q.canMarkKnown && !showMarkConfirm && (
-						<button
-							type="button"
-							disabled={waiting || markingKnown}
-							onClick={() => setShowMarkConfirm(true)}
-							className="btn-secondary w-full min-h-[48px] justify-center !normal-case !tracking-normal"
-						>
-							<MaterialIcon name="verified" size={18} />
-							Đã biết — kiểm tra nhanh
-						</button>
-					)}
-					{showMarkConfirm && (
-						<div className="space-y-2 text-center">
-							<p className="text-sm text-foreground-secondary">
-								Làm 3 câu ngắn để xác nhận kỹ năng{' '}
-								<strong>{channelLabel(questionChannel(q.type) ?? 'meaning')}</strong>.
-							</p>
-							<div className="flex gap-2">
-								<button type="button" onClick={() => setShowMarkConfirm(false)} className="btn-secondary flex-1 min-h-[44px]">
-									Hủy
-								</button>
-								<button
-									type="button"
-									disabled={markingKnown}
-									onClick={() => { void handleMarkKnown(); }}
-									className="btn-primary flex-1 min-h-[44px]"
-								>
-									{markingKnown ? 'Đang lưu...' : 'Xác nhận'}
-								</button>
-							</div>
-						</div>
-					)}
+				<div className="mx-auto mt-4 w-full max-w-md">
+					<StickingPointCard wordId={q.wordId} simplified={q.hanzi} />
 				</div>
 			)}
 
-			<div className={`mt-4 flex items-center justify-between ${audioOnly ? 'sticky bottom-2 z-10 rounded-xl border border-border bg-background/95 p-3 backdrop-blur-sm' : ''}`}>
-				{q.audioText && (
+			<div className="mx-auto mt-6 flex w-full max-w-md items-center justify-between">
+				{pendingAdvance && q.audioText ? (
 					<button
 						type="button"
 						onClick={() => speak(q.audioText!)}
-						className="btn-secondary min-h-[44px]"
+						className="btn-secondary min-h-[40px]"
 					>
 						<MaterialIcon name="volume_up" size={16} />
 						Nghe lại
 					</button>
+				) : (
+					<span />
 				)}
-				<button
-					type="button"
-					disabled={waiting}
-					onClick={() => submitAnswer('', true)}
-					className="btn-secondary ml-auto !normal-case !tracking-normal"
-				>
-					Bỏ qua
-				</button>
+				{pendingAdvance ? (
+					<button
+						type="button"
+						onClick={handleNext}
+						className="btn-primary min-h-[40px] px-6"
+					>
+						Tiếp theo
+						<MaterialIcon name="arrow_forward" size={18} />
+					</button>
+				) : (
+					<span />
+				)}
 			</div>
+		</div>
+	);
+}
+
+function HintPanel({ question: q }: { question: CnPracticeQuestionDTO }) {
+	const hintChars = getHintChars(q);
+	return (
+		<div className="mx-auto mt-3 w-full max-w-md rounded-lg border border-border/60 bg-surface/50 px-4 py-3 text-center">
+			{hintChars.length > 0 && (
+				<div className="flex flex-wrap items-center justify-center gap-3">
+					{hintChars.map((char, i) => (
+						<div key={`${char}-${i}`} className="flex items-center gap-3">
+							{i > 0 && <span className="text-muted">+</span>}
+							<span className="hanzi-lg text-xl text-warning">{char}</span>
+						</div>
+					))}
+				</div>
+			)}
+			{(q.usageNoteVi || q.mnemonicVi) && (
+				<p className={`text-sm text-foreground-secondary ${hintChars.length > 0 ? 'mt-2' : ''}`}>
+					{q.mnemonicVi ?? q.usageNoteVi}
+				</p>
+			)}
 		</div>
 	);
 }
@@ -342,9 +350,9 @@ export default function QuestionRenderer({
 function QuestionHeroCard({ question: q, audioOnly }: { question: CnPracticeQuestionDTO; audioOnly: boolean }) {
 	if (audioOnly) {
 		return (
-			<div className="card-paper mx-auto flex min-h-[200px] max-w-sm flex-col items-center justify-center gap-4 p-8 shadow-sm">
-				<div className="flex h-20 w-20 items-center justify-center rounded-full border border-accent/20 bg-accent-subtle">
-					<MaterialIcon name="headphones" className="text-accent" size={40} />
+			<div className="card-paper mx-auto flex min-h-[200px] w-full max-w-md flex-col items-center justify-center gap-4 p-8 shadow-sm">
+				<div className="flex h-16 w-16 items-center justify-center rounded-full border border-accent/20 bg-accent-subtle">
+					<MaterialIcon name="headphones" className="text-accent" size={32} />
 				</div>
 				<p className="text-sm text-muted">Nhấn nút bên dưới để nghe lại</p>
 				{q.audioText && <SpeakButton text={q.audioText} label="Phát âm" />}
@@ -352,20 +360,11 @@ function QuestionHeroCard({ question: q, audioOnly }: { question: CnPracticeQues
 		);
 	}
 
-	if (q.type === 'meaning_to_hanzi' && q.meaningVi) {
+	if ((q.type === 'meaning_to_hanzi' || q.type === 'meaning_to_hanzi_typed') && q.meaningVi) {
 		return (
-			<div className="card-paper mx-auto max-w-md p-6 text-center shadow-sm">
+			<div className="card-paper mx-auto min-h-[160px] w-full max-w-md p-8 text-center shadow-sm">
 				<p className="label-caps text-muted">Nghĩa</p>
 				<p className="mt-2 text-xl font-extrabold leading-relaxed text-foreground">{q.meaningVi}</p>
-			</div>
-		);
-	}
-
-	if (q.type === 'fill_sentence' && q.sentenceTemplate) {
-		return (
-			<div className="card-paper mx-auto flex min-h-[160px] max-w-md flex-col items-center justify-center gap-3 p-8 shadow-sm">
-				<p className="hanzi-lg text-3xl font-bold leading-relaxed text-foreground">{q.sentenceTemplate}</p>
-				{q.audioText && <SpeakButton text={q.audioText} label="Nghe câu" />}
 			</div>
 		);
 	}
@@ -374,8 +373,8 @@ function QuestionHeroCard({ question: q, audioOnly }: { question: CnPracticeQues
 	if (!hasVisual) return null;
 
 	return (
-		<div className="card-paper mx-auto flex min-h-[200px] max-w-sm flex-col items-center justify-center p-8 shadow-sm">
-			{q.hanzi && <p className="hanzi-display text-5xl font-black text-foreground">{q.hanzi}</p>}
+		<div className="card-paper mx-auto flex min-h-[200px] w-full max-w-md flex-col items-center justify-center p-8 shadow-sm">
+			{q.hanzi && <p className="hanzi-display text-6xl font-black text-foreground">{q.hanzi}</p>}
 			{q.pinyin && !q.hanzi && <p className="text-2xl font-bold text-accent">{q.pinyin}</p>}
 			{q.pinyin && q.hanzi && <p className="mt-2 text-lg font-bold text-muted">{q.pinyin}</p>}
 			{q.audioText && !audioOnly && (

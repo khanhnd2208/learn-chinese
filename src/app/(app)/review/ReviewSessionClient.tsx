@@ -168,6 +168,17 @@ export default function ReviewSessionClient() {
 		</button>
 	);
 
+	const managerIconButton = (
+		<button
+			type="button"
+			onClick={() => setShowManager(true)}
+			title="Quản lí từ vựng SRS"
+			className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover hover:text-accent"
+		>
+			<MaterialIcon name="playlist_add_check" size={18} />
+		</button>
+	);
+
 	const managerModal = (
 		<SrsVocabManager
 			open={showManager}
@@ -248,42 +259,23 @@ export default function ReviewSessionClient() {
 
 	return (
 		<>
-			<div className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 py-8 md:py-12">
-				<div className="mb-6 w-full">
-					<div className="flex items-start justify-between gap-3">
-						<div className="text-center sm:flex-1">
-							<div className="flex items-center justify-center gap-3">
-								<p className="label-caps text-accent">Ôn tập SRS</p>
-								<Link href="/review/stats" className="label-caps text-muted transition-colors hover:text-accent">
-									Xem tiến độ
-								</Link>
-							</div>
-							<h1 className="mt-2 text-2xl font-black text-foreground">Ôn hôm nay</h1>
-							<p className="mt-1 text-sm text-muted">
-								Dừng bất cứ lúc nào · {dueToday} mục đến hạn
-								{isFetchingMore && ' · đang tải thêm...'}
-							</p>
-						</div>
-						<div className="shrink-0 pt-1">{managerButton}</div>
-					</div>
-				</div>
-
-			{questions.length > 0 && (
-				<QuestionRenderer
-					key={rendererKey}
-					questions={questions}
-					onAnswer={handleAnswer}
-					onComplete={() => { void handleComplete(); }}
-					onExit={() => { void handleExit(); }}
-					incremental
-					isExiting={isExiting || isFlushing}
-					sessionType="review"
-					sessionProgress={{
-						reviewed: reviewedCount,
-						dueRemaining,
-					}}
-				/>
-			)}
+			<div className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 py-6 md:py-8">
+				{questions.length > 0 && (
+					<QuestionRenderer
+						key={rendererKey}
+						questions={questions}
+						onAnswer={handleAnswer}
+						onComplete={() => { void handleComplete(); }}
+						onExit={() => { void handleExit(); }}
+						incremental
+						isExiting={isExiting || isFlushing}
+						headerAction={managerIconButton}
+						sessionProgress={{
+							reviewed: reviewedCount,
+							dueRemaining,
+						}}
+					/>
+				)}
 			</div>
 			{managerModal}
 		</>

@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
+import { HSK1_SAMPLE_SETS } from '@/lib/chinese/hsk1SampleSets';
 
 type WizardStep = 'select' | 'review' | 'done';
 
@@ -48,16 +49,6 @@ function PreviewSummary({ preview }: { preview: Preview }) {
 			<p className="text-sm text-foreground-secondary">
 				<span className="font-bold text-foreground">{preview.validWords}</span> từ trong{' '}
 				<span className="font-bold text-foreground">{preview.setsCount ?? preview.sets}</span> bộ
-				{(preview.wordsWithExamples ?? 0) > 0 && (
-					<> · <span className="font-bold text-foreground">{preview.wordsWithExamples}</span> từ có câu điền từ</>
-				)}
-				{(preview.wordsWithoutExamples ?? 0) > 0 && (
-					<> · <span className="font-bold text-foreground">{preview.wordsWithoutExamples}</span> từ chưa có câu ví dụ hợp lệ</>
-				)}
-				{(preview.examplesTotal ?? 0) > 0 && (
-					<> · <span className="font-bold text-foreground">{preview.examplesAuto ?? 0}</span> câu đạt /{' '}
-					<span className="font-bold text-foreground">{preview.examplesDraft ?? 0}</span> nháp</>
-				)}
 			</p>
 		);
 	}
@@ -254,19 +245,25 @@ export default function SetImportWizard() {
 								Cấu trúc tệp Excel
 							</h4>
 							<p className="text-xs text-foreground-secondary">
-								Đảm bảo tệp có sheet <strong>tu_vung</strong> với các cột bắt buộc để hệ thống nhận diện tự động.
+								Sheet <strong>tu_vung</strong> — bo_tu, simplified, pinyin, meaning_vi (+ han_viet, part_of_speech, ghi_chu).
+								3 bộ mẫu HSK1 đã có sẵn trong tài khoản; tải file để xem định dạng hoặc import thêm.
 							</p>
 							<ul className="list-disc space-y-1 pl-4 text-xs text-foreground-secondary">
-								<li><strong>huong_dan</strong> — hướng dẫn nhập liệu / dùng AI</li>
-								<li><strong>tu_vung</strong> — bo_tu, simplified, pinyin, meaning_vi (+ cột tùy chọn)</li>
-								<li>File export cũ: sets, set_items, progress, answer_logs</li>
+								<li><strong>huong_dan</strong> — hướng dẫn nhập liệu</li>
+								<li><strong>tu_vung</strong> — 7 cột từ vựng</li>
 							</ul>
 							<div className="flex flex-col gap-2 pt-2">
-								{/* eslint-disable-next-line @next/next/no-html-link-for-pages -- file download API route */}
-								<a href="/api/sets/sample" className="btn-secondary w-full justify-center">
-									<MaterialIcon name="description" size={16} />
-									Tải tệp mẫu
-								</a>
+								{HSK1_SAMPLE_SETS.map((sample) => (
+									/* eslint-disable-next-line @next/next/no-html-link-for-pages -- file download API route */
+									<a
+										key={sample.id}
+										href={`/api/sets/sample?set=${sample.id}`}
+										className="btn-secondary w-full justify-center text-sm"
+									>
+										<MaterialIcon name="description" size={16} />
+										Tải {sample.boTu}
+									</a>
+								))}
 								{/* eslint-disable-next-line @next/next/no-html-link-for-pages -- file download API route */}
 								<a href="/api/sets/export" className="btn-secondary w-full justify-center">
 									<MaterialIcon name="download" size={16} />

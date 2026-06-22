@@ -15,8 +15,9 @@ export type CnWordProgressState =
 export type CnLookupStatus = 'full' | 'charsOnly' | 'none';
 
 import type { CoreQuestionType, SkillChannel } from '@/lib/chinese/coreQuestionTypes';
+import type { CnSrsStage } from '@/config/constants';
 
-export type { CoreQuestionType, SkillChannel };
+export type { CoreQuestionType, SkillChannel, CnSrsStage };
 
 /** Active practice/SRS question types (MVP core set) */
 export type CnQuestionType = CoreQuestionType;
@@ -82,6 +83,7 @@ export interface CnWordDTO {
 	partOfSpeech: string;
 	mnemonicVi: string;
 	usageNoteVi?: string;
+	ghiChu?: string;
 	hskLevel: number | null;
 	pinyinPlain?: string;
 	pinyinNumbered?: string;
@@ -211,9 +213,8 @@ export interface CnPracticeQuestionDTO {
 	explanation?: string;
 	usageNoteVi?: string;
 	mnemonicVi?: string;
-	/** Channel interval index for mark-known eligibility */
+	/** Channel interval index */
 	channelIntervalIdx?: number;
-	canMarkKnown?: boolean;
 	isStickingPoint?: boolean;
 }
 

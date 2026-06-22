@@ -66,6 +66,10 @@ git pull
 pm2 restart learn-chinese
 ```
 
+Migration `20260622111541_add_ghi_chu_and_question_types` thêm cột `CnWord.ghiChu` và enum câu hỏi typed. `deploy.sh` chạy `prisma migrate deploy` + `prisma generate` tự động.
+
+Sau deploy lần đầu có feature sample sets, script cũng chạy `provision-global-sample-sets.ts` để backfill 3 bộ HSK1 cho user cũ.
+
 ## Database — migrations bắt buộc (2026-06-18)
 
 Sau khi pull, `deploy.sh` chạy `prisma migrate deploy`. Cần có trên prod:

@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { isChannelRampEligible } from '@/lib/chinese/channelRamp';
-import { CN_RAMP_MEANING_INTERVAL_IDX } from '@/config/constants';
 import type { CnWordProgress } from '@prisma/client';
 
 function baseProgress(overrides: Partial<CnWordProgress> = {}): CnWordProgress {
@@ -49,31 +48,10 @@ function baseProgress(overrides: Partial<CnWordProgress> = {}): CnWordProgress {
 }
 
 describe('channelRamp', () => {
-	it('meaning is always ramp eligible', () => {
-		expect(isChannelRampEligible(baseProgress(), 'meaning')).toBe(true);
-	});
-
-	it('listening/pinyin require meaning interval threshold when never practiced', () => {
-		const before = baseProgress({ meaningIntervalIdx: CN_RAMP_MEANING_INTERVAL_IDX - 1 });
-		expect(isChannelRampEligible(before, 'listening')).toBe(false);
-		expect(isChannelRampEligible(before, 'pinyin')).toBe(false);
-
-		const after = baseProgress({ meaningIntervalIdx: CN_RAMP_MEANING_INTERVAL_IDX });
-		expect(isChannelRampEligible(after, 'listening')).toBe(true);
-		expect(isChannelRampEligible(after, 'pinyin')).toBe(true);
-	});
-
-	it('already-practiced listening/pinyin stay ramp eligible', () => {
-		const p = baseProgress({
-			meaningIntervalIdx: 0,
-			listeningTotal: 1,
-			pinyinTotal: 2,
-		});
+	it('all channels are always ramp eligible', () => {
+		const p = baseProgress();
+		expect(isChannelRampEligible(p, 'meaning')).toBe(true);
 		expect(isChannelRampEligible(p, 'listening')).toBe(true);
 		expect(isChannelRampEligible(p, 'pinyin')).toBe(true);
-	});
-
-	it('sentence defers to unlock rules', () => {
-		expect(isChannelRampEligible(baseProgress(), 'sentence')).toBe(true);
 	});
 });

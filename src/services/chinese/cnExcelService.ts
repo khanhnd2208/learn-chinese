@@ -5,11 +5,6 @@ import { MAX_CN_TERMS_PER_SET, MAX_IMPORT_ROWS } from '@/config/constants';
 import { normalizeTerm } from '@/lib/chinese/hanziUtils';
 import { enrollWordsInSrs } from '@/services/chinese/cnSrsEnrollmentService';
 import { CORE_QUESTION_TYPE_SET } from '@/lib/chinese/coreQuestionTypes';
-import {
-	computeFillTarget,
-	enrichExampleForFill,
-	MAX_FILL_SENTENCE_HAN_LENGTH,
-} from '@/lib/chinese/fillExampleValidator';
 import type { CnErrorType, CnQuestionType, CnWordProgressState } from '@/types/chinese';
 
 type Row = Record<string, unknown>;
@@ -76,29 +71,12 @@ function isTuVungFormat(workbook: XLSX.WorkBook): boolean {
 	return workbook.SheetNames.includes('tu_vung');
 }
 
-function hanCharCount(text: string): number {
-	return [...text].filter((ch) => /\p{Script=Han}/u.test(ch)).length;
-}
-
-export type BadExampleReason =
-	| 'missing_target'
-	| 'target_appears_multiple_times'
-	| 'sentence_too_long'
-	| 'empty';
-
 export interface BadExampleWarning {
 	rowNumber: number;
 	simplified: string;
 	exampleIndex: 1 | 2 | 3;
 	sentence: string;
-	reason: BadExampleReason;
-}
-
-interface ParsedTuVungExample {
-	index: 1 | 2 | 3;
-	hanzi: string;
-	pinyin: string;
-	meaningVi: string;
+	reason: string;
 }
 
 interface ParsedTuVungRow {
@@ -109,50 +87,28 @@ interface ParsedTuVungRow {
 	meaningVi: string;
 	hanViet: string;
 	partOfSpeech: string;
-	mnemonicVi: string;
-	usageNoteVi: string;
-	hskLevel: number | null;
-	examples: ParsedTuVungExample[];
-}
-
-function classifyBadExample(hanzi: string, targetWord: string): BadExampleReason | null {
-	if (!hanzi.trim()) return 'empty';
-	if (hanCharCount(hanzi) > MAX_FILL_SENTENCE_HAN_LENGTH) return 'sentence_too_long';
-	const start = hanzi.indexOf(targetWord);
-	if (start < 0) return 'missing_target';
-	if (hanzi.indexOf(targetWord, start + 1) !== -1) return 'target_appears_multiple_times';
-	return null;
-}
-
-function parseTuVungExample(row: Row, index: 1 | 2 | 3): ParsedTuVungExample | null {
-	const hanzi = getField(row, `vi_du_${index}`);
-	const pinyin = getField(row, `vi_du_${index}_pinyin`);
-	const meaningVi = getField(row, `vi_du_${index}_nghia`);
-	if (!hanzi && !pinyin && !meaningVi) return null;
-	return { index, hanzi, pinyin, meaningVi };
+	ghiChu: string;
 }
 
 function parseTuVungRows(rows: Row[]): ParsedTuVungRow[] {
-	return rows.map((row, index) => ({
-		rowNumber: index + 2,
-		boTu: getField(row, 'bo_tu', 'boTu'),
-		simplified: getField(row, 'simplified'),
-		pinyin: getField(row, 'pinyin'),
-		meaningVi: getField(row, 'meaning_vi', 'meaningVi'),
-		hanViet: getField(row, 'han_viet', 'hanViet'),
-		partOfSpeech: getField(row, 'part_of_speech', 'partOfSpeech'),
-		mnemonicVi: getField(row, 'mnemonic_vi', 'mnemonicVi'),
-		usageNoteVi: getField(row, 'usage_note_vi', 'usageNoteVi'),
-		hskLevel: (() => {
-			const raw = getField(row, 'hsk_level', 'hskLevel');
-			if (!raw) return null;
-			const level = asInt(raw);
-			return level >= 1 && level <= 6 ? level : null;
-		})(),
-		examples: ([1, 2, 3] as const)
-			.map((exampleIndex) => parseTuVungExample(row, exampleIndex))
-			.filter((example): example is ParsedTuVungExample => example !== null),
-	}));
+	return rows.map((row, index) => {
+		const ghiChu = getField(row, 'ghi_chu', 'ghiChu');
+		const legacyMnemonic = getField(row, 'mnemonic_vi', 'mnemonicVi');
+		const legacyUsage = getField(row, 'usage_note_vi', 'usageNoteVi');
+		const mergedGhiChu = ghiChu
+			|| [legacyMnemonic, legacyUsage].filter(Boolean).join(' ').trim();
+
+		return {
+			rowNumber: index + 2,
+			boTu: getField(row, 'bo_tu', 'boTu'),
+			simplified: getField(row, 'simplified'),
+			pinyin: getField(row, 'pinyin'),
+			meaningVi: getField(row, 'meaning_vi', 'meaningVi'),
+			hanViet: getField(row, 'han_viet', 'hanViet'),
+			partOfSpeech: getField(row, 'part_of_speech', 'partOfSpeech'),
+			ghiChu: mergedGhiChu,
+		};
+	});
 }
 
 function emptyTuVungPreviewFields(): Pick<
@@ -180,16 +136,6 @@ function emptyTuVungPreviewFields(): Pick<
 		badExampleWarnings: [],
 		duplicateSetNames: [],
 	};
-}
-
-function formatBadExampleWarning(warning: BadExampleWarning): string {
-	const reasonText: Record<BadExampleReason, string> = {
-		missing_target: 'câu không chứa từ mục tiêu',
-		target_appears_multiple_times: 'từ xuất hiện nhiều hơn 1 lần',
-		sentence_too_long: `câu quá dài (tối đa ${MAX_FILL_SENTENCE_HAN_LENGTH} chữ Hán)`,
-		empty: 'câu ví dụ trống',
-	};
-	return `Dòng ${warning.rowNumber} — ${warning.simplified} — ví dụ ${warning.exampleIndex}: ${reasonText[warning.reason]}.`;
 }
 
 async function resolveImportSetTitle(
@@ -358,7 +304,6 @@ async function previewTuVungWorkbook(
 ): Promise<UserWorkbookPreview> {
 	const errors: string[] = [];
 	const warnings: string[] = [];
-	const badExampleWarnings: BadExampleWarning[] = [];
 	const rows = sanitizeSheetRows(rowsFromSheet(workbook, 'tu_vung'));
 	const parsedRows = parseTuVungRows(rows);
 
@@ -368,11 +313,6 @@ async function previewTuVungWorkbook(
 
 	const seenSimplified = new Set<string>();
 	const boTuSet = new Set<string>();
-	let examplesTotal = 0;
-	let examplesAuto = 0;
-	let examplesDraft = 0;
-	let wordsWithExamples = 0;
-	let wordsWithoutExamples = 0;
 	let validWords = 0;
 
 	for (const row of parsedRows) {
@@ -405,42 +345,6 @@ async function previewTuVungWorkbook(
 		if (!rowValid) continue;
 
 		validWords++;
-		let autoCountForWord = 0;
-		for (const example of row.examples) {
-			examplesTotal++;
-			const reason = classifyBadExample(example.hanzi, row.simplified);
-			if (reason) {
-				badExampleWarnings.push({
-					rowNumber: row.rowNumber,
-					simplified: row.simplified,
-					exampleIndex: example.index,
-					sentence: example.hanzi,
-					reason,
-				});
-				examplesDraft++;
-				continue;
-			}
-			if (computeFillTarget(example.hanzi, row.simplified)) {
-				examplesAuto++;
-				autoCountForWord++;
-			} else {
-				examplesDraft++;
-			}
-		}
-
-		if (autoCountForWord > 0) {
-			wordsWithExamples++;
-		} else if (row.examples.length === 0) {
-			wordsWithoutExamples++;
-			warnings.push(`${row.simplified}: không có câu ví dụ — từ vẫn học được nhưng chưa có dạng điền câu.`);
-		} else {
-			wordsWithoutExamples++;
-			warnings.push(`${row.simplified}: không có câu ví dụ hợp lệ cho điền từ — các dạng bài khác vẫn dùng được.`);
-		}
-	}
-
-	for (const warning of badExampleWarnings) {
-		warnings.push(formatBadExampleWarning(warning));
 	}
 
 	const itemCountBySet = new Map<string, number>();
@@ -478,12 +382,12 @@ async function previewTuVungWorkbook(
 		totalRows: parsedRows.length,
 		validWords,
 		setsCount: boTuSet.size,
-		examplesTotal,
-		examplesAuto,
-		examplesDraft,
-		wordsWithExamples,
-		wordsWithoutExamples,
-		badExampleWarnings,
+		examplesTotal: 0,
+		examplesAuto: 0,
+		examplesDraft: 0,
+		wordsWithExamples: 0,
+		wordsWithoutExamples: validWords,
+		badExampleWarnings: [],
 		duplicateSetNames,
 	};
 }
@@ -634,7 +538,8 @@ async function importTuVungWorkbook(
 	userId: string,
 	workbook: XLSX.WorkBook,
 	preview: UserWorkbookPreview,
-): Promise<UserWorkbookPreview> {
+	options: ImportTuVungOptions = {},
+): Promise<{ preview: UserWorkbookPreview; createdSetIds: string[] }> {
 	const rows = sanitizeSheetRows(rowsFromSheet(workbook, 'tu_vung'));
 	const parsedRows = parseTuVungRows(rows).filter(
 		(row) => row.boTu && row.simplified && row.pinyin && row.meaningVi,
@@ -645,6 +550,7 @@ async function importTuVungWorkbook(
 		select: { title: true },
 	});
 	const existingTitles = new Set(existingSets.map((set) => set.title));
+	const createdSetIds: string[] = [];
 
 	await prisma.$transaction(async (tx) => {
 		const wordIdBySimplified = new Map<string, string>();
@@ -658,9 +564,7 @@ async function importTuVungWorkbook(
 					hanViet: row.hanViet,
 					meaningVi: row.meaningVi,
 					partOfSpeech: row.partOfSpeech,
-					mnemonicVi: row.mnemonicVi,
-					usageNoteVi: row.usageNoteVi,
-					hskLevel: row.hskLevel,
+					ghiChu: row.ghiChu,
 					status: 'published',
 				},
 				update: {
@@ -668,34 +572,11 @@ async function importTuVungWorkbook(
 					hanViet: row.hanViet,
 					meaningVi: row.meaningVi,
 					partOfSpeech: row.partOfSpeech,
-					mnemonicVi: row.mnemonicVi,
-					usageNoteVi: row.usageNoteVi,
-					hskLevel: row.hskLevel,
+					ghiChu: row.ghiChu,
 					status: 'published',
 				},
 			});
 			wordIdBySimplified.set(row.simplified, word.id);
-
-			await tx.cnExample.deleteMany({
-				where: { wordId: word.id, source: 'excel_import' },
-			});
-
-			for (const example of row.examples) {
-				if (!example.hanzi.trim()) continue;
-				const fillMeta = enrichExampleForFill(example.hanzi, row.simplified);
-				await tx.cnExample.create({
-					data: {
-						wordId: word.id,
-						hanzi: example.hanzi,
-						pinyin: example.pinyin,
-						meaningVi: example.meaningVi,
-						naturalnessStatus: fillMeta.naturalnessStatus,
-						targetWordStart: fillMeta.targetWordStart,
-						targetWordEnd: fillMeta.targetWordEnd,
-						source: 'excel_import',
-					},
-				});
-			}
 		}
 
 		const rowsBySet = new Map<string, ParsedTuVungRow[]>();
@@ -706,15 +587,21 @@ async function importTuVungWorkbook(
 		}
 
 		for (const [boTu, setRows] of rowsBySet) {
-			const title = await resolveImportSetTitle(boTu, existingTitles);
+			const title = options.preserveSetTitle
+				? boTu
+				: await resolveImportSetTitle(boTu, existingTitles);
+			if (!options.preserveSetTitle) {
+				existingTitles.add(title);
+			}
 			const set = await tx.cnWordSet.create({
 				data: {
 					userId,
 					title,
-					description: '',
-					source: 'manual',
+					description: options.setDescription ?? '',
+					source: 'textbook',
 				},
 			});
+			createdSetIds.push(set.id);
 
 			const seenTerms = new Set<string>();
 			for (const row of setRows) {
@@ -734,7 +621,42 @@ async function importTuVungWorkbook(
 		}
 	});
 
-	return preview;
+	return { preview, createdSetIds };
+}
+
+export interface ImportTuVungOptions {
+	setDescription?: string;
+	/** Use bo_tu as set title exactly (no import suffix) */
+	preserveSetTitle?: boolean;
+}
+
+export interface ImportWorkbookBufferResult {
+	preview: UserWorkbookPreview;
+	createdSetIds: string[];
+}
+
+export async function importUserWorkbookBuffer(
+	userId: string,
+	buffer: Buffer,
+	options: ImportTuVungOptions & { restoreProgress?: boolean } = {},
+): Promise<ImportWorkbookBufferResult> {
+	const preview = await previewUserWorkbookBuffer(buffer, userId);
+	if (preview.errors.length) {
+		return { preview, createdSetIds: [] };
+	}
+
+	const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+	const { restoreProgress = false, ...tuVungOptions } = options;
+
+	if (isTuVungFormat(workbook)) {
+		return importTuVungWorkbook(userId, workbook, preview, tuVungOptions);
+	}
+	if (workbook.SheetNames.includes('sets')) {
+		const legacyPreview = await importLegacyWorkbook(userId, workbook, restoreProgress, preview);
+		return { preview: legacyPreview, createdSetIds: [] };
+	}
+
+	return { preview, createdSetIds: [] };
 }
 
 async function importLegacyWorkbook(
@@ -897,17 +819,6 @@ export async function importUserWorkbook(
 	restoreProgress: boolean,
 ): Promise<UserWorkbookPreview> {
 	const buffer = Buffer.from(await file.arrayBuffer());
-	const preview = await previewUserWorkbookBuffer(buffer, userId);
-	if (preview.errors.length) return preview;
-
-	const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
-
-	if (isTuVungFormat(workbook)) {
-		return importTuVungWorkbook(userId, workbook, preview);
-	}
-	if (workbook.SheetNames.includes('sets')) {
-		return importLegacyWorkbook(userId, workbook, restoreProgress, preview);
-	}
-
+	const { preview } = await importUserWorkbookBuffer(userId, buffer, { restoreProgress });
 	return preview;
 }
