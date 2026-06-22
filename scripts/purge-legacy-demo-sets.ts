@@ -1,16 +1,17 @@
 import { config } from 'dotenv';
 import { expand } from 'dotenv-expand';
 import { resolve } from 'path';
-import { prisma } from '@/lib/prisma';
-import { isLegacyDemoSet } from '@/lib/chinese/legacyDemoSets';
-import { onSetDeleted } from '@/services/chinese/cnSrsEnrollmentService';
 
+expand(config({ path: resolve(process.cwd(), '.env.local') }));
 expand(config({ path: resolve(process.cwd(), '.env') }));
-expand(config({ path: resolve(process.cwd(), '.env.local'), override: true }));
 
 const dryRun = process.argv.includes('--dry-run');
 
 async function main() {
+	const { prisma } = await import('@/lib/prisma');
+	const { isLegacyDemoSet } = await import('@/lib/chinese/legacyDemoSets');
+	const { onSetDeleted } = await import('@/services/chinese/cnSrsEnrollmentService');
+
 	const sets = await prisma.cnWordSet.findMany({
 		select: { id: true, userId: true, title: true, description: true, source: true },
 		orderBy: { createdAt: 'asc' },
@@ -33,11 +34,11 @@ async function main() {
 	if (!dryRun) {
 		console.log('Done. Sample duy nhất: tải file tại GET /api/sets/sample');
 	}
+
+	await prisma.$disconnect();
 }
 
-main()
-	.catch((error: unknown) => {
-		console.error(error);
-		process.exit(1);
-	})
-	.finally(() => prisma.$disconnect());
+main().catch((error: unknown) => {
+	console.error(error);
+	process.exit(1);
+});
