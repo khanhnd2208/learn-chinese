@@ -56,6 +56,18 @@ export async function enrollWordsInSrs(userId: string, wordIds: string[]): Promi
 	}
 }
 
+/** Self-heal: upsert CnWordProgress for SRS-active words missing enrollment */
+export async function ensureEnrollmentForActiveWords(userId: string, activeWordIds: string[]): Promise<void> {
+	if (!activeWordIds.length) return;
+	const existing = await prisma.cnWordProgress.findMany({
+		where: { userId, wordId: { in: activeWordIds } },
+		select: { wordId: true },
+	});
+	const enrolled = new Set(existing.map((r) => r.wordId));
+	const missing = activeWordIds.filter((id) => !enrolled.has(id));
+	if (missing.length) await enrollWordsInSrs(userId, missing);
+}
+
 export async function purgeSrsForWordIds(userId: string, wordIds: string[]): Promise<number> {
 	const unique = [...new Set(wordIds)];
 	if (!unique.length) return 0;

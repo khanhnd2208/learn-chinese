@@ -310,6 +310,11 @@ export interface CnDashboardDTO {
 	wordsMastered: number;
 	weakCount: number;
 	dueToday: number;
+	overdueCount: number;
+	forecast: CnReviewForecastDayDTO[];
+	stateDistribution: CnReviewStateDistributionDTO;
+	maturePct: number;
+	streak: number;
 	overallRate: number;
 	listeningRate: number;
 	pinyinRate: number;
