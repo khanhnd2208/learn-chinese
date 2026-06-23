@@ -29,6 +29,7 @@ function wordToBrief(w: CnWord) {
 		meaningVi: w.meaningVi,
 		partOfSpeech: w.partOfSpeech,
 		mnemonicVi: w.mnemonicVi,
+		ghiChu: w.ghiChu || undefined,
 		hskLevel: w.hskLevel,
 		status: w.status,
 	};
@@ -245,6 +246,86 @@ export async function removeItemFromSet(
 		purgedProgress = purgedCount > 0;
 	}
 	return { ok: true, purgedProgress };
+}
+
+export async function removeItemsFromSet(
+	userId: string,
+	setId: string,
+	itemIds: string[],
+): Promise<{ ok: boolean; removedCount: number; purgedProgressCount: number }> {
+	let removedCount = 0;
+	let purgedProgressCount = 0;
+	for (const itemId of itemIds) {
+		const result = await removeItemFromSet(userId, setId, itemId);
+		if (result.ok) {
+			removedCount += 1;
+			if (result.purgedProgress) purgedProgressCount += 1;
+		}
+	}
+	return { ok: removedCount > 0, removedCount, purgedProgressCount };
+}
+
+export interface ResolveSetItemWordInput {
+	pinyin: string;
+	meaningVi: string;
+	hanViet?: string;
+	partOfSpeech?: string;
+	ghiChu?: string;
+	mnemonicVi?: string;
+}
+
+export async function resolveSetItemWithWordData(
+	userId: string,
+	setId: string,
+	itemId: string,
+	fields: ResolveSetItemWordInput,
+): Promise<CnWordSetDTO | null> {
+	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
+	if (!set) return null;
+
+	const item = await prisma.cnWordSetItem.findFirst({ where: { id: itemId, setId } });
+	if (!item) return null;
+
+	const simplified = normalizeTerm(item.rawTerm);
+	if (!simplified) return null;
+	if (!fields.pinyin.trim() || !fields.meaningVi.trim()) {
+		throw new Error('Pinyin và nghĩa tiếng Việt là bắt buộc');
+	}
+
+	const word = await prisma.cnWord.upsert({
+		where: { simplified },
+		create: {
+			simplified,
+			pinyin: fields.pinyin.trim(),
+			meaningVi: fields.meaningVi.trim(),
+			hanViet: fields.hanViet?.trim() ?? '',
+			partOfSpeech: fields.partOfSpeech?.trim() ?? '',
+			ghiChu: fields.ghiChu?.trim() ?? '',
+			mnemonicVi: fields.mnemonicVi?.trim() ?? '',
+			status: 'published',
+		},
+		update: {
+			pinyin: fields.pinyin.trim(),
+			meaningVi: fields.meaningVi.trim(),
+			hanViet: fields.hanViet?.trim() ?? '',
+			partOfSpeech: fields.partOfSpeech?.trim() ?? '',
+			ghiChu: fields.ghiChu?.trim() ?? '',
+			mnemonicVi: fields.mnemonicVi?.trim() ?? '',
+			status: 'published',
+		},
+	});
+
+	await prisma.cnWordSetItem.update({
+		where: { id: itemId },
+		data: { wordId: word.id, rawTerm: simplified },
+	});
+
+	if (set.srsActive) {
+		await enrollWordsInSrs(userId, [word.id]);
+	}
+
+	await prisma.cnWordSet.update({ where: { id: setId }, data: { updatedAt: new Date() } });
+	return getUserSet(userId, setId);
 }
 
 export async function moveItemToSet(

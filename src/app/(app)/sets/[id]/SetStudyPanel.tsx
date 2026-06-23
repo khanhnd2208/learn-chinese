@@ -111,31 +111,6 @@ export default function SetStudyPanel({ set }: Props) {
 					))}
 				</div>
 			</section>
-
-			<section>
-				<h2 className="text-lg font-extrabold text-foreground">Danh sách từ</h2>
-				<div className="mt-3 grid gap-3">
-					{set.items.map((item) => (
-						<div key={item.id} className="card-paper p-4">
-							{item.wordId ? (
-								<Link
-									href={`/words/${item.wordId}?setId=${set.id}`}
-									className="hanzi-lg text-xl font-black transition-colors hover:text-accent"
-								>
-									{item.rawTerm}
-								</Link>
-							) : (
-								<p className="hanzi-lg text-xl font-black text-muted">{item.rawTerm}</p>
-							)}
-							{item.word ? (
-								<p className="text-sm text-foreground-secondary">{item.word.pinyin} · {item.word.meaningVi}</p>
-							) : (
-								<p className="text-xs text-warning">Chờ bổ sung dữ liệu</p>
-							)}
-						</div>
-					))}
-				</div>
-			</section>
 		</div>
 	);
 }
