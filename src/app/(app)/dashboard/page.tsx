@@ -155,9 +155,10 @@ export default function ChineseDashboardPage() {
 	);
 }
 
-function Stat({ label, value, icon, color = 'foreground' }: {
+function Stat({ label, value, sub, icon, color = 'foreground' }: {
 	label: string;
 	value: string | number;
+	sub?: string;
 	icon: string;
 	color?: 'foreground' | 'accent' | 'success' | 'warning' | 'gold';
 }) {
@@ -176,6 +177,7 @@ function Stat({ label, value, icon, color = 'foreground' }: {
 			</div>
 			<p className="label-caps">{label}</p>
 			<p className={`mt-2 text-3xl font-black ${colorClass}`}>{value}</p>
+			{sub && <p className="mt-0.5 text-xs font-bold text-warning">{sub}</p>}
 		</div>
 	);
 }
