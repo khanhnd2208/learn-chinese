@@ -5,6 +5,13 @@ on:
     branches: [main, master]
   pull_request:
 
+env:
+  MONGODB_URI: mongodb://127.0.0.1:27017/ci_build
+  DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ci_build
+  AUTH_SECRET: ci-build-secret-not-for-production
+  NEXTAUTH_URL: http://localhost:3001
+  AUTH_TRUST_HOST: 'true'
+
 jobs:
   quality:
     runs-on: ubuntu-latest
