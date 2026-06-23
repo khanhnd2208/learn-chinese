@@ -8,6 +8,7 @@ import { countDueToday } from '@/services/chinese/cnSrsService';
 import { getChineseDashboard } from '@/services/chinese/cnDashboardService';
 import {
 	computeSetChannelProgress,
+	formatSetDueChannelsLabel,
 	maxSrsChannelsForSet,
 } from '@/lib/chinese/setSrsProgress';
 
@@ -195,7 +196,7 @@ export default async function ChineseHomePage() {
 							const progress = set.srsActive
 								? computeSetChannelProgress(set.itemCount, set.dueCount)
 								: 0;
-							const masteredChannels = Math.max(0, maxChannels - set.dueCount);
+							const stableChannels = Math.max(0, maxChannels - set.dueCount);
 							const status = setStatusLabel(progress);
 							return (
 								<div
@@ -213,15 +214,21 @@ export default async function ChineseHomePage() {
 										<p className="mt-1 text-sm text-muted">{set.description || 'Giáo trình chuẩn'}</p>
 										<div className="mt-3 pt-2">
 											<div className="mb-1 flex justify-between text-sm text-foreground-secondary">
-												<span>Tiến độ</span>
+												<span>Kênh ổn định</span>
 												<span className={`font-bold ${progress >= 100 ? 'text-success' : 'text-accent'}`}>
-													{set.srsActive ? `${masteredChannels} / ${maxChannels}` : '—'}
+													{set.srsActive ? `${stableChannels} / ${maxChannels}` : '—'}
 												</span>
 											</div>
 											<ProgressBar
 												value={progress}
 												barClassName={progress >= 100 ? 'bg-success' : 'bg-accent'}
 											/>
+											{set.srsActive && (
+												<p className="mt-1.5 text-xs text-muted">
+													{set.dueCount > 0 ? formatSetDueChannelsLabel(set.dueCount) : 'Không có kênh đến hạn'}
+													{set.weakCount > 0 && ` · ${set.weakCount} từ yếu`}
+												</p>
+											)}
 										</div>
 									</Link>
 									<div className="relative z-10 flex gap-2 pt-2">

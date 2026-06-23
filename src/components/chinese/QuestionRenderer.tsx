@@ -30,20 +30,23 @@ interface Props {
 	headerAction?: ReactNode;
 }
 
-const MAX_PROGRESS_SEGMENTS = 40;
+const OPTION_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'] as const;
 
-const CHANNEL_PILL: Record<SkillChannel, { icon: string; className: string }> = {
+const CHANNEL_PILL: Record<SkillChannel, { icon: string; className: string; fullLabel: string }> = {
 	meaning: {
 		icon: 'translate',
 		className: 'border-accent/40 bg-accent/15 text-accent',
+		fullLabel: 'KÊNH NGHĨA',
 	},
 	listening: {
 		icon: 'headphones',
 		className: 'border-success/40 bg-success/15 text-success',
+		fullLabel: 'KÊNH NGHE',
 	},
 	pinyin: {
 		icon: 'text_fields',
 		className: 'border-border bg-surface-hover text-foreground',
+		fullLabel: 'KÊNH PINYIN',
 	},
 };
 
@@ -60,125 +63,54 @@ function channelFromType(type: CnQuestionType): SkillChannel {
 	return questionChannel(type);
 }
 
-function countConsecutiveCorrect(results: QuestionAnswerResult[]): number {
-	let streak = 0;
-	for (let i = results.length - 1; i >= 0; i--) {
-		if (results[i].correct) streak++;
-		else break;
-	}
-	return streak;
-}
+const OPTION_DELAY_CLASSES = [
+	'animate-fade-slide-up-delay-1',
+	'animate-fade-slide-up-delay-2',
+	'animate-fade-slide-up-delay-3',
+	'animate-fade-slide-up-delay-4',
+] as const;
 
-function scaleSegmentCount(count: number, total: number): number {
-	if (total <= MAX_PROGRESS_SEGMENTS) return count;
-	return Math.round((count / total) * MAX_PROGRESS_SEGMENTS);
-}
-
-function SessionProgressDots({
-	results,
-	dueRemaining,
-}: {
-	results: QuestionAnswerResult[];
-	dueRemaining: number;
-}) {
-	const reviewed = results.length;
-	const total = reviewed + dueRemaining;
-	if (total === 0) return null;
-
-	const correct = results.filter((r) => r.correct).length;
-	const wrong = reviewed - correct;
-
-	const green = scaleSegmentCount(correct, total);
-	const amber = scaleSegmentCount(wrong, total);
-	const slots = Math.min(total, MAX_PROGRESS_SEGMENTS);
-	let grey = Math.max(0, slots - green - amber);
-
-	if (green + amber + grey > slots) {
-		grey = Math.max(0, slots - green - amber);
-	}
-	if (green + amber + grey < slots) {
-		grey += slots - (green + amber + grey);
-	}
-
-	const segments: Array<'correct' | 'wrong' | 'remaining'> = [
-		...Array.from({ length: green }, () => 'correct' as const),
-		...Array.from({ length: amber }, () => 'wrong' as const),
-		...Array.from({ length: grey }, () => 'remaining' as const),
-	];
-
-	return (
-		<div
-			className="flex h-2.5 w-full gap-px overflow-hidden rounded-full border border-border/50 bg-surface-hover p-px"
-			role="progressbar"
-			aria-valuenow={reviewed}
-			aria-valuemin={0}
-			aria-valuemax={total}
-			aria-label={`Đã ôn ${reviewed}, còn ${dueRemaining}`}
-		>
-			{segments.map((kind, i) => (
-				<div
-					key={`seg-${i}`}
-					className={`min-w-1 flex-1 rounded-sm ${
-						kind === 'correct'
-							? 'bg-success'
-							: kind === 'wrong'
-								? 'bg-warning'
-								: 'bg-muted/25'
-					}`}
-				/>
-			))}
-		</div>
-	);
-}
-
-function SessionStatsChips({
+function SessionCountersPill({
 	correctCount,
 	wrongCount,
 	dueRemaining,
-	consecutiveCorrect,
 }: {
 	correctCount: number;
 	wrongCount: number;
 	dueRemaining: number;
-	consecutiveCorrect: number;
 }) {
 	return (
-		<div className="flex flex-wrap items-center justify-end gap-1.5">
-			{(correctCount > 0 || consecutiveCorrect >= 3) && (
-				<span className="inline-flex items-center gap-1 rounded-full border border-success/30 bg-success/10 px-2 py-0.5 text-xs font-bold text-success">
-					<MaterialIcon name="check_circle" size={14} />
-					{correctCount}
-					{consecutiveCorrect >= 3 && (
-						<span className="animate-pulse text-[10px] leading-none">
-							🔥{consecutiveCorrect}
-						</span>
-					)}
-				</span>
-			)}
-			{wrongCount > 0 && (
-				<span className="inline-flex items-center gap-1 rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-bold text-warning">
-					<MaterialIcon name="cancel" size={14} />
-					{wrongCount}
-				</span>
-			)}
-			{dueRemaining > 0 && (
-				<span className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2 py-0.5 text-xs font-bold text-muted">
-					<MaterialIcon name="replay" size={14} />
-					~{dueRemaining}
-				</span>
-			)}
+		<div className="flex items-center gap-3 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-bold">
+			<span className="flex items-center gap-1 text-success">
+				<MaterialIcon name="check" size={16} />
+				{correctCount}
+			</span>
+			<span className="h-3 w-px bg-border" />
+			<span className="flex items-center gap-1 text-error">
+				<MaterialIcon name="close" size={16} />
+				{wrongCount}
+			</span>
+			<span className="h-3 w-px bg-border" />
+			<span className="flex items-center gap-1 text-muted">
+				<MaterialIcon name="all_inclusive" size={16} />
+				{dueRemaining}
+			</span>
 		</div>
 	);
 }
 
-function ChannelPill({ type }: { type: CnQuestionType }) {
+function ChannelPill({ type, large = false }: { type: CnQuestionType; large?: boolean }) {
 	const channel = channelFromType(type);
 	const pill = CHANNEL_PILL[channel];
-	const label = learnerSessionLabel(type);
+	const label = large ? pill.fullLabel : learnerSessionLabel(type);
 
 	return (
-		<span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${pill.className}`}>
-			<MaterialIcon name={pill.icon} size={12} />
+		<span
+			className={`inline-flex items-center gap-1.5 rounded-full border font-black uppercase tracking-wide ${pill.className} ${
+				large ? 'px-3 py-1.5 text-xs' : 'px-2 py-0.5 text-[10px]'
+			}`}
+		>
+			<MaterialIcon name={pill.icon} size={large ? 16 : 12} filled />
 			{label}
 		</span>
 	);
@@ -275,225 +207,313 @@ export default function QuestionRenderer({
 
 	const correctCount = results.filter((r) => r.correct).length;
 	const wrongCount = results.length - correctCount;
-	const consecutiveCorrect = countConsecutiveCorrect(results);
-
+	const reviewedCount = sessionProgress?.reviewed ?? results.length;
 	const dueRemaining = sessionProgress?.dueRemaining ?? Math.max(0, questions.length - results.length);
+	const totalEstimate = reviewedCount + dueRemaining;
+	const progressPct = totalEstimate > 0 ? Math.min(100, Math.round((reviewedCount / totalEstimate) * 100)) : 0;
 
 	const scheduleLabel = feedback && q.channelIntervalIdx !== undefined
 		? formatReviewScheduleLabel(q.channelIntervalIdx, isFeedbackCorrect)
 		: null;
 
-	const resolvedExitLabel = exitLabel ?? (incremental ? 'Dừng & lưu' : 'Thoát');
+	const resolvedExitLabel = exitLabel ?? (incremental ? 'Dừng' : 'Thoát');
+	const isReviewSession = !!sessionProgress;
 
 	return (
-		<div className="w-full max-w-2xl">
-			<div className="mb-4 flex flex-col gap-2">
-				<div className="flex items-start justify-between gap-2">
-					{onExit ? (
-						<button
-							type="button"
-							onClick={handleExit}
-							disabled={isExiting}
-							className="flex shrink-0 items-center gap-1 rounded-full p-1.5 label-caps text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-accent disabled:opacity-50 sm:px-3 sm:py-1.5"
+		<div className="flex w-full max-w-2xl flex-col">
+			{isReviewSession ? (
+				<header className="sticky top-0 z-40 -mx-4 mb-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm animate-slide-down">
+					<div className="flex items-center justify-between gap-2">
+						{onExit ? (
+							<button
+								type="button"
+								onClick={handleExit}
+								disabled={isExiting}
+								className="flex shrink-0 items-center gap-1 py-1 label-caps text-muted transition-colors hover:text-accent disabled:opacity-50"
+							>
+								<MaterialIcon name={isExiting ? 'hourglass_empty' : 'close'} size={20} />
+								<span>{isExiting ? 'Đang lưu...' : resolvedExitLabel}</span>
+							</button>
+						) : (
+							<span />
+						)}
+						<div className="flex items-center gap-2">
+							<SessionCountersPill
+								correctCount={correctCount}
+								wrongCount={wrongCount}
+								dueRemaining={dueRemaining}
+							/>
+							{headerAction}
+						</div>
+					</div>
+					<div className="mt-3 flex flex-col gap-2">
+						<div className="flex items-center justify-between gap-2">
+							<ChannelPill type={q.type} large />
+							<span className="text-sm font-bold text-foreground-secondary">{progressPct}%</span>
+						</div>
+						<div
+							className="h-2 w-full overflow-hidden rounded-full border border-border/50 bg-accent-subtle"
+							role="progressbar"
+							aria-valuenow={reviewedCount}
+							aria-valuemin={0}
+							aria-valuemax={totalEstimate}
 						>
-							<MaterialIcon name={isExiting ? 'hourglass_empty' : 'close'} size={18} />
-							<span className="hidden sm:inline">
-								{isExiting ? 'Đang lưu...' : resolvedExitLabel}
-							</span>
-						</button>
-					) : (
-						<ChannelPill type={q.type} />
-					)}
-					<div className="flex min-w-0 flex-col items-end gap-1.5">
-						<div className="flex flex-wrap items-center justify-end gap-1.5">
-							{sessionProgress ? (
-								<SessionStatsChips
-									correctCount={correctCount}
-									wrongCount={wrongCount}
-									dueRemaining={dueRemaining}
-									consecutiveCorrect={consecutiveCorrect}
-								/>
-							) : (
-								<span className="label-caps text-muted">{idx + 1} / {questions.length}</span>
-							)}
+							<div
+								className="h-full rounded-full bg-accent transition-all duration-500 ease-out"
+								style={{ width: `${progressPct}%` }}
+							/>
+						</div>
+						<div className="flex justify-between label-caps !text-[10px]">
+							<span>Đã ôn {reviewedCount}</span>
+							<span>Còn ~{dueRemaining}</span>
+						</div>
+					</div>
+				</header>
+			) : (
+				<div className="mb-4 flex flex-col gap-2">
+					<div className="flex items-start justify-between gap-2">
+						{onExit ? (
+							<button
+								type="button"
+								onClick={handleExit}
+								disabled={isExiting}
+								className="flex shrink-0 items-center gap-1 rounded-full p-1.5 label-caps text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-accent disabled:opacity-50 sm:px-3 sm:py-1.5"
+							>
+								<MaterialIcon name={isExiting ? 'hourglass_empty' : 'close'} size={18} />
+								<span className="hidden sm:inline">
+									{isExiting ? 'Đang lưu...' : resolvedExitLabel}
+								</span>
+							</button>
+						) : (
+							<ChannelPill type={q.type} />
+						)}
+						<div className="flex items-center gap-1.5">
+							<span className="label-caps text-muted">{idx + 1} / {questions.length}</span>
 							<ChannelPill type={q.type} />
 							{headerAction}
 						</div>
-						{!sessionProgress && (
-							<span className="label-caps text-muted/70">{learnerSessionLabel(q.type)}</span>
-						)}
 					</div>
 				</div>
-				<SessionProgressDots results={results} dueRemaining={dueRemaining} />
-			</div>
+			)}
 
-			<div className="mb-6 text-center">
-				<p className="mb-4 text-lg font-extrabold text-foreground-secondary">{q.prompt}</p>
-				<QuestionHeroCard question={q} audioOnly={audioOnly} />
-				{hasHint && (
-					<button
-						type="button"
-						onClick={() => setShowHint((v) => !v)}
-						className="mx-auto mt-3 flex items-center gap-1 label-caps text-muted transition-colors hover:text-accent"
-					>
-						<MaterialIcon name="lightbulb" size={14} />
-						{showHint ? 'Ẩn gợi ý' : 'Gợi ý'}
-					</button>
-				)}
-				{showHint && hasHint && (
-					<HintPanel question={q} />
-				)}
-			</div>
-
-			{q.options ? (
-				<div className="mx-auto grid w-full max-w-md grid-cols-1 gap-3 sm:grid-cols-2">
-					{q.options.map((opt, optIdx) => {
-						const isCorrect = feedback && opt === q.correctAnswer;
-						const isWrong = feedback && opt === selected && opt !== q.correctAnswer;
-						const isChosen = selected === opt && !feedback;
-						const isHanzi = /[\u4e00-\u9fff]/.test(opt);
-						return (
-							<button
-								key={`${q.id}-opt-${optIdx}`}
-								type="button"
-								disabled={waiting || !!feedback}
-								onClick={() => { setSelected(opt); submitAnswer(opt); }}
-								className={`group relative min-h-[52px] rounded-xl border px-4 py-5 text-center transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-background ${
-									isCorrect ? 'border-success bg-success/10 shadow-sm ring-1 ring-success/20' :
-									isWrong ? 'border-accent bg-accent-subtle' :
-									isChosen ? 'border-accent bg-accent-subtle' :
-									'border-border bg-surface hover:border-accent'
-								}`}
-							>
-								{isCorrect && (
-									<span className="absolute -top-2.5 -right-2.5 flex h-6 w-6 items-center justify-center rounded-full bg-success text-white shadow-md">
-										<MaterialIcon name="check" size={14} />
-									</span>
-								)}
-								<span className={`font-extrabold transition-colors ${
-									isHanzi ? 'hanzi-lg text-2xl' : 'text-lg'
-								} ${
-									isCorrect ? 'text-success' :
-									isWrong || isChosen ? 'text-accent' :
-									'text-foreground group-hover:text-accent'
-								}`}>
-									{opt}
-								</span>
-							</button>
-						);
-					})}
-				</div>
-			) : typedOnly ? (
-				<div className="mx-auto w-full max-w-md">
-					<input
-						type="text"
-						value={typedAnswer}
-						onChange={(e) => setTypedAnswer(e.target.value)}
-						onKeyDown={(e) => {
-							if (e.key === 'Enter' && typedAnswer.trim() && !waiting && !feedback) {
-								submitAnswer(typedAnswer);
-							}
-						}}
-						disabled={waiting || !!feedback}
-						placeholder={
-							q.type === 'hanzi_to_pinyin_typed'
-								? 'Nhập pinyin...'
-								: 'Nhập Hán tự...'
-						}
-						className={`w-full rounded-xl border px-4 py-4 text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-accent ${
-							q.type === 'meaning_to_hanzi_typed' || q.type === 'audio_to_hanzi_typed'
-								? 'hanzi-lg'
-								: ''
-						} ${
-							feedback && gradeCurrentAnswer(typedAnswer)
-								? 'border-success bg-success/10'
-								: feedback
-									? 'border-accent bg-accent-subtle'
-									: 'border-border bg-surface'
-						}`}
-						autoFocus
-					/>
-					{!feedback && (
+			<div className="flex flex-1 flex-col">
+				<div className="mb-6 text-center">
+					<p className="animate-fade-slide-up mb-4 text-lg font-extrabold text-foreground-secondary opacity-0">
+						{q.prompt}
+					</p>
+					<div className="animate-fade-slide-up opacity-0" style={{ animationDelay: '0.1s' }}>
+						<QuestionHeroCard question={q} audioOnly={audioOnly} />
+					</div>
+					{hasHint && (
 						<button
 							type="button"
-							disabled={waiting || !typedAnswer.trim()}
-							onClick={() => submitAnswer(typedAnswer)}
-							className="btn-primary mt-4 min-h-[44px] w-full"
+							onClick={() => setShowHint((v) => !v)}
+							className="mx-auto mt-3 flex items-center gap-1 label-caps text-muted transition-colors hover:text-accent"
 						>
-							Kiểm tra
+							<MaterialIcon name="lightbulb" size={14} />
+							{showHint ? 'Ẩn gợi ý' : 'Gợi ý'}
 						</button>
 					)}
+					{showHint && hasHint && (
+						<HintPanel question={q} />
+					)}
 				</div>
-			) : null}
 
-			{feedback && (
-				<div className="mx-auto mt-6 w-full max-w-md rounded-xl border border-border bg-surface p-4 text-center">
-					<p className={`text-sm font-bold ${
-						isFeedbackCorrect ? 'text-success' : 'text-accent'
-					}`}>
-						{feedback}
-					</p>
-					{scheduleLabel && incremental && (
+				{q.options ? (
+					<div className="mx-auto flex w-full max-w-md flex-col gap-2">
+						{q.options.map((opt, optIdx) => {
+							const isCorrect = feedback && opt === q.correctAnswer;
+							const isWrong = feedback && opt === selected && opt !== q.correctAnswer;
+							const isChosen = selected === opt && !feedback;
+							const isHanzi = /[\u4e00-\u9fff]/.test(opt);
+							const isDimmed = !!feedback && !isCorrect && !isWrong;
+							const letter = OPTION_LETTERS[optIdx] ?? String(optIdx + 1);
+							const delayClass = OPTION_DELAY_CLASSES[Math.min(optIdx, OPTION_DELAY_CLASSES.length - 1)];
+
+							return (
+								<button
+									key={`${q.id}-opt-${optIdx}`}
+									type="button"
+									disabled={waiting || !!feedback}
+									onClick={() => { setSelected(opt); submitAnswer(opt); }}
+									className={`${delayClass} group relative flex min-h-[52px] w-full items-center gap-3 rounded-xl border px-4 py-4 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-background ${
+										isCorrect
+											? 'border-2 border-success bg-success/10'
+											: isWrong
+												? 'border-accent bg-accent-subtle'
+												: isChosen
+													? 'border-accent bg-accent-subtle'
+													: 'border-border bg-surface hover:border-accent'
+									} ${isDimmed ? 'pointer-events-none opacity-50 grayscale' : ''}`}
+								>
+									<span
+										className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+											isCorrect
+												? 'bg-success text-white'
+												: isWrong || isChosen
+													? 'bg-accent text-accent-foreground'
+													: 'bg-surface-container text-muted'
+										}`}
+									>
+										{letter}
+									</span>
+									<span
+										className={`flex-1 font-extrabold ${
+											isHanzi ? 'hanzi-lg text-2xl text-center' : 'text-base'
+										} ${
+											isCorrect
+												? 'text-success'
+												: isWrong || isChosen
+													? 'text-accent'
+													: 'text-foreground group-hover:text-accent'
+										}`}
+									>
+										{opt}
+									</span>
+									{isCorrect && (
+										<MaterialIcon name="check_circle" className="shrink-0 text-success" size={22} filled />
+									)}
+								</button>
+							);
+						})}
+					</div>
+				) : typedOnly ? (
+					<div className="mx-auto w-full max-w-md animate-fade-slide-up opacity-0">
+						<input
+							type="text"
+							value={typedAnswer}
+							onChange={(e) => setTypedAnswer(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === 'Enter' && typedAnswer.trim() && !waiting && !feedback) {
+									submitAnswer(typedAnswer);
+								}
+							}}
+							disabled={waiting || !!feedback}
+							placeholder={
+								q.type === 'hanzi_to_pinyin_typed'
+									? 'Nhập pinyin...'
+									: 'Nhập Hán tự...'
+							}
+							className={`w-full rounded-xl border px-4 py-4 text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-accent ${
+								q.type === 'meaning_to_hanzi_typed' || q.type === 'audio_to_hanzi_typed'
+									? 'hanzi-lg'
+									: ''
+							} ${
+								feedback && gradeCurrentAnswer(typedAnswer)
+									? 'border-success bg-success/10'
+									: feedback
+										? 'border-accent bg-accent-subtle'
+										: 'border-border bg-surface'
+							}`}
+							autoFocus
+						/>
+						{!feedback && (
+							<button
+								type="button"
+								disabled={waiting || !typedAnswer.trim()}
+								onClick={() => submitAnswer(typedAnswer)}
+								className="btn-primary mt-4 min-h-[44px] w-full"
+							>
+								Kiểm tra
+							</button>
+						)}
+					</div>
+				) : null}
+
+				{feedback?.startsWith('Sai') && (sessionHeavyLapses[q.wordId] ?? 0) >= 2 && (
+					<div className="mx-auto mt-4 w-full max-w-md">
+						<StickingPointCard wordId={q.wordId} simplified={q.hanzi} />
+					</div>
+				)}
+
+				{feedback && (
+					<div
+						className={`mx-auto mt-auto w-full max-w-md pt-6 animate-fade-slide-up opacity-0 ${
+							isFeedbackCorrect ? 'animate-pulse-success' : ''
+						}`}
+					>
 						<div
-							className={`mt-3 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold transition-all duration-300 ${
+							className={`relative overflow-hidden rounded-xl border-2 p-4 ${
 								isFeedbackCorrect
-									? 'border-success/40 bg-success/10 text-success'
-									: 'border-warning/40 bg-warning/10 text-warning'
+									? 'border-success bg-surface'
+									: 'border-accent bg-surface'
 							}`}
 						>
-							<MaterialIcon
-								name={isFeedbackCorrect ? 'event_available' : 'replay'}
-								size={14}
-							/>
-							{scheduleLabel}
-						</div>
-					)}
-					{isFeedbackWrong && (q.mnemonicVi || q.usageNoteVi) && (
-						<p className="mt-2 text-sm italic text-foreground-secondary">
-							{q.mnemonicVi ? (
-								<>
-									Mẹo nhớ: <span className="font-bold not-italic text-foreground">{q.mnemonicVi}</span>
-								</>
-							) : (
-								<>
-									Lưu ý: <span className="font-bold not-italic text-foreground">{q.usageNoteVi}</span>
-								</>
+							{isFeedbackCorrect && (
+								<div className="absolute bottom-0 left-0 top-0 w-1.5 bg-success" />
 							)}
-						</p>
-					)}
-				</div>
-			)}
-
-			{feedback?.startsWith('Sai') && (sessionHeavyLapses[q.wordId] ?? 0) >= 2 && (
-				<div className="mx-auto mt-4 w-full max-w-md">
-					<StickingPointCard wordId={q.wordId} simplified={q.hanzi} />
-				</div>
-			)}
-
-			<div className="mx-auto mt-6 flex w-full max-w-md items-center justify-between">
-				{pendingAdvance && q.audioText ? (
-					<button
-						type="button"
-						onClick={() => speak(q.audioText!)}
-						className="btn-secondary min-h-[40px]"
-					>
-						<MaterialIcon name="volume_up" size={16} />
-						Nghe lại
-					</button>
-				) : (
-					<span />
-				)}
-				{pendingAdvance ? (
-					<button
-						type="button"
-						onClick={handleNext}
-						className="btn-primary min-h-[40px] px-6"
-					>
-						Tiếp theo
-						<MaterialIcon name="arrow_forward" size={18} />
-					</button>
-				) : (
-					<span />
+							<div className="flex items-center gap-2 pl-2">
+								<MaterialIcon
+									name={isFeedbackCorrect ? 'task_alt' : 'cancel'}
+									className={isFeedbackCorrect ? 'text-success' : 'text-accent'}
+									size={28}
+									filled
+								/>
+								<span className={`text-lg font-black ${isFeedbackCorrect ? 'text-success' : 'text-accent'}`}>
+									{isFeedbackCorrect ? 'Đúng!' : 'Chưa đúng'}
+								</span>
+							</div>
+							{isFeedbackWrong && (
+								<p className="mt-1 pl-2 text-sm font-bold text-accent">{feedback}</p>
+							)}
+							{isFeedbackWrong && (q.mnemonicVi || q.usageNoteVi) && (
+								<p className="mt-2 pl-2 text-sm italic text-foreground-secondary">
+									{q.mnemonicVi ? (
+										<>
+											Mẹo nhớ:{' '}
+											<span className="font-bold not-italic text-foreground">{q.mnemonicVi}</span>
+										</>
+									) : (
+										<>
+											Lưu ý:{' '}
+											<span className="font-bold not-italic text-foreground">{q.usageNoteVi}</span>
+										</>
+									)}
+								</p>
+							)}
+							<div className="mt-3 flex flex-wrap items-center justify-between gap-3 pl-2">
+								{scheduleLabel && incremental ? (
+									<div
+										className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold ${
+											isFeedbackCorrect
+												? 'bg-success/10 text-success'
+												: 'bg-warning/10 text-warning'
+										}`}
+									>
+										<MaterialIcon
+											name={isFeedbackCorrect ? 'calendar_month' : 'replay'}
+											size={16}
+										/>
+										{scheduleLabel}
+									</div>
+								) : (
+									<span />
+								)}
+								<div className="flex items-center gap-2">
+									{pendingAdvance && q.audioText && (
+										<button
+											type="button"
+											onClick={() => speak(q.audioText!)}
+											className="btn-secondary min-h-[40px]"
+										>
+											<MaterialIcon name="volume_up" size={16} />
+											Nghe lại
+										</button>
+									)}
+									{pendingAdvance && (
+										<button
+											type="button"
+											onClick={handleNext}
+											className="btn-primary min-h-[44px] px-6"
+										>
+											Tiếp tục
+											<MaterialIcon name="arrow_forward" size={18} />
+										</button>
+									)}
+								</div>
+							</div>
+						</div>
+					</div>
 				)}
 			</div>
 		</div>
@@ -526,7 +546,7 @@ function HintPanel({ question: q }: { question: CnPracticeQuestionDTO }) {
 function QuestionHeroCard({ question: q, audioOnly }: { question: CnPracticeQuestionDTO; audioOnly: boolean }) {
 	if (audioOnly) {
 		return (
-			<div className="card-paper mx-auto flex min-h-[200px] w-full max-w-md flex-col items-center justify-center gap-4 p-8 shadow-sm">
+			<div className="card-paper animate-float mx-auto flex min-h-[200px] w-full max-w-md flex-col items-center justify-center gap-4 p-8">
 				<div className="flex h-16 w-16 items-center justify-center rounded-full border border-accent/20 bg-accent-subtle">
 					<MaterialIcon name="headphones" className="text-accent" size={32} />
 				</div>
@@ -538,7 +558,7 @@ function QuestionHeroCard({ question: q, audioOnly }: { question: CnPracticeQues
 
 	if ((q.type === 'meaning_to_hanzi' || q.type === 'meaning_to_hanzi_typed') && q.meaningVi) {
 		return (
-			<div className="card-paper mx-auto min-h-[160px] w-full max-w-md p-8 text-center shadow-sm">
+			<div className="card-paper animate-float mx-auto min-h-[160px] w-full max-w-md p-8 text-center">
 				<p className="label-caps text-muted">Nghĩa</p>
 				<p className="mt-2 text-xl font-extrabold leading-relaxed text-foreground">{q.meaningVi}</p>
 			</div>
@@ -549,7 +569,7 @@ function QuestionHeroCard({ question: q, audioOnly }: { question: CnPracticeQues
 	if (!hasVisual) return null;
 
 	return (
-		<div className="card-paper mx-auto flex min-h-[200px] w-full max-w-md flex-col items-center justify-center p-8 shadow-sm">
+		<div className="card-paper animate-float mx-auto flex min-h-[200px] w-full max-w-md flex-col items-center justify-center p-8">
 			{q.hanzi && <p className="hanzi-display text-6xl font-black text-foreground">{q.hanzi}</p>}
 			{q.pinyin && !q.hanzi && <p className="text-2xl font-bold text-accent">{q.pinyin}</p>}
 			{q.pinyin && q.hanzi && <p className="mt-2 text-lg font-bold text-muted">{q.pinyin}</p>}
