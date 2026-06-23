@@ -10,10 +10,15 @@ export const GET = withAuth(async (request, user) => {
 		.split(',')
 		.map((id) => id.trim())
 		.filter(Boolean);
+	const excludeWordChannelsRaw = request.nextUrl.searchParams.get('excludeWordChannels') ?? '';
+	const excludeWordChannels = excludeWordChannelsRaw
+		.split(',')
+		.map((key) => key.trim())
+		.filter(Boolean);
 
 	const [dueToday, reviewResult] = await Promise.all([
 		countDueToday(user.id),
-		buildReviewQuestions(user.id, limit, excludeQuestionIds),
+		buildReviewQuestions(user.id, limit, excludeQuestionIds, excludeWordChannels),
 	]);
 	return apiSuccess({
 		dueToday,

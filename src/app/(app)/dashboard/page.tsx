@@ -1,94 +1,210 @@
-"use client";
-
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import type { ReactNode } from 'react';
 import ForecastBars from '@/components/chinese/ForecastBars';
 import StateDistributionBar from '@/components/chinese/StateDistributionBar';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
+import { auth } from '@/lib/auth';
 import { channelRateQualitative } from '@/lib/chinese/channelRateLabels';
 import { errorTypeLabel } from '@/lib/chinese/errorMapping';
-import type { CnDashboardDTO } from '@/types/chinese';
+import { getChineseDashboard } from '@/services/chinese/cnDashboardService';
 
-export default function ChineseDashboardPage() {
-	const [dashboard, setDashboard] = useState<CnDashboardDTO | null>(null);
-	const [showErrors, setShowErrors] = useState(true);
+export const dynamic = 'force-dynamic';
 
-	useEffect(() => {
-		(async () => {
-			const res = await fetch('/api/dashboard');
-			const json = await res.json() as { ok: boolean; data?: { dashboard: CnDashboardDTO } };
-			if (json.ok) setDashboard(json.data?.dashboard ?? null);
-		})();
-	}, []);
+function SectionHeading({ children, sub }: { children: ReactNode; sub?: string }) {
+	return (
+		<div className="border-b border-border pb-2">
+			<h2 className="text-lg font-black text-foreground sm:text-xl">{children}</h2>
+			{sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
+		</div>
+	);
+}
 
-	if (!dashboard) {
-		return (
-			<div className="mx-auto max-w-4xl px-4 py-16 text-center text-muted">
-				Đang tải...
-			</div>
-		);
-	}
-
-	const masteredCount = dashboard.stateDistribution.mastered + dashboard.stateDistribution.strong;
+function StatTile({
+	label,
+	value,
+	color = 'foreground',
+}: {
+	label: string;
+	value: string | number;
+	color?: 'foreground' | 'accent' | 'success' | 'warning';
+}) {
+	const colorClass = {
+		foreground: 'text-foreground',
+		accent: 'text-accent',
+		success: 'text-success',
+		warning: 'text-warning',
+	}[color];
 
 	return (
-		<div className="mx-auto max-w-4xl space-y-8 px-4 py-8 md:px-8">
-			<section className="animate-section-in">
-				<span className="label-caps tracking-widest">Tiến bộ</span>
-				<div className="mt-2 flex flex-wrap items-center gap-3">
-					<h1 className="text-2xl font-black text-foreground sm:text-3xl">Dashboard lỗi & điểm yếu</h1>
+		<div className="card-paper flex flex-col items-center justify-center p-4 text-center">
+			<p className={`text-3xl font-black sm:text-4xl ${colorClass}`}>{value}</p>
+			<p className="mt-1 text-xs text-muted">{label}</p>
+		</div>
+	);
+}
+
+function OverallRateRing({ rate }: { rate: number }) {
+	const qual = channelRateQualitative(rate);
+	return (
+		<div className="flex flex-col items-center gap-3">
+			<div className="relative h-28 w-28">
+				<div
+					className="absolute inset-0 rounded-full"
+					style={{
+						background: `conic-gradient(var(--accent) ${rate * 3.6}deg, var(--border) ${rate * 3.6}deg)`,
+					}}
+				/>
+				<div className="absolute inset-[6px] flex items-center justify-center rounded-full bg-surface">
+					<span className={`text-2xl font-black ${qual.className}`}>{rate > 0 ? `${rate}%` : '—'}</span>
+				</div>
+			</div>
+			<p className="text-center text-sm font-bold text-foreground-secondary">Tỉ lệ chính xác chung</p>
+			{rate > 0 && (
+				<span className={`label-caps ${qual.className}`}>{qual.label}</span>
+			)}
+		</div>
+	);
+}
+
+function ChannelSkill({ label, rate }: { label: string; rate: number }) {
+	const qual = channelRateQualitative(rate);
+	return (
+		<div className="flex flex-col gap-1.5">
+			<div className="flex items-center justify-between text-sm">
+				<span className="font-medium text-foreground">{label}</span>
+				<span className={`label-caps ${qual.className}`}>{rate > 0 ? `${rate}%` : '—'}</span>
+			</div>
+			<ProgressBar value={rate} className="h-2" barClassName={qual.barClassName} />
+		</div>
+	);
+}
+
+export default async function ChineseDashboardPage() {
+	const session = await auth();
+	if (!session?.user) redirect('/login');
+
+	const dashboard = await getChineseDashboard(session.user.id);
+	const { dueToday } = dashboard;
+	const miniForecast = dashboard.forecast.slice(0, 3);
+	const practicingCount = Math.max(0, dashboard.wordsLearned - dashboard.wordsMastered);
+
+	return (
+		<div className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-8">
+			<section className="animate-section-in flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+				<div>
+					<span className="label-caps tracking-widest">Tiến bộ</span>
+					<h1 className="mt-2 text-3xl font-black tracking-tight text-foreground sm:text-4xl">
+						Tiến độ học tập
+					</h1>
+					<p className="mt-1 text-sm text-foreground-secondary">
+						Theo dõi từ vựng, lịch ôn và điểm cần cải thiện
+					</p>
+				</div>
+				<div className="flex flex-wrap items-center gap-2">
 					{dashboard.streak > 0 && (
-						<span className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-bold text-accent">
-							{dashboard.streak} ngày liên tiếp
+						<span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-bold text-accent">
+							<MaterialIcon name="local_fire_department" size={16} filled />
+							{dashboard.streak} ngày
 						</span>
 					)}
+					{dueToday > 0 ? (
+						<Link href="/review" className="btn-primary shadow-sm">
+							<MaterialIcon name="play_arrow" size={18} />
+							Ôn ngay
+						</Link>
+					) : (
+						<Link href="/sets" className="btn-secondary">
+							<MaterialIcon name="library_books" size={16} />
+							Bộ từ
+						</Link>
+					)}
 				</div>
-				<p className="mt-1 text-sm text-muted">Phân tích lỗi và điểm yếu — khác với báo cáo ôn hàng ngày</p>
-				{dashboard.dueToday > 0 && (
-					<Link href="/review" className="btn-primary mt-4 md:hidden">
-						<MaterialIcon name="play_arrow" size={16} />
-						Ôn {dashboard.dueToday} mục
-					</Link>
-				)}
 			</section>
 
 			<section className="animate-section-in space-y-4">
-				<div>
-					<h2 className="text-lg font-black text-foreground">Phạm vi học</h2>
-					<div className="mt-3 grid grid-cols-3 gap-2 sm:gap-3">
-						<CompactStat label="Tổng bộ" value={dashboard.setCount} />
-						<CompactStat label="Đã học" value={dashboard.wordsLearned} />
-						<CompactStat label="Thành thạo" value={dashboard.wordsMastered} color="success" />
-					</div>
+				<SectionHeading sub="Tổng quan từ vựng trong SRS">Từ vựng của bạn</SectionHeading>
+				<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+					<StatTile label="Tổng từ" value={dashboard.stateDistribution.total} />
+					<StatTile label="Đang luyện" value={practicingCount} color="accent" />
+					<StatTile label="Thành thạo" value={dashboard.wordsMastered} color="success" />
+					<StatTile label="Cần chú ý" value={dashboard.weakCount} color="warning" />
 				</div>
-				<div>
-					<h2 className="text-lg font-black text-foreground">Chất lượng</h2>
-					<div className="mt-3 grid grid-cols-3 gap-2 sm:gap-3">
-						<CompactStat
-							label="Đến hạn"
-							value={dashboard.dueToday}
-							sub={dashboard.overdueCount > 0 ? `${dashboard.overdueCount} trễ` : undefined}
-							color="accent"
-						/>
-						<CompactStat label="Điểm yếu" value={dashboard.weakCount} color="warning" />
-						<CompactStat label="Tỷ lệ đúng" value={`${dashboard.overallRate}%`} />
+			</section>
+
+			<section className="animate-section-in space-y-4">
+				<SectionHeading sub="1 mục = 1 từ × 1 kênh">Lịch ôn</SectionHeading>
+				<div className="grid gap-4 md:grid-cols-2">
+					<div className="card-paper flex flex-col justify-between p-6">
+						<div>
+							<p className="text-5xl font-black text-accent">{dueToday}</p>
+							<p className="mt-1 text-sm text-muted">mục cần ôn hôm nay</p>
+							{miniForecast.some((d) => d.dueCount > 0) && (
+								<p className="mt-3 text-xs text-muted">
+									{miniForecast.map((d, i) => (
+										<span key={d.dayKey}>
+											{i > 0 && ' · '}
+											<span className="font-bold text-foreground-secondary">{d.label}</span>{' '}
+											{d.dueCount}
+										</span>
+									))}
+								</p>
+							)}
+						</div>
+						<div className="mt-6">
+							{dueToday > 0 ? (
+								<Link href="/review" className="btn-primary w-full sm:w-auto">
+									<MaterialIcon name="play_arrow" size={16} />
+									Ôn {dueToday} mục
+								</Link>
+							) : (
+								<p className="text-sm text-foreground-secondary">
+									<MaterialIcon name="check_circle" className="mr-1 inline text-success" size={18} />
+									Không có mục đến hạn hôm nay
+								</p>
+							)}
+						</div>
+					</div>
+					{dashboard.forecast.some((d) => d.dueCount > 0) ? (
+						<ForecastBars days={dashboard.forecast} />
+					) : (
+						<div className="card-paper flex items-center justify-center p-6 text-sm text-muted">
+							Chưa có lịch ôn sắp tới
+						</div>
+					)}
+				</div>
+			</section>
+
+			{dashboard.stateDistribution.total > 0 && (
+				<section className="animate-section-in space-y-4">
+					<SectionHeading>Phân bổ trình độ từ</SectionHeading>
+					<StateDistributionBar
+						distribution={dashboard.stateDistribution}
+						maturePct={dashboard.maturePct}
+						simplifiedLegend
+					/>
+				</section>
+			)}
+
+			<section className="animate-section-in space-y-4">
+				<SectionHeading sub="Dựa trên lịch sử trả lời gần đây">Tỉ lệ chính xác</SectionHeading>
+				<div className="card-paper grid gap-8 p-6 md:grid-cols-2 md:items-center">
+					<div className="flex justify-center border-border md:border-r md:pr-8">
+						<OverallRateRing rate={dashboard.overallRate} />
+					</div>
+					<div className="flex flex-col gap-4">
+						<ChannelSkill label="Nghĩa" rate={dashboard.meaningRate} />
+						<ChannelSkill label="Nghe" rate={dashboard.listeningRate} />
+						<ChannelSkill label="Pinyin" rate={dashboard.pinyinRate} />
 					</div>
 				</div>
 			</section>
 
 			{dashboard.topErrors.length > 0 && (
-				<section className="animate-section-in">
-					<button
-						type="button"
-						onClick={() => setShowErrors(!showErrors)}
-						className="flex items-center gap-2 text-lg font-black text-foreground md:pointer-events-none"
-					>
-						<MaterialIcon name="error" className="text-accent" size={22} />
-						Lỗi phổ biến
-						<MaterialIcon name={showErrors ? 'expand_less' : 'expand_more'} size={20} className="text-muted md:hidden" />
-					</button>
-					<ul className={`card-paper mt-3 divide-y divide-border ${showErrors ? 'block' : 'hidden md:block'}`}>
+				<section className="animate-section-in space-y-4">
+					<SectionHeading>Lỗi phổ biến</SectionHeading>
+					<ul className="card-paper divide-y divide-border">
 						{dashboard.topErrors.map((e) => (
 							<li key={e.errorType} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
 								<span className="font-medium text-foreground">{errorTypeLabel(e.errorType)}</span>
@@ -101,19 +217,10 @@ export default function ChineseDashboardPage() {
 				</section>
 			)}
 
-			<section className="animate-section-in card-paper p-4">
-				<h2 className="text-lg font-black text-foreground">Tỷ lệ chính xác theo kênh</h2>
-				<div className="mt-4 flex flex-col gap-4">
-					<ChannelSkill label="Nghĩa" rate={dashboard.meaningRate} />
-					<ChannelSkill label="Nghe" rate={dashboard.listeningRate} />
-					<ChannelSkill label="Pinyin" rate={dashboard.pinyinRate} />
-				</div>
-			</section>
-
 			{dashboard.weakWords.length > 0 && (
-				<section className="animate-section-in">
-					<h2 className="text-lg font-black text-foreground">Từ cần chú ý ngay</h2>
-					<div className="mt-3 flex flex-wrap gap-2">
+				<section className="animate-section-in space-y-4">
+					<SectionHeading sub="Từ đang ở trạng thái yếu hoặc đang học">Từ cần chú ý ngay</SectionHeading>
+					<div className="flex flex-wrap gap-2">
 						{dashboard.weakWords.map((w) => (
 							<Link
 								key={w.wordId}
@@ -127,87 +234,17 @@ export default function ChineseDashboardPage() {
 				</section>
 			)}
 
-			{dashboard.forecast.some((d) => d.dueCount > 0) && (
-				<section className="animate-section-in hidden md:block">
-					<h2 className="label-caps">Lịch ôn sắp tới</h2>
-					<p className="mt-1 text-xs text-muted">Dự báo 7 ngày · 1 mục = 1 từ × 1 kênh</p>
-					<div className="mt-3">
-						<ForecastBars days={dashboard.forecast} />
+			{dashboard.suggestions.length > 0 && (
+				<section className="animate-section-in flex items-start gap-4 rounded-xl border border-border bg-surface-container p-4">
+					<MaterialIcon name="lightbulb" className="shrink-0 text-accent" size={32} />
+					<div>
+						<h2 className="text-lg font-black text-foreground">Gợi ý học tập</h2>
+						<ul className="mt-2 space-y-2 text-sm text-foreground-secondary">
+							{dashboard.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+						</ul>
 					</div>
 				</section>
 			)}
-
-			{dashboard.stateDistribution.total > 0 && (
-				<section className="animate-section-in hidden md:block">
-					<h2 className="label-caps">Phân bổ trình độ từ</h2>
-					<div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
-						<span className="rounded-full border border-success/30 bg-success/10 px-2.5 py-1">
-							<span className="font-bold text-success">{masteredCount}</span> thành thạo
-						</span>
-						<span className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1">
-							<span className="font-bold text-accent">
-								{dashboard.stateDistribution.learning + dashboard.stateDistribution.familiar}
-							</span>{' '}
-							đang học
-						</span>
-						<span className="rounded-full border border-warning/30 bg-warning/10 px-2.5 py-1">
-							<span className="font-bold text-warning">{dashboard.stateDistribution.weak}</span> yếu
-						</span>
-					</div>
-					<div className="mt-3">
-						<StateDistributionBar
-							distribution={dashboard.stateDistribution}
-							maturePct={dashboard.maturePct}
-							simplifiedLegend
-						/>
-					</div>
-				</section>
-			)}
-
-			<section className="animate-section-in flex items-start gap-4 rounded-xl border border-border bg-surface-container p-4">
-				<MaterialIcon name="lightbulb" className="shrink-0 text-accent" size={32} />
-				<div>
-					<h2 className="text-lg font-black text-foreground">Gợi ý học tập</h2>
-					<ul className="mt-2 space-y-2 text-sm text-foreground-secondary">
-						{dashboard.suggestions.map((s, i) => <li key={i}>{s}</li>)}
-					</ul>
-				</div>
-			</section>
-		</div>
-	);
-}
-
-function CompactStat({ label, value, sub, color = 'foreground' }: {
-	label: string;
-	value: string | number;
-	sub?: string;
-	color?: 'foreground' | 'accent' | 'success' | 'warning';
-}) {
-	const colorClass = {
-		foreground: 'text-foreground',
-		accent: 'text-accent',
-		success: 'text-success',
-		warning: 'text-warning',
-	}[color];
-
-	return (
-		<div className="card-paper flex flex-col items-center justify-center p-3 text-center sm:p-4">
-			<p className={`text-xl font-black sm:text-2xl ${colorClass}`}>{value}</p>
-			<p className="mt-1 text-xs text-muted">{label}</p>
-			{sub && <p className="mt-0.5 text-[10px] font-bold text-warning">{sub}</p>}
-		</div>
-	);
-}
-
-function ChannelSkill({ label, rate }: { label: string; rate: number }) {
-	const qual = channelRateQualitative(rate);
-	return (
-		<div className="flex flex-col gap-1.5">
-			<div className="flex items-center justify-between text-sm">
-				<span>{label}</span>
-				<span className={`label-caps ${qual.className}`}>{rate > 0 ? `${rate}%` : '—'}</span>
-			</div>
-			<ProgressBar value={rate} className="h-2" barClassName={qual.barClassName} />
 		</div>
 	);
 }

@@ -4,7 +4,6 @@ import { useCallback, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
-import { HSK1_SAMPLE_SETS } from '@/lib/chinese/hsk1SampleSets';
 
 type WizardStep = 'select' | 'review' | 'done';
 
@@ -246,24 +245,21 @@ export default function SetImportWizard() {
 							</h4>
 							<p className="text-xs text-foreground-secondary">
 								Sheet <strong>tu_vung</strong> — bo_tu, simplified, pinyin, meaning_vi (+ han_viet, part_of_speech, ghi_chu).
-								3 bộ mẫu HSK1 đã có sẵn trong tài khoản; tải file để xem định dạng hoặc import thêm.
+								Tải file mẫu để xem định dạng đầy đủ (5 từ ví dụ + sheet hướng dẫn).
 							</p>
 							<ul className="list-disc space-y-1 pl-4 text-xs text-foreground-secondary">
 								<li><strong>huong_dan</strong> — hướng dẫn nhập liệu</li>
 								<li><strong>tu_vung</strong> — 7 cột từ vựng</li>
 							</ul>
 							<div className="flex flex-col gap-2 pt-2">
-								{HSK1_SAMPLE_SETS.map((sample) => (
-									/* eslint-disable-next-line @next/next/no-html-link-for-pages -- file download API route */
-									<a
-										key={sample.id}
-										href={`/api/sets/sample?set=${sample.id}`}
-										className="btn-secondary w-full justify-center text-sm"
-									>
-										<MaterialIcon name="description" size={16} />
-										Tải {sample.boTu}
-									</a>
-								))}
+								{/* eslint-disable-next-line @next/next/no-html-link-for-pages -- file download API route */}
+								<a
+									href="/api/sets/sample"
+									className="btn-secondary w-full justify-center text-sm"
+								>
+									<MaterialIcon name="description" size={16} />
+									Tải file mẫu Excel
+								</a>
 								{/* eslint-disable-next-line @next/next/no-html-link-for-pages -- file download API route */}
 								<a href="/api/sets/export" className="btn-secondary w-full justify-center">
 									<MaterialIcon name="download" size={16} />
