@@ -303,6 +303,47 @@ export async function listPublishedWords(limit = 500): Promise<CnWordDTO[]> {
 	return words.map(wordToDTO);
 }
 
+export interface UpdateWordFieldsInput {
+	pinyin?: string;
+	meaningVi?: string;
+	hanViet?: string;
+	partOfSpeech?: string;
+	ghiChu?: string;
+	mnemonicVi?: string;
+}
+
+async function userOwnsWord(userId: string, wordId: string): Promise<boolean> {
+	const item = await prisma.cnWordSetItem.findFirst({
+		where: { wordId, set: { userId } },
+		select: { id: true },
+	});
+	return !!item;
+}
+
+export async function updateWordFields(
+	userId: string,
+	wordId: string,
+	fields: UpdateWordFieldsInput,
+): Promise<CnWordDTO | null> {
+	if (!(await userOwnsWord(userId, wordId))) return null;
+
+	const data: Partial<Pick<CnWord, 'pinyin' | 'meaningVi' | 'hanViet' | 'partOfSpeech' | 'ghiChu' | 'mnemonicVi'>> = {};
+	if (fields.pinyin !== undefined) data.pinyin = fields.pinyin.trim();
+	if (fields.meaningVi !== undefined) data.meaningVi = fields.meaningVi.trim();
+	if (fields.hanViet !== undefined) data.hanViet = fields.hanViet.trim();
+	if (fields.partOfSpeech !== undefined) data.partOfSpeech = fields.partOfSpeech.trim();
+	if (fields.ghiChu !== undefined) data.ghiChu = fields.ghiChu.trim();
+	if (fields.mnemonicVi !== undefined) data.mnemonicVi = fields.mnemonicVi.trim();
+
+	if (!Object.keys(data).length) return null;
+
+	const word = await prisma.cnWord.update({
+		where: { id: wordId },
+		data,
+	});
+	return wordToDTO(word);
+}
+
 /** Vocabulary pool for MCQ distractors — user's sets + HSK fallback */
 export async function getUserDistractorPool(userId: string, minCount = 12): Promise<CnWordCardDTO[]> {
 	const setItems = await prisma.cnWordSetItem.findMany({
