@@ -31,6 +31,8 @@ export default async function ChineseHomePage() {
 		getChineseDashboard(userId),
 	]);
 
+	const miniForecast = dashboard.forecast.slice(0, 3);
+
 	return (
 		<div className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-8">
 			{/* Mobile study-first hero */}
@@ -38,8 +40,26 @@ export default async function ChineseHomePage() {
 				<span className="label-caps tracking-widest">Học tiếng Trung</span>
 				<div className="mt-4 flex items-end justify-between gap-4">
 					<div>
-						<p className="text-5xl font-black text-accent">{dueToday}</p>
+						<div className="flex items-center gap-2">
+							<p className="text-5xl font-black text-accent">{dueToday}</p>
+							{dashboard.overdueCount > 0 && (
+								<span className="rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-xs font-bold text-warning">
+									{dashboard.overdueCount} trễ
+								</span>
+							)}
+						</div>
 						<p className="mt-1 text-sm text-muted">mục cần ôn hôm nay</p>
+						{miniForecast.some((d) => d.dueCount > 0) && (
+							<p className="mt-2 text-xs text-muted">
+								{miniForecast.map((d, i) => (
+									<span key={d.dayKey}>
+										{i > 0 && ' · '}
+										<span className="font-bold text-foreground-secondary">{d.label}</span>{' '}
+										{d.dueCount}
+									</span>
+								))}
+							</p>
+						)}
 					</div>
 					{dueToday > 0 ? (
 						<Link href="/review" className="btn-primary shrink-0 px-6 py-3 shadow-sm">
@@ -80,9 +100,26 @@ export default async function ChineseHomePage() {
 						<MaterialIcon name="query_stats" size={16} />
 						Tiến độ SRS
 					</span>
-					<div className="mt-auto flex items-end gap-2">
-						<span className="text-4xl font-black text-accent transition-transform group-hover:scale-105">{dueToday}</span>
-						<span className="mb-1 text-sm text-muted">mục ôn</span>
+					<div className="mt-auto">
+						<div className="flex items-end gap-2">
+							<span className="text-4xl font-black text-accent transition-transform group-hover:scale-105">{dueToday}</span>
+							<span className="mb-1 text-sm text-muted">mục ôn</span>
+							{dashboard.overdueCount > 0 && (
+								<span className="mb-1 rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-[10px] font-bold text-warning">
+									{dashboard.overdueCount} trễ
+								</span>
+							)}
+						</div>
+						{miniForecast.some((d) => d.dueCount > 0) && (
+							<p className="mt-1 text-[10px] text-muted">
+								{miniForecast.map((d, i) => (
+									<span key={d.dayKey}>
+										{i > 0 && ' · '}
+										{d.label} {d.dueCount}
+									</span>
+								))}
+							</p>
+						)}
 					</div>
 				</Link>
 
