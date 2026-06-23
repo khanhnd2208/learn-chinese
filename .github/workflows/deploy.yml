@@ -93,4 +93,12 @@ jobs:
             ./scripts/deploy.sh
             pm2 restart learn-chinese --update-env
             pm2 status learn-chinese --no-color
-            curl -sf -o /dev/null -w "health /login -> %{http_code}\n" http://127.0.0.1:3001/login'
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              code=$(curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1:3001/login || echo 000)
+              echo "health /login attempt $i -> $code"
+              [ "$code" = "200" ] || [ "$code" = "302" ] || [ "$code" = "307" ] && exit 0
+              sleep 3
+            done
+            echo "::error::App did not respond on port 3001 after pm2 restart"
+            pm2 logs learn-chinese --lines 30 --nostream
+            exit 1'
