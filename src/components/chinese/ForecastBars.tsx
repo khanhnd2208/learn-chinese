@@ -14,6 +14,7 @@ export default function ForecastBars({ days }: Props) {
 
 	return (
 		<div className="card-paper p-4">
+			<h3 className="mb-3 text-sm font-black text-foreground md:hidden">Dự kiến 7 ngày</h3>
 			<div className="flex items-end justify-between gap-2">
 				{days.map((day) => {
 					const heightPct = day.dueCount > 0 ? Math.max(8, (day.dueCount / maxCount) * 100) : 4;

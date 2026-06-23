@@ -161,3 +161,102 @@ body::before {
 @utility nav-pill {
 	@apply mx-4 flex items-center gap-4 rounded-full px-4 py-2 text-sm font-extrabold text-foreground-secondary transition-colors duration-200 hover:bg-surface-hover hover:text-accent;
 }
+
+/* Session & page entrance animations */
+@keyframes slide-down {
+	from {
+		transform: translateY(-100%);
+		opacity: 0;
+	}
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+@keyframes fade-slide-up {
+	from {
+		transform: translateY(16px);
+		opacity: 0;
+	}
+	to {
+		transform: translateY(0);
+		opacity: 1;
+	}
+}
+
+@keyframes float {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(-4px);
+	}
+}
+
+@keyframes pulse-success {
+	0%,
+	100% {
+		border-color: color-mix(in srgb, var(--success) 40%, transparent);
+	}
+	50% {
+		border-color: color-mix(in srgb, var(--success) 80%, transparent);
+	}
+}
+
+.animate-slide-down {
+	animation: slide-down 0.4s ease-out forwards;
+}
+
+.animate-fade-slide-up {
+	animation: fade-slide-up 0.4s ease-out forwards;
+}
+
+.animate-fade-slide-up-delay-1 {
+	animation: fade-slide-up 0.4s ease-out 0.1s forwards;
+	opacity: 0;
+}
+
+.animate-fade-slide-up-delay-2 {
+	animation: fade-slide-up 0.4s ease-out 0.2s forwards;
+	opacity: 0;
+}
+
+.animate-fade-slide-up-delay-3 {
+	animation: fade-slide-up 0.4s ease-out 0.3s forwards;
+	opacity: 0;
+}
+
+.animate-fade-slide-up-delay-4 {
+	animation: fade-slide-up 0.4s ease-out 0.4s forwards;
+	opacity: 0;
+}
+
+.animate-float {
+	animation: float 4s ease-in-out infinite;
+}
+
+.animate-pulse-success {
+	animation: pulse-success 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-section-in {
+	animation: fade-slide-up 0.45s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.animate-slide-down,
+	.animate-fade-slide-up,
+	.animate-fade-slide-up-delay-1,
+	.animate-fade-slide-up-delay-2,
+	.animate-fade-slide-up-delay-3,
+	.animate-fade-slide-up-delay-4,
+	.animate-float,
+	.animate-pulse-success,
+	.animate-section-in {
+		animation: none;
+		opacity: 1;
+		transform: none;
+	}
+}
