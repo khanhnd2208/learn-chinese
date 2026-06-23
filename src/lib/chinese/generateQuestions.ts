@@ -43,6 +43,35 @@ function shuffle<T>(arr: T[]): T[] {
 	return copy;
 }
 
+/** Interleave questions by wordId so same-word items are spread across the session. */
+export function spreadShuffle(questions: CnPracticeQuestionDTO[]): CnPracticeQuestionDTO[] {
+	const groups = new Map<string, CnPracticeQuestionDTO[]>();
+	for (const q of questions) {
+		const list = groups.get(q.wordId) ?? [];
+		list.push(q);
+		groups.set(q.wordId, list);
+	}
+
+	for (const [wordId, list] of groups) {
+		groups.set(wordId, shuffle(list));
+	}
+
+	const groupKeys = shuffle([...groups.keys()]);
+	const result: CnPracticeQuestionDTO[] = [];
+	let hasMore = true;
+	while (hasMore) {
+		hasMore = false;
+		for (const key of groupKeys) {
+			const list = groups.get(key)!;
+			if (list.length > 0) {
+				result.push(list.shift()!);
+				hasMore = true;
+			}
+		}
+	}
+	return result;
+}
+
 function unique(values: string[]): string[] {
 	return [...new Set(values.filter(Boolean))];
 }
@@ -272,7 +301,7 @@ export function generatePracticeSession(
 		}
 	}
 
-	return shuffle(questions).slice(0, count);
+	return spreadShuffle(questions).slice(0, count);
 }
 
 export function generateListeningSession(

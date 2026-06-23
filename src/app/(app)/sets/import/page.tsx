@@ -20,8 +20,7 @@ export default async function SetImportPage() {
 				<span className="label-caps mt-4 block tracking-widest">Thêm bộ từ</span>
 				<h1 className="mt-2 text-3xl font-black text-foreground">Import từ Excel</h1>
 				<p className="mt-2 max-w-2xl text-sm text-foreground-secondary">
-					Tải file mẫu HSK1 (7 cột: bo_tu, simplified, pinyin, meaning_vi, han_viet, part_of_speech, ghi_chu)
-					hoặc tự tạo file theo cùng định dạng để import bộ riêng cho luyện tập và SRS.
+					Tải file mẫu Excel (5 từ ví dụ + sheet hướng dẫn) hoặc tự tạo file theo cùng định dạng 7 cột để import bộ riêng cho luyện tập và SRS.
 				</p>
 				<p className="mt-2 text-xs text-muted md:hidden">
 					Trên điện thoại vẫn import được — nên dùng file .xlsx từ Files/Drive.

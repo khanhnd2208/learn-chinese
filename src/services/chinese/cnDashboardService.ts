@@ -126,8 +126,7 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 		suggestions.push('Làm thêm bài điền câu và mẫu câu với các từ đã học.');
 	}
 	if (dueToday > 0) {
-		const overdueHint = overdueCount > 0 ? ` (${overdueCount} trễ)` : '';
-		suggestions.push(`Hôm nay có ${dueToday} mục ôn (từ × kênh)${overdueHint} — bấm "Ôn hôm nay".`);
+		suggestions.push(`Hôm nay có ${dueToday} mục ôn (từ × kênh) — bấm "Ôn hôm nay".`);
 	}
 	if (topErrors.length) {
 		suggestions.push(`Lỗi phổ biến: ${errorTypeLabel(topErrors[0].errorType)}.`);

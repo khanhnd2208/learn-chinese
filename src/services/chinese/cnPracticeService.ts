@@ -77,12 +77,40 @@ export interface ReviewQuestionsResult {
 	skippedUnpublished: number;
 }
 
+/** Spread entries so the same wordId does not appear within minGap positions. */
+export function spreadByWordId<T extends { progress: { wordId: string } }>(
+	entries: T[],
+	minGap = 3,
+): T[] {
+	const result: T[] = [];
+	const deferred = [...entries];
+
+	while (deferred.length > 0) {
+		let placed = false;
+		for (let i = 0; i < deferred.length; i++) {
+			const wordId = deferred[i].progress.wordId;
+			const recentWindow = result.slice(-minGap);
+			if (!recentWindow.some((r) => r.progress.wordId === wordId)) {
+				result.push(deferred.splice(i, 1)[0]);
+				placed = true;
+				break;
+			}
+		}
+		if (!placed) {
+			result.push(deferred.shift()!);
+		}
+	}
+	return result;
+}
+
 export async function buildReviewQuestions(
 	userId: string,
 	limit = CN_DEFAULT_REVIEW_COUNT,
 	excludeQuestionIds: string[] = [],
+	excludeWordChannels: string[] = [],
 ): Promise<ReviewQuestionsResult> {
 	const dueChannels = await getReviewSession(userId, limit * CN_MAX_CHANNELS_PER_WORD_REVIEW);
+	const excludeWordChannelSet = new Set(excludeWordChannels);
 	const dueWordIds = [...new Set(dueChannels.map((d) => d.progress.wordId))];
 	const [cards, globalPool] = await Promise.all([
 		Promise.all(dueWordIds.map((id) => getWordCard(id, userId))),
@@ -93,12 +121,15 @@ export async function buildReviewQuestions(
 	const distractorPool = mergeWordPools([...cardMap.values()], globalPool);
 
 	const wordChannelCount = new Map<string, number>();
-	const selected = dueChannels.filter((entry) => {
+	const capped = dueChannels.filter((entry) => {
+		const wordChannelKey = `${entry.progress.wordId}:${entry.channel}`;
+		if (excludeWordChannelSet.has(wordChannelKey)) return false;
 		const count = wordChannelCount.get(entry.progress.wordId) ?? 0;
 		if (count >= CN_MAX_CHANNELS_PER_WORD_REVIEW) return false;
 		wordChannelCount.set(entry.progress.wordId, count + 1);
 		return true;
-	}).slice(0, limit);
+	});
+	const selected = spreadByWordId(capped).slice(0, limit);
 
 	const questions: CnPracticeQuestionDTO[] = [];
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import SpeakButton from '@/components/chinese/SpeakButton';
 import StickingPointCard from '@/components/chinese/StickingPointCard';
@@ -73,14 +73,12 @@ const OPTION_DELAY_CLASSES = [
 function SessionCountersPill({
 	correctCount,
 	wrongCount,
-	dueRemaining,
 }: {
 	correctCount: number;
 	wrongCount: number;
-	dueRemaining: number;
 }) {
 	return (
-		<div className="flex items-center gap-3 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-bold">
+		<div className="flex items-center gap-2.5 rounded-full border border-border bg-surface px-3 py-1.5 text-xs font-bold">
 			<span className="flex items-center gap-1 text-success">
 				<MaterialIcon name="check" size={16} />
 				{correctCount}
@@ -89,11 +87,6 @@ function SessionCountersPill({
 			<span className="flex items-center gap-1 text-error">
 				<MaterialIcon name="close" size={16} />
 				{wrongCount}
-			</span>
-			<span className="h-3 w-px bg-border" />
-			<span className="flex items-center gap-1 text-muted">
-				<MaterialIcon name="all_inclusive" size={16} />
-				{dueRemaining}
 			</span>
 		</div>
 	);
@@ -137,12 +130,32 @@ export default function QuestionRenderer({
 	const [sessionHeavyLapses, setSessionHeavyLapses] = useState<Record<string, number>>({});
 	const { speak, supported } = useSpeech();
 	const autoPlayedRef = useRef<string | null>(null);
+	const resultsRef = useRef(results);
+
+	useEffect(() => {
+		resultsRef.current = results;
+	}, [results]);
 
 	const q = questions[idx];
 	const audioOnly = q ? isAudioQuestion(q.type) : false;
 	const typedOnly = q ? isTypedQuestion(q.type) : false;
 	const waiting = pendingAdvance || isExiting;
 	const hasHint = q ? questionHasHint(q) : false;
+
+	const advance = useCallback((nextResults: QuestionAnswerResult[]) => {
+		setFeedback(null);
+		setSelected(null);
+		setTypedAnswer('');
+		setPendingAdvance(false);
+		setShowHint(false);
+		setIdx((currentIdx) => {
+			if (currentIdx + 1 >= questions.length) {
+				onComplete?.(nextResults);
+				return currentIdx;
+			}
+			return currentIdx + 1;
+		});
+	}, [questions.length, onComplete]);
 
 	useEffect(() => {
 		if (!q?.audioText || !supported || !audioOnly) return;
@@ -154,6 +167,19 @@ export default function QuestionRenderer({
 		return () => clearTimeout(timer);
 	}, [q?.id, q?.audioText, idx, audioOnly, supported, speak]);
 
+	useEffect(() => {
+		if (!pendingAdvance) return;
+		const handleKeyDown = (e: KeyboardEvent) => {
+			if (e.key !== 'Enter' && e.key !== ' ') return;
+			const active = document.activeElement;
+			if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+			e.preventDefault();
+			advance(resultsRef.current);
+		};
+		window.addEventListener('keydown', handleKeyDown);
+		return () => window.removeEventListener('keydown', handleKeyDown);
+	}, [pendingAdvance, advance]);
+
 	if (!q) return null;
 
 	const isFeedbackWrong = !!feedback && !['Đúng', 'Đã ghi nhận'].some((prefix) => feedback.startsWith(prefix));
@@ -162,18 +188,8 @@ export default function QuestionRenderer({
 	const gradeCurrentAnswer = (answer: string): boolean => gradeAnswer(q, answer);
 
 	const handleExit = () => {
-		if (waiting && !isExiting) return;
+		if (isExiting) return;
 		void onExit?.();
-	};
-
-	const advance = (nextResults: QuestionAnswerResult[]) => {
-		setFeedback(null);
-		setSelected(null);
-		setTypedAnswer('');
-		setPendingAdvance(false);
-		setShowHint(false);
-		if (idx + 1 >= questions.length) onComplete?.(nextResults);
-		else setIdx(idx + 1);
 	};
 
 	const submitAnswer = (answer: string) => {
@@ -222,51 +238,47 @@ export default function QuestionRenderer({
 	return (
 		<div className="flex w-full max-w-2xl flex-col">
 			{isReviewSession ? (
-				<header className="sticky top-0 z-40 -mx-4 mb-4 border-b border-border bg-background/95 px-4 py-3 backdrop-blur-sm animate-slide-down">
+				<header className="sticky top-0 z-40 -mx-4 mb-4 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur-sm animate-slide-down">
 					<div className="flex items-center justify-between gap-2">
-						{onExit ? (
-							<button
-								type="button"
-								onClick={handleExit}
-								disabled={isExiting}
-								className="flex shrink-0 items-center gap-1 py-1 label-caps text-muted transition-colors hover:text-accent disabled:opacity-50"
-							>
-								<MaterialIcon name={isExiting ? 'hourglass_empty' : 'close'} size={20} />
-								<span>{isExiting ? 'Đang lưu...' : resolvedExitLabel}</span>
-							</button>
-						) : (
-							<span />
-						)}
-						<div className="flex items-center gap-2">
+						<div className="flex min-w-0 items-center gap-2">
+							{onExit ? (
+								<button
+									type="button"
+									onClick={handleExit}
+									disabled={isExiting}
+									className="flex shrink-0 items-center gap-1 py-1 label-caps text-muted transition-colors hover:text-accent disabled:opacity-50"
+								>
+									<MaterialIcon name={isExiting ? 'hourglass_empty' : 'close'} size={20} />
+									<span>{isExiting ? 'Đang lưu...' : resolvedExitLabel}</span>
+								</button>
+							) : null}
+							<ChannelPill type={q.type} />
+						</div>
+						<div className="flex shrink-0 items-center gap-2">
 							<SessionCountersPill
 								correctCount={correctCount}
 								wrongCount={wrongCount}
-								dueRemaining={dueRemaining}
 							/>
 							{headerAction}
 						</div>
 					</div>
-					<div className="mt-3 flex flex-col gap-2">
-						<div className="flex items-center justify-between gap-2">
-							<ChannelPill type={q.type} large />
-							<span className="text-sm font-bold text-foreground-secondary">{progressPct}%</span>
-						</div>
+					<div className="mt-2.5 flex items-center gap-2">
 						<div
-							className="h-2 w-full overflow-hidden rounded-full border border-border/50 bg-accent-subtle"
+							className="h-2 min-w-0 flex-1 overflow-hidden rounded-full border border-border/50 bg-accent-subtle"
 							role="progressbar"
 							aria-valuenow={reviewedCount}
 							aria-valuemin={0}
 							aria-valuemax={totalEstimate}
+							aria-label={`Tiến độ ôn ${progressPct}%`}
 						>
 							<div
 								className="h-full rounded-full bg-accent transition-all duration-500 ease-out"
 								style={{ width: `${progressPct}%` }}
 							/>
 						</div>
-						<div className="flex justify-between label-caps !text-[10px]">
-							<span>Đã ôn {reviewedCount}</span>
-							<span>Còn ~{dueRemaining}</span>
-						</div>
+						<span className="shrink-0 text-sm font-bold tabular-nums text-foreground-secondary">
+							{progressPct}%
+						</span>
 					</div>
 				</header>
 			) : (
@@ -296,7 +308,7 @@ export default function QuestionRenderer({
 				</div>
 			)}
 
-			<div className="flex flex-1 flex-col">
+			<div className={`flex flex-1 flex-col ${feedback ? 'pb-44' : ''}`}>
 				<div className="mb-6 text-center">
 					<p className="animate-fade-slide-up mb-4 text-lg font-extrabold text-foreground-secondary opacity-0">
 						{q.prompt}
@@ -340,7 +352,7 @@ export default function QuestionRenderer({
 										isCorrect
 											? 'border-2 border-success bg-success/10'
 											: isWrong
-												? 'border-accent bg-accent-subtle'
+												? 'border-2 border-error bg-error/10'
 												: isChosen
 													? 'border-accent bg-accent-subtle'
 													: 'border-border bg-surface hover:border-accent'
@@ -350,9 +362,11 @@ export default function QuestionRenderer({
 										className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-black ${
 											isCorrect
 												? 'bg-success text-white'
-												: isWrong || isChosen
-													? 'bg-accent text-accent-foreground'
-													: 'bg-surface-container text-muted'
+												: isWrong
+													? 'bg-error text-white'
+													: isChosen
+														? 'bg-accent text-accent-foreground'
+														: 'bg-surface-container text-muted'
 										}`}
 									>
 										{letter}
@@ -363,9 +377,11 @@ export default function QuestionRenderer({
 										} ${
 											isCorrect
 												? 'text-success'
-												: isWrong || isChosen
-													? 'text-accent'
-													: 'text-foreground group-hover:text-accent'
+												: isWrong
+													? 'text-error'
+													: isChosen
+														? 'text-accent'
+														: 'text-foreground group-hover:text-accent'
 										}`}
 									>
 										{opt}
@@ -420,20 +436,23 @@ export default function QuestionRenderer({
 					</div>
 				) : null}
 
-				{feedback?.startsWith('Sai') && (sessionHeavyLapses[q.wordId] ?? 0) >= 2 && (
+				{feedback?.startsWith('Sai') && (sessionHeavyLapses[q.wordId] ?? 0) >= 1 && (
 					<div className="mx-auto mt-4 w-full max-w-md">
 						<StickingPointCard wordId={q.wordId} simplified={q.hanzi} />
 					</div>
 				)}
 
-				{feedback && (
-					<div
-						className={`mx-auto mt-auto w-full max-w-md pt-6 animate-fade-slide-up opacity-0 ${
-							isFeedbackCorrect ? 'animate-pulse-success' : ''
-						}`}
-					>
+			</div>
+
+			{feedback && (
+				<div
+					className={`fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-background/95 backdrop-blur-sm animate-fade-slide-up md:left-(--sidebar-width) ${
+						isFeedbackCorrect ? 'animate-pulse-success' : ''
+					}`}
+				>
+					<div className="mx-auto w-full max-w-2xl px-4 py-3 pb-safe">
 						<div
-							className={`relative overflow-hidden rounded-xl border-2 p-4 ${
+							className={`relative overflow-hidden rounded-xl border-2 p-3 sm:p-4 ${
 								isFeedbackCorrect
 									? 'border-success bg-surface'
 									: 'border-accent bg-surface'
@@ -442,35 +461,37 @@ export default function QuestionRenderer({
 							{isFeedbackCorrect && (
 								<div className="absolute bottom-0 left-0 top-0 w-1.5 bg-success" />
 							)}
-							<div className="flex items-center gap-2 pl-2">
-								<MaterialIcon
-									name={isFeedbackCorrect ? 'task_alt' : 'cancel'}
-									className={isFeedbackCorrect ? 'text-success' : 'text-accent'}
-									size={28}
-									filled
-								/>
-								<span className={`text-lg font-black ${isFeedbackCorrect ? 'text-success' : 'text-accent'}`}>
-									{isFeedbackCorrect ? 'Đúng!' : 'Chưa đúng'}
-								</span>
+							<div className="max-h-[32vh] overflow-y-auto">
+								<div className="flex items-center gap-2 pl-2">
+									<MaterialIcon
+										name={isFeedbackCorrect ? 'task_alt' : 'cancel'}
+										className={isFeedbackCorrect ? 'text-success' : 'text-accent'}
+										size={24}
+										filled
+									/>
+									<span className={`text-base font-black sm:text-lg ${isFeedbackCorrect ? 'text-success' : 'text-accent'}`}>
+										{isFeedbackCorrect ? 'Đúng!' : 'Chưa đúng'}
+									</span>
+								</div>
+								{isFeedbackWrong && (
+									<p className="mt-1 pl-2 text-sm font-bold text-accent">{feedback}</p>
+								)}
+								{isFeedbackWrong && (q.mnemonicVi || q.usageNoteVi) && (
+									<p className="mt-2 pl-2 text-sm italic text-foreground-secondary">
+										{q.mnemonicVi ? (
+											<>
+												Mẹo nhớ:{' '}
+												<span className="font-bold not-italic text-foreground">{q.mnemonicVi}</span>
+											</>
+										) : (
+											<>
+												Lưu ý:{' '}
+												<span className="font-bold not-italic text-foreground">{q.usageNoteVi}</span>
+											</>
+										)}
+									</p>
+								)}
 							</div>
-							{isFeedbackWrong && (
-								<p className="mt-1 pl-2 text-sm font-bold text-accent">{feedback}</p>
-							)}
-							{isFeedbackWrong && (q.mnemonicVi || q.usageNoteVi) && (
-								<p className="mt-2 pl-2 text-sm italic text-foreground-secondary">
-									{q.mnemonicVi ? (
-										<>
-											Mẹo nhớ:{' '}
-											<span className="font-bold not-italic text-foreground">{q.mnemonicVi}</span>
-										</>
-									) : (
-										<>
-											Lưu ý:{' '}
-											<span className="font-bold not-italic text-foreground">{q.usageNoteVi}</span>
-										</>
-									)}
-								</p>
-							)}
 							<div className="mt-3 flex flex-wrap items-center justify-between gap-3 pl-2">
 								{scheduleLabel && incremental ? (
 									<div
@@ -489,7 +510,7 @@ export default function QuestionRenderer({
 								) : (
 									<span />
 								)}
-								<div className="flex items-center gap-2">
+								<div className="ml-auto flex items-center gap-2">
 									{pendingAdvance && q.audioText && (
 										<button
 											type="button"
@@ -514,8 +535,8 @@ export default function QuestionRenderer({
 							</div>
 						</div>
 					</div>
-				)}
-			</div>
+				</div>
+			)}
 		</div>
 	);
 }

@@ -1,19 +1,16 @@
 import { NextResponse } from 'next/server';
 import { withAuth } from '@/lib/apiUtils';
 import {
-	buildUserSetSampleWorkbook,
-	resolveSampleSetId,
-} from '@/lib/chinese/userSetSampleWorkbook';
-import { getHsk1SampleSet } from '@/lib/chinese/hsk1SampleSets';
+	buildDownloadSampleWorkbook,
+	DOWNLOAD_SAMPLE_FILENAME,
+} from '@/lib/chinese/buildSampleWorkbook';
 
-export const GET = withAuth(async (req) => {
-	const setId = resolveSampleSetId(req.nextUrl.searchParams.get('set'));
-	const sample = getHsk1SampleSet(setId);
-	const buffer = buildUserSetSampleWorkbook(setId);
+export const GET = withAuth(async () => {
+	const buffer = buildDownloadSampleWorkbook();
 	return new NextResponse(new Uint8Array(buffer), {
 		headers: {
 			'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-			'Content-Disposition': `attachment; filename="${sample.filename}"`,
+			'Content-Disposition': `attachment; filename="${DOWNLOAD_SAMPLE_FILENAME}"`,
 			'Cache-Control': 'no-store',
 		},
 	});
