@@ -1,5 +1,32 @@
 # Deploy lên VPS
 
+## CI/CD (GitHub Actions)
+
+Workflow `.github/workflows/deploy.yml` chạy khi push `main` hoặc **Run workflow** thủ công. Code được **rsync qua SSH** — VPS **không cần** `git pull` hay quyền đọc repo private.
+
+### Secrets bắt buộc
+
+Vào **Settings → Secrets and variables → Actions** (hoặc **Environments → production**, vì workflow dùng environment `production`):
+
+| Secret | Mô tả |
+|--------|--------|
+| `VPS_HOST` | IP hoặc domain VPS |
+| `VPS_USER` | User SSH (`root`, `deploy`, …) |
+| `VPS_SSH_KEY` | Private key đầy đủ (cả dòng `-----BEGIN … KEY-----`) |
+
+Tuỳ chọn: `VPS_SSH_PORT` (mặc định 22).
+
+Tạo cặp key trên máy local, gắn **public key** vào VPS `~/.ssh/authorized_keys`, dán **private key** vào secret `VPS_SSH_KEY`:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/learn-chinese-deploy -N ""
+ssh -i ~/.ssh/learn-chinese-deploy VPS_USER@VPS_HOST "echo OK"
+```
+
+Nếu thiếu secret, job fail sớm với message rõ ràng thay vì lỗi mơ hồ từ SCP.
+
+`.env.local` trên VPS **không** bị ghi đè (rsync exclude).
+
 ## Yêu cầu server
 
 - Node.js 20+
