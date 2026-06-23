@@ -7,10 +7,12 @@ import {
 } from '@/services/chinese/cnSrsService';
 import {
 	addDays,
+	addMinutes,
 	CN_LAPSE_HEAVY_IDX,
 	CN_LAPSE_RECALL_IDX,
 	CN_SRS_INTERVAL_DAYS,
 	CN_STATE_THRESHOLDS,
+	CN_WRONG_FIRST_RETRY_MINUTES,
 } from '@/config/constants';
 import type { CnPracticeSubmitItem } from '@/types/chinese';
 import type { CnWordProgress } from '@prisma/client';
@@ -91,20 +93,22 @@ describe('cnSrsService', () => {
 		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[5]).getTime());
 	});
 
-	it('MCQ1 wrong stays at MCQ1 due tomorrow', () => {
+	it('MCQ1 wrong stays at MCQ1 due in 30 minutes', () => {
 		const next = computeNextReview({ intervalIdx: 0, correct: false, now });
 		expect(next.intervalIdx).toBe(0);
-		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[0]).getTime());
+		expect(next.dueAt.getTime()).toBe(addMinutes(now, CN_WRONG_FIRST_RETRY_MINUTES).getTime());
 	});
 
-	it('MCQ2 wrong regresses to MCQ1', () => {
+	it('MCQ2 wrong regresses to MCQ1 due in 30 minutes', () => {
 		const next = computeNextReview({ intervalIdx: 1, correct: false, now });
 		expect(next.intervalIdx).toBe(0);
+		expect(next.dueAt.getTime()).toBe(addMinutes(now, CN_WRONG_FIRST_RETRY_MINUTES).getTime());
 	});
 
-	it('Recall wrong regresses to MCQ2', () => {
+	it('Recall wrong regresses to MCQ2 due tomorrow', () => {
 		const next = computeNextReview({ intervalIdx: 2, correct: false, now, lapseSeverity: 'light' });
 		expect(next.intervalIdx).toBe(1);
+		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[0]).getTime());
 	});
 
 	it('Maintain wrong light lapse regresses to Recall', () => {
@@ -195,7 +199,7 @@ describe('cnSrsService', () => {
 		expect(p.listeningTotal).toBe(1);
 		expect(p.listeningCorrect).toBe(0);
 		expect(p.listeningIntervalIdx).toBe(0);
-		expect(p.listeningDueAt!.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[0]).getTime());
+		expect(p.listeningDueAt!.getTime()).toBe(addMinutes(now, CN_WRONG_FIRST_RETRY_MINUTES).getTime());
 		expect(p.listeningHeavyLapses).toBe(1);
 	});
 

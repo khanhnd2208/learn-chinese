@@ -11,9 +11,14 @@ export const GET = withAuth(async (request, user) => {
 		.map((id) => id.trim())
 		.filter(Boolean);
 
-	const [dueToday, questions] = await Promise.all([
+	const [dueToday, reviewResult] = await Promise.all([
 		countDueToday(user.id),
 		buildReviewQuestions(user.id, limit, excludeQuestionIds),
 	]);
-	return apiSuccess({ dueToday, questions, total: questions.length });
+	return apiSuccess({
+		dueToday,
+		questions: reviewResult.questions,
+		total: reviewResult.questions.length,
+		skippedUnpublished: reviewResult.skippedUnpublished,
+	});
 });

@@ -5,18 +5,20 @@ import { prisma } from '@/lib/prisma';
 import { AppError } from '@/lib/appError';
 import {
 	addDays,
+	addMinutes,
 	CN_CHANNEL_WEAK_THRESHOLD,
 	CN_LAPSE_HEAVY_IDX,
 	CN_LAPSE_RECALL_IDX,
 	CN_SRS_INTERVAL_DAYS,
 	CN_STATE_THRESHOLDS,
 	CN_STICKING_POINT_HEAVY_LAPSES,
+	CN_WRONG_FIRST_RETRY_MINUTES,
 	clampSrsIntervalIdx,
 } from '@/config/constants';
 import { reconcileSubmitItems } from '@/lib/chinese/answerGrading';
 import { buildDueCandidateWhere } from '@/lib/chinese/cnSrsDueQuery';
 import { isCoreQuestionType, questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
-import { getSrsActiveWordIds } from '@/services/chinese/cnSrsEnrollmentService';
+import { ensureEnrollmentForActiveWords, getSrsActiveWordIds } from '@/services/chinese/cnSrsEnrollmentService';
 import { errorSeverity, inferErrorType } from '@/lib/chinese/errorMapping';
 import { rate } from '@/lib/chinese/hanziUtils';
 import {
@@ -105,8 +107,11 @@ export function computeNextReview(options: ComputeNextReviewOptions): {
 		} else {
 			nextIdx = lapseSeverity === 'heavy' ? CN_LAPSE_HEAVY_IDX : CN_LAPSE_RECALL_IDX;
 		}
+		const dueAt = idx <= 1
+			? addMinutes(now, CN_WRONG_FIRST_RETRY_MINUTES)
+			: addDays(now, CN_SRS_INTERVAL_DAYS[0]);
 		return {
-			dueAt: addDays(now, CN_SRS_INTERVAL_DAYS[0]),
+			dueAt,
 			intervalIdx: nextIdx,
 			state: 'weak',
 		};
@@ -325,6 +330,8 @@ export async function getDueChannels(userId: string, limit = 50): Promise<DueCha
 	const now = new Date();
 	const activeIds = await getSrsActiveWordIds(userId);
 	if (!activeIds.size) return [];
+
+	await ensureEnrollmentForActiveWords(userId, [...activeIds]);
 
 	const all = await fetchDueCandidateProgress(userId, [...activeIds], now, true) as Array<
 		CnWordProgress & { word: CnWord }
@@ -660,6 +667,7 @@ export function progressToDTO(p: CnWordProgress): CnWordProgressDTO {
 export async function countDueChannels(userId: string): Promise<number> {
 	const activeIds = await getSrsActiveWordIds(userId);
 	if (!activeIds.size) return 0;
+	await ensureEnrollmentForActiveWords(userId, [...activeIds]);
 	const now = new Date();
 	const all = await fetchDueCandidateProgress(userId, [...activeIds], now);
 	return countDueChannelsForProgressList(all, now);

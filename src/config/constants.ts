@@ -42,6 +42,9 @@ export const CN_CHANNEL_WEAK_THRESHOLD = 60;
 /** Heavy lapses before sticking-point flag */
 export const CN_STICKING_POINT_HEAVY_LAPSES = 3;
 
+/** MCQ1/MCQ2 wrong answer: retry after this many minutes */
+export const CN_WRONG_FIRST_RETRY_MINUTES = 30;
+
 export function clampSrsIntervalIdx(idx: number): number {
 	return Math.min(Math.max(idx, 0), CN_SRS_INTERVAL_DAYS.length - 1);
 }
@@ -56,4 +59,8 @@ export function stageFromIntervalIdx(idx: number): CnSrsStage {
 
 export function addDays(date: Date, days: number): Date {
 	return new Date(date.getTime() + days * 86_400_000);
+}
+
+export function addMinutes(date: Date, minutes: number): Date {
+	return new Date(date.getTime() + minutes * 60_000);
 }

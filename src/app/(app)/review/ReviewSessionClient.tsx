@@ -16,16 +16,25 @@ type Phase = 'loading' | 'review' | 'summary' | 'empty';
 async function fetchReviewBatch(excludeIds: string[]): Promise<{
 	dueToday: number;
 	questions: CnPracticeQuestionDTO[];
+	skippedUnpublished: number;
 }> {
 	const params = new URLSearchParams({ limit: String(CN_REVIEW_PREFETCH_SIZE) });
 	if (excludeIds.length) params.set('excludeIds', excludeIds.join(','));
 	const res = await fetch(`/api/review?${params}`);
 	const json = await res.json() as {
 		ok: boolean;
-		data?: { dueToday: number; questions: CnPracticeQuestionDTO[] };
+		data?: {
+			dueToday: number;
+			questions: CnPracticeQuestionDTO[];
+			skippedUnpublished?: number;
+		};
 	};
 	if (!json.ok || !json.data) throw new Error('Không tải được phiên ôn');
-	return json.data;
+	return {
+		dueToday: json.data.dueToday,
+		questions: json.data.questions,
+		skippedUnpublished: json.data.skippedUnpublished ?? 0,
+	};
 }
 
 export default function ReviewSessionClient() {
@@ -37,11 +46,12 @@ export default function ReviewSessionClient() {
 	const [phase, setPhase] = useState<Phase>('loading');
 	const [dueToday, setDueToday] = useState(0);
 	const [dueRemaining, setDueRemaining] = useState(0);
+	const [skippedUnpublished, setSkippedUnpublished] = useState(0);
 	const [questions, setQuestions] = useState<CnPracticeQuestionDTO[]>([]);
 	const [reviewedCount, setReviewedCount] = useState(0);
 	const [rendererKey, setRendererKey] = useState(0);
 	const [isExiting, setIsExiting] = useState(false);
-	const [isFetchingMore, setIsFetchingMore] = useState(false);
+	const [, setIsFetchingMore] = useState(false);
 	const [summaryReason, setSummaryReason] = useState<'exit' | 'complete'>('complete');
 	const [showManager, setShowManager] = useState(false);
 
@@ -62,6 +72,7 @@ export default function ReviewSessionClient() {
 		const data = await fetchReviewBatch([]);
 		setDueToday(data.dueToday);
 		setDueRemaining(data.dueToday);
+		setSkippedUnpublished(data.skippedUnpublished);
 
 		if (!data.questions.length) {
 			setPhase('empty');
@@ -204,28 +215,56 @@ export default function ReviewSessionClient() {
 	}
 
 	if (phase === 'empty') {
+		const hasDueButNoQuestions = dueToday > 0;
 		return (
 			<>
 				<div className="mx-auto max-w-2xl px-4 py-8">
 					<div className="mb-4 flex justify-end">{managerButton}</div>
 					<div className="card-paper w-full p-8 text-center">
-					<MaterialIcon name="celebration" className="mx-auto text-success" size={48} />
-					<p className="mt-4 text-muted">Không có mục cần ôn hôm nay.</p>
-					<p className="mt-2 text-sm text-foreground-secondary">
-						Bật <strong>Ôn SRS</strong> trên bộ từ trong{' '}
-						<Link href="/sets" className="font-bold text-accent hover:underline">Danh sách bộ từ</Link>{' '}
-						để đưa từ vào hàng đợi ôn.
-					</p>
-					<div className="mt-6 flex flex-wrap justify-center gap-3">
-						<Link href="/review/stats" className="btn-primary">
-							<MaterialIcon name="query_stats" size={16} />
-							Xem tiến độ
-						</Link>
-						<Link href="/sets" className="btn-secondary">
-							<MaterialIcon name="menu_book" size={16} />
-							Chọn bộ từ
-						</Link>
-					</div>
+					<MaterialIcon
+						name={hasDueButNoQuestions ? 'error_outline' : 'celebration'}
+						className={`mx-auto ${hasDueButNoQuestions ? 'text-warning' : 'text-success'}`}
+						size={48}
+					/>
+					{hasDueButNoQuestions ? (
+						<>
+							<p className="mt-4 text-muted">
+								Có {dueToday} mục đến hạn nhưng không tải được câu hỏi.
+							</p>
+							<p className="mt-2 text-sm text-foreground-secondary">
+								{skippedUnpublished > 0
+									? `${skippedUnpublished} từ chưa được xuất bản trong hệ thống. `
+									: ''}
+								Thử tải lại sau hoặc kiểm tra bộ từ trong{' '}
+								<Link href="/sets" className="font-bold text-accent hover:underline">Danh sách bộ từ</Link>.
+							</p>
+							<div className="mt-6 flex flex-wrap justify-center gap-3">
+								<button type="button" onClick={() => { setPhase('loading'); void loadInitial(); }} className="btn-primary">
+									<MaterialIcon name="refresh" size={16} />
+									Thử lại
+								</button>
+							</div>
+						</>
+					) : (
+						<>
+							<p className="mt-4 text-muted">Không có mục cần ôn hôm nay.</p>
+							<p className="mt-2 text-sm text-foreground-secondary">
+								Bật <strong>Ôn SRS</strong> trên bộ từ trong{' '}
+								<Link href="/sets" className="font-bold text-accent hover:underline">Danh sách bộ từ</Link>{' '}
+								để đưa từ vào hàng đợi ôn.
+							</p>
+							<div className="mt-6 flex flex-wrap justify-center gap-3">
+								<Link href="/review/stats" className="btn-primary">
+									<MaterialIcon name="query_stats" size={16} />
+									Xem tiến độ
+								</Link>
+								<Link href="/sets" className="btn-secondary">
+									<MaterialIcon name="menu_book" size={16} />
+									Chọn bộ từ
+								</Link>
+							</div>
+						</>
+					)}
 					</div>
 				</div>
 				{managerModal}

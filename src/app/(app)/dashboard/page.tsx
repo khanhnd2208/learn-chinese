@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import ForecastBars from '@/components/chinese/ForecastBars';
+import StateDistributionBar from '@/components/chinese/StateDistributionBar';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
 import { errorTypeLabel } from '@/lib/chinese/errorMapping';
@@ -31,7 +33,14 @@ export default function ChineseDashboardPage() {
 		<div className="mx-auto max-w-4xl space-y-8 px-4 py-8 md:px-8">
 			<section>
 				<span className="label-caps tracking-widest">Tiến bộ</span>
-				<h1 className="mt-2 text-3xl font-black text-foreground">Dashboard lỗi & tiến bộ</h1>
+				<div className="mt-2 flex flex-wrap items-center gap-3">
+					<h1 className="text-3xl font-black text-foreground">Dashboard lỗi & tiến bộ</h1>
+					{dashboard.streak > 0 && (
+						<span className="rounded-full border border-border bg-surface px-3 py-1 text-xs font-bold text-accent">
+							{dashboard.streak} ngày liên tiếp
+						</span>
+					)}
+				</div>
 				{dashboard.dueToday > 0 && (
 					<Link href="/review" className="btn-primary mt-4 md:hidden">
 						<MaterialIcon name="play_arrow" size={16} />
@@ -45,9 +54,48 @@ export default function ChineseDashboardPage() {
 				<Stat label="Từ đã học" value={dashboard.wordsLearned} icon="menu_book" />
 				<Stat label="Đã nhớ chắc" value={dashboard.wordsMastered} icon="military_tech" color="gold" />
 				<Stat label="Cần chú ý" value={dashboard.weakCount} icon="psychology_alt" color="warning" />
-				<Stat label="Cần ôn hôm nay" value={dashboard.dueToday} icon="calendar_today" color="accent" />
+				<Stat
+					label="Cần ôn hôm nay"
+					value={dashboard.dueToday}
+					sub={dashboard.overdueCount > 0 ? `${dashboard.overdueCount} trễ` : undefined}
+					icon="calendar_today"
+					color="accent"
+				/>
 				<Stat label="Tỷ lệ đúng tổng" value={`${dashboard.overallRate}%`} icon="check_circle" color="success" />
 			</section>
+
+			{dashboard.forecast.some((d) => d.dueCount > 0) && (
+				<section>
+					<h2 className="label-caps">Lịch ôn sắp tới</h2>
+					<p className="mt-1 text-xs text-muted">Dự báo 7 ngày · 1 mục = 1 từ × 1 kênh</p>
+					<div className="mt-3">
+						<ForecastBars days={dashboard.forecast} />
+					</div>
+				</section>
+			)}
+
+			{dashboard.stateDistribution.total > 0 && (
+				<section>
+					<h2 className="label-caps">Phân bổ trình độ từ</h2>
+					<div className="mt-3 flex flex-wrap gap-2 text-xs text-muted">
+						<span className="rounded-full border border-success/30 bg-success/10 px-2.5 py-1">
+							<span className="font-bold text-success">{dashboard.stateDistribution.mastered + dashboard.stateDistribution.strong}</span> đã thuộc
+						</span>
+						<span className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1">
+							<span className="font-bold text-accent">{dashboard.stateDistribution.learning + dashboard.stateDistribution.familiar}</span> đang học
+						</span>
+						<span className="rounded-full border border-warning/30 bg-warning/10 px-2.5 py-1">
+							<span className="font-bold text-warning">{dashboard.stateDistribution.weak}</span> yếu
+						</span>
+					</div>
+					<div className="mt-3">
+						<StateDistributionBar
+							distribution={dashboard.stateDistribution}
+							maturePct={dashboard.maturePct}
+						/>
+					</div>
+				</section>
+			)}
 
 			<section>
 				<h2 className="label-caps">Tỷ lệ theo kênh</h2>

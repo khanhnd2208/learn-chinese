@@ -72,17 +72,24 @@ export async function buildListeningSession(userId: string, setId: string, count
 	return buildPracticeSession(userId, setId, count, 'listening');
 }
 
+export interface ReviewQuestionsResult {
+	questions: CnPracticeQuestionDTO[];
+	skippedUnpublished: number;
+}
+
 export async function buildReviewQuestions(
 	userId: string,
 	limit = CN_DEFAULT_REVIEW_COUNT,
 	excludeQuestionIds: string[] = [],
-): Promise<CnPracticeQuestionDTO[]> {
+): Promise<ReviewQuestionsResult> {
 	const dueChannels = await getReviewSession(userId, limit * CN_MAX_CHANNELS_PER_WORD_REVIEW);
+	const dueWordIds = [...new Set(dueChannels.map((d) => d.progress.wordId))];
 	const [cards, globalPool] = await Promise.all([
-		Promise.all([...new Set(dueChannels.map((d) => d.progress.wordId))].map((id) => getWordCard(id, userId))),
+		Promise.all(dueWordIds.map((id) => getWordCard(id, userId))),
 		getUserDistractorPool(userId),
 	]);
 	const cardMap = new Map(cards.filter((c): c is NonNullable<typeof c> => !!c).map((c) => [c.id, c]));
+	const skippedUnpublished = dueWordIds.filter((id) => !cardMap.has(id)).length;
 	const distractorPool = mergeWordPools([...cardMap.values()], globalPool);
 
 	const wordChannelCount = new Map<string, number>();
@@ -125,7 +132,10 @@ export async function buildReviewQuestions(
 	}
 
 	const exclude = new Set(excludeQuestionIds);
-	return questions.filter((q) => !exclude.has(q.id)).slice(0, limit);
+	return {
+		questions: questions.filter((q) => !exclude.has(q.id)).slice(0, limit),
+		skippedUnpublished,
+	};
 }
 
 export function summarizeSession(
