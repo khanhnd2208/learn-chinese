@@ -706,10 +706,14 @@ export function progressToDTO(p: CnWordProgress): CnWordProgressDTO {
 export async function countDueChannels(userId: string): Promise<number> {
 	const activeIds = await getSrsActiveWordIds(userId);
 	if (!activeIds.size) return 0;
-	await ensureEnrollmentForActiveWords(userId, [...activeIds]);
+	const wordIdList = [...activeIds];
+	await ensureEnrollmentForActiveWords(userId, wordIdList);
 	const now = new Date();
-	const all = await fetchDueCandidateProgress(userId, [...activeIds], now);
-	return countDueChannelsForProgressList(all, now);
+	const [all, wordsWithFillExamples] = await Promise.all([
+		fetchDueCandidateProgress(userId, wordIdList, now),
+		loadWordIdsWithFillExamples(wordIdList),
+	]);
+	return countDueChannelsForProgressList(all, now, wordsWithFillExamples);
 }
 
 /** Counts (word, channel) pairs due today */

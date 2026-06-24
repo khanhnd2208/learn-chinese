@@ -14,8 +14,8 @@ import {
 	startOfLocalDay,
 	type ProgressForMetrics,
 } from '@/lib/chinese/reviewMetrics';
-import { countDueToday, loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
-import { getSrsActiveWordIds } from '@/services/chinese/cnSrsEnrollmentService';
+import { loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
+import { ensureEnrollmentForActiveWords, getSrsActiveWordIds } from '@/services/chinese/cnSrsEnrollmentService';
 import type { CnDashboardDTO } from '@/types/chinese';
 
 const HISTORY_DAYS = 90;
@@ -61,7 +61,11 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 	const todayStart = startOfLocalDay(now);
 	const historySince = new Date(now.getTime() - HISTORY_DAYS * 86_400_000);
 
-	const [setCount, progress, logs, dueToday, reviewDayLogs, activeWordIds] = await Promise.all([
+	const activeWordIds = await getSrsActiveWordIds(userId);
+	await ensureEnrollmentForActiveWords(userId, [...activeWordIds]);
+	const activeIds = new Set(activeWordIds);
+
+	const [setCount, progress, logs, reviewDayLogs] = await Promise.all([
 		prisma.cnWordSet.count({ where: { userId } }),
 		prisma.cnWordProgress.findMany({ where: { userId }, include: { word: true } }),
 		prisma.cnAnswerLog.findMany({
@@ -69,7 +73,6 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 			orderBy: { createdAt: 'desc' },
 			take: 500,
 		}),
-		countDueToday(userId),
 		prisma.cnAnswerLog.findMany({
 			where: {
 				userId,
@@ -78,10 +81,7 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 			},
 			select: { createdAt: true },
 		}),
-		getSrsActiveWordIds(userId),
 	]);
-
-	const activeIds = new Set(activeWordIds);
 	const srsProgress = progress.filter((p) => activeIds.has(p.wordId));
 	const wordsWithFillExamples = await loadWordIdsWithFillExamples(
 		srsProgress.map((p) => p.wordId),
@@ -89,6 +89,7 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 	const progressMetrics = srsProgress.map(progressToMetrics);
 	const overdueCount = countOverdueChannels(progressMetrics, todayStart, wordsWithFillExamples);
 	const forecast = buildForecast(progressMetrics, now, 7, wordsWithFillExamples);
+	const dueToday = forecast[0]?.dueCount ?? 0;
 	const stateDistribution = computeStateDistribution(progressMetrics);
 	const maturePct = computeMaturePct(progressMetrics);
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	computeNextReview,
+	countDueChannelsForProgressList,
 	nextStateFromInterval,
 	mergeSubmitItemsInMemory,
 	isChannelDue,
@@ -140,6 +141,16 @@ describe('cnSrsService', () => {
 			listeningIntervalIdx: 3,
 		});
 		expect(isChannelDue(p, 'listening', now)).toBe(false);
+	});
+
+	it('excludes sentence channel without fill examples from due counts', () => {
+		const p = progressFixture({ id: 'p1', userId: 'u1', wordId: 'w-no-fill' });
+		const withFill = new Set(['w-has-fill']);
+		const withExample = progressFixture({ id: 'p2', userId: 'u1', wordId: 'w-has-fill' });
+		const list = [p, withExample];
+
+		expect(countDueChannelsForProgressList(list, now)).toBe(8);
+		expect(countDueChannelsForProgressList(list, now, withFill)).toBe(7);
 	});
 
 	it('reaches mastered state at 30-day threshold', () => {
