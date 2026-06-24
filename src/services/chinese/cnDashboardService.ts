@@ -14,12 +14,14 @@ import {
 	startOfLocalDay,
 	type ProgressForMetrics,
 } from '@/lib/chinese/reviewMetrics';
-import { countDueToday } from '@/services/chinese/cnSrsService';
+import { countDueToday, loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
+import { getSrsActiveWordIds } from '@/services/chinese/cnSrsEnrollmentService';
 import type { CnDashboardDTO } from '@/types/chinese';
 
 const HISTORY_DAYS = 90;
 
 function progressToMetrics(p: {
+	wordId: string;
 	state: ProgressForMetrics['state'];
 	meaningIntervalIdx: number;
 	listeningIntervalIdx: number;
@@ -29,9 +31,14 @@ function progressToMetrics(p: {
 	listeningDueAt: Date | null;
 	pinyinDueAt: Date | null;
 	sentenceDueAt: Date | null;
+	meaningTotal: number;
+	listeningTotal: number;
+	pinyinTotal: number;
+	sentenceTotal: number;
 	dueAt: Date;
 }): ProgressForMetrics {
 	return {
+		wordId: p.wordId,
 		state: p.state,
 		meaningIntervalIdx: p.meaningIntervalIdx,
 		listeningIntervalIdx: p.listeningIntervalIdx,
@@ -41,6 +48,10 @@ function progressToMetrics(p: {
 		listeningDueAt: p.listeningDueAt,
 		pinyinDueAt: p.pinyinDueAt,
 		sentenceDueAt: p.sentenceDueAt,
+		meaningTotal: p.meaningTotal,
+		listeningTotal: p.listeningTotal,
+		pinyinTotal: p.pinyinTotal,
+		sentenceTotal: p.sentenceTotal,
 		dueAt: p.dueAt,
 	};
 }
@@ -50,7 +61,7 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 	const todayStart = startOfLocalDay(now);
 	const historySince = new Date(now.getTime() - HISTORY_DAYS * 86_400_000);
 
-	const [setCount, progress, logs, dueToday, reviewDayLogs] = await Promise.all([
+	const [setCount, progress, logs, dueToday, reviewDayLogs, activeWordIds] = await Promise.all([
 		prisma.cnWordSet.count({ where: { userId } }),
 		prisma.cnWordProgress.findMany({ where: { userId }, include: { word: true } }),
 		prisma.cnAnswerLog.findMany({
@@ -67,36 +78,42 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 			},
 			select: { createdAt: true },
 		}),
+		getSrsActiveWordIds(userId),
 	]);
 
-	const progressMetrics = progress.map(progressToMetrics);
-	const overdueCount = countOverdueChannels(progressMetrics, todayStart);
-	const forecast = buildForecast(progressMetrics, now, 7);
+	const activeIds = new Set(activeWordIds);
+	const srsProgress = progress.filter((p) => activeIds.has(p.wordId));
+	const wordsWithFillExamples = await loadWordIdsWithFillExamples(
+		srsProgress.map((p) => p.wordId),
+	);
+	const progressMetrics = srsProgress.map(progressToMetrics);
+	const overdueCount = countOverdueChannels(progressMetrics, todayStart, wordsWithFillExamples);
+	const forecast = buildForecast(progressMetrics, now, 7, wordsWithFillExamples);
 	const stateDistribution = computeStateDistribution(progressMetrics);
 	const maturePct = computeMaturePct(progressMetrics);
 
 	const activeDayKeys = [...new Set(reviewDayLogs.map((l) => localDayKey(l.createdAt)))];
 	const streak = computeStreak(activeDayKeys, now);
 
-	const wordsLearned = progress.filter((p) => p.state !== 'new').length;
-	const wordsMastered = progress.filter((p) => p.state === 'mastered').length;
-	const weakCount = progress.filter((p) => p.state === 'weak' || p.state === 'learning').length;
+	const wordsLearned = srsProgress.filter((p) => p.state !== 'new').length;
+	const wordsMastered = srsProgress.filter((p) => p.state === 'mastered').length;
+	const weakCount = srsProgress.filter((p) => p.state === 'weak' || p.state === 'learning').length;
 
 	const meaningRate = rate(
-		progress.reduce((s, p) => s + p.meaningCorrect, 0),
-		progress.reduce((s, p) => s + p.meaningTotal, 0),
+		srsProgress.reduce((s, p) => s + p.meaningCorrect, 0),
+		srsProgress.reduce((s, p) => s + p.meaningTotal, 0),
 	);
 	const listeningRate = rate(
-		progress.reduce((s, p) => s + p.listeningCorrect, 0),
-		progress.reduce((s, p) => s + p.listeningTotal, 0),
+		srsProgress.reduce((s, p) => s + p.listeningCorrect, 0),
+		srsProgress.reduce((s, p) => s + p.listeningTotal, 0),
 	);
 	const pinyinRate = rate(
-		progress.reduce((s, p) => s + p.pinyinCorrect, 0),
-		progress.reduce((s, p) => s + p.pinyinTotal, 0),
+		srsProgress.reduce((s, p) => s + p.pinyinCorrect, 0),
+		srsProgress.reduce((s, p) => s + p.pinyinTotal, 0),
 	);
 	const sentenceRate = rate(
-		progress.reduce((s, p) => s + p.sentenceCorrect, 0),
-		progress.reduce((s, p) => s + p.sentenceTotal, 0),
+		srsProgress.reduce((s, p) => s + p.sentenceCorrect, 0),
+		srsProgress.reduce((s, p) => s + p.sentenceTotal, 0),
 	);
 
 	const totalAnswers = logs.length;
@@ -113,7 +130,7 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 		.slice(0, 5)
 		.map(([errorType, count]) => ({ errorType: errorType as CnDashboardDTO['topErrors'][0]['errorType'], count }));
 
-	const weakWords = progress
+	const weakWords = srsProgress
 		.filter((p) => p.state === 'weak' || p.state === 'learning')
 		.slice(0, 10)
 		.map((p) => ({ wordId: p.wordId, simplified: p.word.simplified, state: p.state }));

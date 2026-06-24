@@ -130,4 +130,24 @@ describe('verifiedExample', () => {
 	it('pickFillExample falls back to auto when no verified', () => {
 		expect(pickFillExample(teacherWord)?.id).toBe('e2');
 	});
+
+	it('pickFillExample avoids excludeId when other candidates exist', () => {
+		const multiWord: CnWordCardDTO = {
+			...teacherWord,
+			examples: [
+				{ ...autoExample, id: 'e2' },
+				{
+					id: 'e3',
+					hanzi: '我的老师很好。',
+					pinyin: '',
+					meaningVi: 'Giáo viên của tôi rất tốt.',
+					targetWordStart: 2,
+					targetWordEnd: 4,
+					naturalnessStatus: 'auto',
+				},
+			],
+		};
+		expect(pickFillExample(multiWord, ['auto'], () => 0, 'e2')?.id).toBe('e3');
+		expect(pickFillExample(multiWord, ['auto'], () => 0, 'e3')?.id).toBe('e2');
+	});
 });

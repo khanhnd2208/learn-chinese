@@ -5,7 +5,7 @@ import MaterialIcon from '@/components/ui/MaterialIcon';
 import SpeakButton from '@/components/chinese/SpeakButton';
 import StickingPointCard from '@/components/chinese/StickingPointCard';
 import { questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
-import { isAudioQuestion, isTypedQuestion, learnerSessionLabel } from '@/lib/chinese/questionLabels';
+import { isAudioQuestion, isFillSentenceQuestion, isTypedQuestion, learnerSessionLabel } from '@/lib/chinese/questionLabels';
 import { gradeAnswer } from '@/lib/chinese/answerGrade';
 import { formatReviewScheduleLabel } from '@/lib/chinese/reviewMetrics';
 import { useSpeech } from '@/lib/chinese/useSpeech';
@@ -47,6 +47,11 @@ const CHANNEL_PILL: Record<SkillChannel, { icon: string; className: string; full
 		icon: 'text_fields',
 		className: 'border-border bg-surface-hover text-foreground',
 		fullLabel: 'KÊNH PINYIN',
+	},
+	sentence: {
+		icon: 'edit_note',
+		className: 'border-warning/40 bg-warning/10 text-warning',
+		fullLabel: 'KÊNH CÂU',
 	},
 };
 
@@ -194,12 +199,15 @@ export default function QuestionRenderer({
 
 	const submitAnswer = (answer: string) => {
 		const correct = gradeCurrentAnswer(answer);
-		const feedbackText = correct ? 'Đúng!' : `Sai — đáp án: ${q.correctAnswer}`;
+		const feedbackText = correct
+			? 'Đúng!'
+			: `Sai — đáp án: ${q.correctAnswer}`;
 
 		const item: QuestionAnswerResult = {
 			wordId: q.wordId,
 			questionType: q.type,
 			correct,
+			...(q.exampleId ? { exampleId: q.exampleId } : {}),
 		};
 		const next = [...results, item];
 		setResults(next);
@@ -408,10 +416,12 @@ export default function QuestionRenderer({
 							placeholder={
 								q.type === 'hanzi_to_pinyin_typed'
 									? 'Nhập pinyin...'
-									: 'Nhập Hán tự...'
+									: q.type === 'fill_sentence_typed'
+										? 'Nhập Hán tự điền vào chỗ trống...'
+										: 'Nhập Hán tự...'
 							}
 							className={`w-full rounded-xl border px-4 py-4 text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-accent ${
-								q.type === 'meaning_to_hanzi_typed' || q.type === 'audio_to_hanzi_typed'
+								q.type === 'meaning_to_hanzi_typed' || q.type === 'audio_to_hanzi_typed' || q.type === 'fill_sentence_typed'
 									? 'hanzi-lg'
 									: ''
 							} ${
@@ -475,6 +485,18 @@ export default function QuestionRenderer({
 								</div>
 								{isFeedbackWrong && (
 									<p className="mt-1 pl-2 text-sm font-bold text-accent">{feedback}</p>
+								)}
+								{isFillSentenceQuestion(q.type) && q.sentenceTemplate && (
+									<div className="mt-2 space-y-1 pl-2 text-sm">
+										<p className="hanzi-lg font-bold text-foreground">
+											{q.sentenceTemplate.replace(/____|__/g, q.correctAnswer)}
+										</p>
+										{q.sentenceMeaningVi && q.meaningVi && (
+											<p className="text-muted">
+												{q.sentenceMeaningVi.replace(/__/g, q.meaningVi.split(/[;；]/)[0]?.trim() ?? q.meaningVi)}
+											</p>
+										)}
+									</div>
 								)}
 								{isFeedbackWrong && (q.mnemonicVi || q.usageNoteVi) && (
 									<p className="mt-2 pl-2 text-sm italic text-foreground-secondary">
@@ -573,6 +595,19 @@ function QuestionHeroCard({ question: q, audioOnly }: { question: CnPracticeQues
 				</div>
 				<p className="text-sm text-muted">Nhấn nút bên dưới để nghe lại</p>
 				{q.audioText && <SpeakButton text={q.audioText} label="Phát âm" />}
+			</div>
+		);
+	}
+
+	if (isFillSentenceQuestion(q.type) && q.sentenceTemplate) {
+		return (
+			<div className="card-paper animate-float mx-auto min-h-[160px] w-full max-w-md p-8 text-center">
+				<p className="label-caps text-muted">Câu ví dụ</p>
+				<p className="hanzi-lg mt-3 text-2xl font-bold leading-relaxed text-foreground">{q.sentenceTemplate}</p>
+				{q.sentenceMeaningVi && (
+					<p className="mt-3 text-sm leading-relaxed text-muted">{q.sentenceMeaningVi}</p>
+				)}
+				{q.pinyin && <p className="mt-2 text-sm font-medium text-accent">{q.pinyin}</p>}
 			</div>
 		);
 	}

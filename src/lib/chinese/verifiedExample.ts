@@ -30,12 +30,17 @@ export function pickFillExample(
 	word: CnWordCardDTO,
 	allowedStatuses: readonly FillExampleStatus[] = FILL_EXAMPLE_STATUSES,
 	rng: () => number = Math.random,
+	excludeId?: string,
 ): CnExampleDTO | null {
-	const candidates = word.examples.filter((example) =>
+	const allCandidates = word.examples.filter((example) =>
 		isFillExample(example, word.simplified, allowedStatuses),
 	);
-	if (!candidates.length) return null;
-	return candidates[Math.floor(rng() * candidates.length)];
+	const candidates = excludeId
+		? allCandidates.filter((example) => example.id !== excludeId)
+		: allCandidates;
+	const pool = candidates.length ? candidates : allCandidates;
+	if (!pool.length) return null;
+	return pool[Math.floor(rng() * pool.length)];
 }
 
 export function pickVerifiedFillExample(word: CnWordCardDTO): CnExampleDTO | null {
@@ -47,4 +52,11 @@ export function blankVerifiedExample(example: CnExampleDTO): string | null {
 	const before = example.hanzi.slice(0, example.targetWordStart);
 	const after = example.hanzi.slice(example.targetWordEnd);
 	return `${before}____${after}`;
+}
+
+export function blankMeaningViExample(example: CnExampleDTO): string | null {
+	if (example.meaningViTemplate?.includes('__')) {
+		return example.meaningViTemplate;
+	}
+	return null;
 }

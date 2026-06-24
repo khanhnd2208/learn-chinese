@@ -41,8 +41,9 @@ enum CnQuestionType {
   meaning_to_hanzi_typed
   hanzi_to_pinyin_typed
   audio_to_hanzi_typed
-  // Legacy — kept for historical CnAnswerLog rows
   fill_sentence
+  fill_sentence_typed
+  // Legacy — kept for historical CnAnswerLog rows
   audio_to_pinyin
   audio_to_pinyin_typed
   hanzi_from_meaning
@@ -244,6 +245,7 @@ model CnExample {
   hanzi               String
   pinyin              String       @default("")
   meaningVi           String       @default("")
+  meaningViTemplate   String       @default("")
   targetWordStart     Int?
   targetWordEnd       Int?
   difficultyLevel     String?

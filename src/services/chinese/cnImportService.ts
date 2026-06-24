@@ -127,6 +127,7 @@ export async function publishWordRows(
 							hanzi: ex.hanzi,
 							pinyin: ex.pinyin,
 							meaningVi: ex.meaningVi,
+							meaningViTemplate: ex.meaningVi.includes('__') ? ex.meaningVi : '',
 							naturalnessStatus: fillMeta.naturalnessStatus,
 							targetWordStart: fillMeta.targetWordStart,
 							targetWordEnd: fillMeta.targetWordEnd,

@@ -199,6 +199,7 @@ export async function getWordCard(wordId: string, userId?: string): Promise<CnWo
 			{ channel: 'meaning' as const, rate: progress.meaningRate, total: progress.meaningTotal },
 			{ channel: 'listening' as const, rate: progress.listeningRate, total: progress.listeningTotal },
 			{ channel: 'pinyin' as const, rate: progress.pinyinRate, total: progress.pinyinTotal },
+			{ channel: 'sentence' as const, rate: progress.sentenceRate, total: progress.sentenceTotal },
 		].map((ch) => {
 			const level = channelMasteryLevel(ch.rate, ch.total);
 			return { ...ch, level, label: channelMasteryLabel(level) };
@@ -212,6 +213,7 @@ export async function getWordCard(wordId: string, userId?: string): Promise<CnWo
 			hanzi: e.hanzi,
 			pinyin: e.pinyin,
 			meaningVi: e.meaningVi,
+			meaningViTemplate: e.meaningViTemplate,
 			targetWordStart: e.targetWordStart,
 			targetWordEnd: e.targetWordEnd,
 			naturalnessStatus: e.naturalnessStatus,

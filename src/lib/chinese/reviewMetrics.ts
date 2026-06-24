@@ -8,6 +8,7 @@ import {
 	CN_STATE_THRESHOLDS,
 	clampSrsIntervalIdx,
 } from '@/config/constants';
+import { ALL_SKILL_CHANNELS, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
 import { isTypedQuestion } from '@/lib/chinese/questionLabels';
 import type { CnWordProgressState } from '@/types/chinese';
 
@@ -35,6 +36,7 @@ export interface StateDistribution {
 }
 
 export interface ProgressForMetrics {
+	wordId?: string;
 	state: CnWordProgressState;
 	meaningIntervalIdx: number;
 	listeningIntervalIdx: number;
@@ -44,6 +46,10 @@ export interface ProgressForMetrics {
 	listeningDueAt: Date | null;
 	pinyinDueAt: Date | null;
 	sentenceDueAt: Date | null;
+	meaningTotal: number;
+	listeningTotal: number;
+	pinyinTotal: number;
+	sentenceTotal: number;
 	dueAt: Date;
 }
 
@@ -62,6 +68,20 @@ const CHANNEL_DUE_FIELDS = [
 	'pinyinDueAt',
 	'sentenceDueAt',
 ] as const satisfies ReadonlyArray<keyof ProgressForMetrics>;
+
+const CHANNEL_TOTAL_FIELDS: Record<SkillChannel, keyof ProgressForMetrics> = {
+	meaning: 'meaningTotal',
+	listening: 'listeningTotal',
+	pinyin: 'pinyinTotal',
+	sentence: 'sentenceTotal',
+};
+
+const CHANNELS_BY_DUE_FIELD: Record<typeof CHANNEL_DUE_FIELDS[number], SkillChannel> = {
+	meaningDueAt: 'meaning',
+	listeningDueAt: 'listening',
+	pinyinDueAt: 'pinyin',
+	sentenceDueAt: 'sentence',
+};
 
 const INTERVAL_FIELDS = [
 	'meaningIntervalIdx',
@@ -100,22 +120,61 @@ export function addLocalDays(date: Date, days: number): Date {
 	return d;
 }
 
-function channelDueDates(progress: ProgressForMetrics): Date[] {
-	const fallback = progress.dueAt;
-	return CHANNEL_DUE_FIELDS.map((field) => {
-		const value = progress[field];
-		return value instanceof Date ? value : fallback;
-	});
+function channelDueAt(progress: ProgressForMetrics, channel: SkillChannel): Date {
+	const field = `${channel}DueAt` as keyof ProgressForMetrics;
+	const value = progress[field];
+	return value instanceof Date ? value : progress.dueAt;
+}
+
+function isSentenceChannelEligible(
+	progress: ProgressForMetrics,
+	wordsWithFillExamples?: Set<string>,
+): boolean {
+	if (!wordsWithFillExamples || !progress.wordId) return true;
+	return wordsWithFillExamples.has(progress.wordId);
+}
+
+/** Mirrors cnSrsService.isChannelDue for dashboard/stats parity */
+export function isChannelDueForMetrics(
+	progress: ProgressForMetrics,
+	channel: SkillChannel,
+	now: Date,
+	wordsWithFillExamples?: Set<string>,
+): boolean {
+	if (channel === 'sentence' && !isSentenceChannelEligible(progress, wordsWithFillExamples)) {
+		return false;
+	}
+	const total = progress[CHANNEL_TOTAL_FIELDS[channel]] as number;
+	if (total === 0) return true;
+	return channelDueAt(progress, channel) <= now;
+}
+
+export function countDueChannelsForMetrics(
+	progressList: ProgressForMetrics[],
+	now = new Date(),
+	wordsWithFillExamples?: Set<string>,
+): number {
+	let count = 0;
+	for (const p of progressList) {
+		for (const ch of ALL_SKILL_CHANNELS) {
+			if (isChannelDueForMetrics(p, ch, now, wordsWithFillExamples)) count++;
+		}
+	}
+	return count;
 }
 
 export function countOverdueChannels(
 	progressList: ProgressForMetrics[],
 	todayStart = startOfLocalDay(),
+	wordsWithFillExamples?: Set<string>,
 ): number {
 	let count = 0;
 	for (const p of progressList) {
-		for (const dueAt of channelDueDates(p)) {
-			if (dueAt < todayStart) count++;
+		for (const ch of ALL_SKILL_CHANNELS) {
+			if (ch === 'sentence' && !isSentenceChannelEligible(p, wordsWithFillExamples)) continue;
+			const total = p[CHANNEL_TOTAL_FIELDS[ch]] as number;
+			if (total === 0) continue;
+			if (channelDueAt(p, ch) < todayStart) count++;
 		}
 	}
 	return count;
@@ -130,6 +189,7 @@ export function buildForecast(
 	progressList: ProgressForMetrics[],
 	now = new Date(),
 	days = 7,
+	wordsWithFillExamples?: Set<string>,
 ): ForecastDay[] {
 	const todayStart = startOfLocalDay(now);
 	const buckets: ForecastDay[] = [];
@@ -142,15 +202,23 @@ export function buildForecast(
 		let overdueCount = 0;
 
 		for (const p of progressList) {
-			for (const dueAt of channelDueDates(p)) {
+			for (const ch of ALL_SKILL_CHANNELS) {
+				if (ch === 'sentence' && !isSentenceChannelEligible(p, wordsWithFillExamples)) continue;
+				const total = p[CHANNEL_TOTAL_FIELDS[ch]] as number;
+				const dueAt = channelDueAt(p, ch);
+
 				if (offset === 0) {
+					if (total === 0) {
+						dueCount++;
+						continue;
+					}
 					if (dueAt < todayStart) {
 						overdueCount++;
 						dueCount++;
 					} else if (dueAt >= todayStart && dueAt < dayEnd) {
 						dueCount++;
 					}
-				} else if (dueAt >= dayDate && dueAt < dayEnd) {
+				} else if (total > 0 && dueAt >= dayDate && dueAt < dayEnd) {
 					dueCount++;
 				}
 			}
@@ -170,10 +238,16 @@ export function buildForecast(
 export function findNextDueAt(
 	progressList: ProgressForMetrics[],
 	now = new Date(),
+	wordsWithFillExamples?: Set<string>,
 ): Date | null {
 	let next: Date | null = null;
 	for (const p of progressList) {
-		for (const dueAt of channelDueDates(p)) {
+		for (const field of CHANNEL_DUE_FIELDS) {
+			const ch = CHANNELS_BY_DUE_FIELD[field];
+			if (ch === 'sentence' && !isSentenceChannelEligible(p, wordsWithFillExamples)) continue;
+			const total = p[CHANNEL_TOTAL_FIELDS[ch]] as number;
+			if (total === 0) continue;
+			const dueAt = channelDueAt(p, ch);
 			if (dueAt <= now) continue;
 			if (!next || dueAt < next) next = dueAt;
 		}

@@ -20,6 +20,8 @@ export function buildDueCandidateWhere(
 			{ listeningDueAt: { lte: now } },
 			{ pinyinTotal: 0 },
 			{ pinyinDueAt: { lte: now } },
+			{ sentenceTotal: 0 },
+			{ sentenceDueAt: { lte: now } },
 			{ dueAt: { lte: now } },
 		],
 	};
@@ -34,6 +36,8 @@ export function progressMatchesDueCandidateSuperset(p: CnWordProgress, now: Date
 		|| (p.listeningDueAt instanceof Date && p.listeningDueAt <= now)
 		|| p.pinyinTotal === 0
 		|| (p.pinyinDueAt instanceof Date && p.pinyinDueAt <= now)
+		|| p.sentenceTotal === 0
+		|| (p.sentenceDueAt instanceof Date && p.sentenceDueAt <= now)
 		|| p.dueAt <= now
 	);
 }

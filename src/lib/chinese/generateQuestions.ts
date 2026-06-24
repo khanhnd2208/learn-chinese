@@ -10,6 +10,7 @@ import {
 	selectQuestionTypesForWord,
 } from '@/lib/chinese/practiceTaxonomy';
 import { buildMcqOptionsForType } from '@/lib/chinese/distractorSelect';
+import { blankMeaningViExample, blankVerifiedExample, FILL_EXAMPLE_STATUSES, pickFillExample } from '@/lib/chinese/verifiedExample';
 import type { CnPracticeQuestionDTO, CnQuestionType, CnWordCardDTO, CnWordProgressDTO } from '@/types/chinese';
 
 export const MIN_MCQ_OPTIONS = 2;
@@ -109,6 +110,7 @@ function channelIntervalIdx(progress: CnWordProgressDTO | null, channel: SkillCh
 		case 'meaning': return progress.meaningIntervalIdx;
 		case 'listening': return progress.listeningIntervalIdx;
 		case 'pinyin': return progress.pinyinIntervalIdx;
+		case 'sentence': return progress.sentenceIntervalIdx;
 	}
 }
 
@@ -123,6 +125,44 @@ export function enrichQuestionWithProgress(
 		channelIntervalIdx: channelIdx,
 		isStickingPoint: progress?.isStickingPoint ?? false,
 	};
+}
+
+function buildFillSentenceQuestion(
+	word: CnWordCardDTO,
+	allWords: CnWordCardDTO[],
+	type: 'fill_sentence' | 'fill_sentence_typed',
+	idx: number,
+	excludeExampleId?: string,
+): CnPracticeQuestionDTO | null {
+	const example = pickFillExample(word, FILL_EXAMPLE_STATUSES, Math.random, excludeExampleId);
+	if (!example) return null;
+	const sentenceTemplate = blankVerifiedExample(example);
+	if (!sentenceTemplate) return null;
+	const sentenceMeaningVi = blankMeaningViExample(example) ?? undefined;
+	const base = {
+		id: makeId(word.id, type, idx),
+		wordId: word.id,
+		type,
+		prompt: 'Chọn từ điền vào chỗ trống',
+		sentenceTemplate,
+		sentenceMeaningVi,
+		pinyin: example.pinyin || undefined,
+		meaningVi: word.meaningVi,
+		correctAnswer: word.simplified,
+		exampleId: example.id,
+		...wordLearningExtras(word),
+	};
+
+	if (type === 'fill_sentence_typed') {
+		return {
+			...base,
+			prompt: 'Gõ Hán tự điền vào chỗ trống',
+		};
+	}
+
+	const options = buildMcqOptionsForType('fill_sentence', word, allWords, word.simplified);
+	if (!options || options.length < MIN_MCQ_OPTIONS) return null;
+	return { ...base, options };
 }
 
 export function generateQuestionForWord(
@@ -258,6 +298,10 @@ export function generateQuestionForWord(
 				correctAnswer: word.simplified,
 				...wordLearningExtras(word),
 			};
+		case 'fill_sentence':
+			return buildFillSentenceQuestion(word, allWords, 'fill_sentence', idx);
+		case 'fill_sentence_typed':
+			return buildFillSentenceQuestion(word, allWords, 'fill_sentence_typed', idx);
 		default:
 			return null;
 	}
@@ -322,6 +366,13 @@ export function generateReviewQuestion(
 ): CnPracticeQuestionDTO | null {
 	const intervalIdx = channelIntervalIdx(progress, channel);
 	const type = reviewQuestionTypeForChannel(channel, intervalIdx);
+	const excludeExampleId = channel === 'sentence' ? progress?.lastExampleId ?? undefined : undefined;
+
+	if (type === 'fill_sentence' || type === 'fill_sentence_typed') {
+		const q = buildFillSentenceQuestion(word, allWords, type, idx, excludeExampleId);
+		return q ? enrichQuestionWithProgress(q, progress) : null;
+	}
+
 	const q = generateQuestionForWord(word, allWords, type, idx);
 	return q ? enrichQuestionWithProgress(q, progress) : null;
 }

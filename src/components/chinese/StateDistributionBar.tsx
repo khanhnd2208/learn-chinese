@@ -1,6 +1,7 @@
 'use client';
 
 import type { CnReviewStateDistributionDTO } from '@/types/chinese';
+import { wordLevelName } from '@/lib/chinese/questionLabels';
 
 interface Props {
 	distribution: CnReviewStateDistributionDTO;
@@ -15,12 +16,12 @@ const SEGMENTS: Array<{
 	className: string;
 	simplifiedGroup: 'mature' | 'learning' | 'weak';
 }> = [
-	{ key: 'new', label: 'Mới', className: 'bg-muted', simplifiedGroup: 'learning' },
-	{ key: 'learning', label: 'Đang học', className: 'bg-accent/40', simplifiedGroup: 'learning' },
-	{ key: 'weak', label: 'Yếu', className: 'bg-warning/70', simplifiedGroup: 'weak' },
-	{ key: 'familiar', label: 'Quen', className: 'bg-accent/70', simplifiedGroup: 'learning' },
-	{ key: 'strong', label: 'Vững', className: 'bg-success/60', simplifiedGroup: 'mature' },
-	{ key: 'mastered', label: 'Thuần thục', className: 'bg-success', simplifiedGroup: 'mature' },
+	{ key: 'new', label: wordLevelName('new'), className: 'bg-muted', simplifiedGroup: 'learning' },
+	{ key: 'learning', label: wordLevelName('learning'), className: 'bg-accent/40', simplifiedGroup: 'learning' },
+	{ key: 'weak', label: wordLevelName('weak'), className: 'bg-warning/70', simplifiedGroup: 'weak' },
+	{ key: 'familiar', label: wordLevelName('familiar'), className: 'bg-accent/70', simplifiedGroup: 'learning' },
+	{ key: 'strong', label: wordLevelName('strong'), className: 'bg-success/60', simplifiedGroup: 'mature' },
+	{ key: 'mastered', label: wordLevelName('mastered'), className: 'bg-success', simplifiedGroup: 'mature' },
 ];
 
 export default function StateDistributionBar({ distribution, maturePct, simplifiedLegend = false }: Props) {

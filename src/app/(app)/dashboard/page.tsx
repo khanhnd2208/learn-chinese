@@ -127,8 +127,8 @@ export default async function ChineseDashboardPage() {
 				<SectionHeading sub="Tổng quan từ vựng trong SRS">Từ vựng của bạn</SectionHeading>
 				<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
 					<StatTile label="Tổng từ" value={dashboard.stateDistribution.total} />
-					<StatTile label="Đang luyện" value={practicingCount} color="accent" />
-					<StatTile label="Thành thạo" value={dashboard.wordsMastered} color="success" />
+					<StatTile label="Đang leo thang" value={practicingCount} color="accent" />
+					<StatTile label="Thuần thục" value={dashboard.wordsMastered} color="success" />
 					<StatTile label="Cần chú ý" value={dashboard.weakCount} color="warning" />
 				</div>
 			</section>
@@ -197,6 +197,7 @@ export default async function ChineseDashboardPage() {
 						<ChannelSkill label="Nghĩa" rate={dashboard.meaningRate} />
 						<ChannelSkill label="Nghe" rate={dashboard.listeningRate} />
 						<ChannelSkill label="Pinyin" rate={dashboard.pinyinRate} />
+						<ChannelSkill label="Câu" rate={dashboard.sentenceRate} />
 					</div>
 				</div>
 			</section>

@@ -53,5 +53,6 @@ describe('channelRamp', () => {
 		expect(isChannelRampEligible(p, 'meaning')).toBe(true);
 		expect(isChannelRampEligible(p, 'listening')).toBe(true);
 		expect(isChannelRampEligible(p, 'pinyin')).toBe(true);
+		expect(isChannelRampEligible(p, 'sentence')).toBe(true);
 	});
 });

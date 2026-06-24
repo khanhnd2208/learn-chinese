@@ -89,6 +89,13 @@ export function pickDistractorsForType(
 				score: scoreCandidate(target, w) + (w.meaningVi.length <= target.meaningVi.length + 6 ? 1 : 0),
 			}));
 			break;
+		case 'fill_sentence':
+			ranked = others.map((w) => ({
+				value: w.simplified,
+				score: scoreCandidate(target, w)
+					+ (Math.abs(w.simplified.length - target.simplified.length) <= 1 ? 2 : 0),
+			}));
+			break;
 		default:
 			ranked = others.map((w) => ({ value: w.simplified, score: scoreCandidate(target, w) }));
 	}

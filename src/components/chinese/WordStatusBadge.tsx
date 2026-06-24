@@ -1,13 +1,5 @@
+import { wordLevelName } from '@/lib/chinese/questionLabels';
 import type { CnWordProgressState } from '@/types/chinese';
-
-const LABELS: Record<CnWordProgressState, string> = {
-	new: 'Mới',
-	learning: 'Đang học',
-	weak: 'Yếu',
-	familiar: 'Quen',
-	strong: 'Khá chắc',
-	mastered: 'Đã nhớ',
-};
 
 const COLORS: Record<CnWordProgressState, string> = {
 	new: 'bg-border text-foreground-secondary',
@@ -26,7 +18,7 @@ export default function WordStatusBadge({ state }: Props) {
 	if (!state) return <span className="text-xs text-muted">Chờ dữ liệu</span>;
 	return (
 		<span className={`label-caps inline-flex rounded-full px-2 py-0.5 ${COLORS[state]}`}>
-			{LABELS[state]}
+			{wordLevelName(state)}
 		</span>
 	);
 }

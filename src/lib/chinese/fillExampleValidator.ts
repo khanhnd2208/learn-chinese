@@ -3,7 +3,7 @@
    ════════════════════════════════════════════════════════════════════════ */
 
 /** Max Han characters in a fill_sentence example sentence */
-export const MAX_FILL_SENTENCE_HAN_LENGTH = 16;
+export const MAX_FILL_SENTENCE_HAN_LENGTH = 28;
 
 export interface FillTargetOffsets {
 	start: number;

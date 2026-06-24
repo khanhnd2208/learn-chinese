@@ -8,6 +8,7 @@ import {
 	USER_SET_SAMPLE_FILENAME,
 } from '@/lib/chinese/userSetSampleWorkbook';
 import { HSK1_SAMPLE_SETS } from '@/lib/chinese/hsk1SampleSets';
+import { VI_DU_COLUMN_KEYS } from '@/lib/chinese/parseFillExample';
 
 const TU_VUNG_COLUMNS = [
 	'bo_tu',
@@ -17,6 +18,7 @@ const TU_VUNG_COLUMNS = [
 	'han_viet',
 	'part_of_speech',
 	'ghi_chu',
+	...VI_DU_COLUMN_KEYS,
 ];
 
 describe('userSetSampleWorkbook', () => {
@@ -31,7 +33,7 @@ describe('userSetSampleWorkbook', () => {
 	});
 
 	it.each(HSK1_SAMPLE_SETS.map((s) => [s.id, s.boTu] as const))(
-		'builds %s workbook with 7 columns and ~20 rows',
+		'builds %s workbook with 12 columns and ~20 rows',
 		(setId, boTu) => {
 			const meta = getUserSetSampleMeta(setId);
 			const buffer = buildUserSetSampleWorkbook(setId);
@@ -41,8 +43,8 @@ describe('userSetSampleWorkbook', () => {
 			expect(wb.SheetNames).toContain('tu_vung');
 
 			const guide = XLSX.utils.sheet_to_json<string[]>(wb.Sheets.huong_dan, { header: 1 });
-			expect(guide.some((row) => String(row[0]).includes('# DỮ LIỆU MẪU'))).toBe(true);
-			expect(guide.some((row) => String(row[0]).includes('7 cột'))).toBe(true);
+			expect(guide.some((row) => String(row[0]).includes('CÂU VÍ DỤ'))).toBe(true);
+			expect(guide.some((row) => String(row[0]).includes('vi_du_1'))).toBe(true);
 
 			const rows = XLSX.utils.sheet_to_json<Record<string, string>>(wb.Sheets.tu_vung);
 			expect(rows.length).toBeGreaterThanOrEqual(18);
@@ -51,6 +53,7 @@ describe('userSetSampleWorkbook', () => {
 			expect(rows.every((row) => row.bo_tu === boTu)).toBe(true);
 			expect(rows.map((row) => row.simplified)).toEqual(meta.terms);
 			expect(meta.title).toBe(boTu);
+			expect(rows.every((row) => VI_DU_COLUMN_KEYS.every((k) => String(row[k] ?? '').trim()))).toBe(true);
 		},
 	);
 

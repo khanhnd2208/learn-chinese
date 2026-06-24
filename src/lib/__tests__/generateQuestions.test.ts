@@ -63,7 +63,7 @@ const progressAtRecall: CnWordProgressDTO = {
 	sentenceIntervalIdx: 0,
 };
 
-describe('generateQuestions (9 core types)', () => {
+describe('generateQuestions (11 core types)', () => {
 	it('generates requested number of questions', () => {
 		const questions = generatePracticeSession(sampleWords, 10);
 		expect(questions.length).toBeGreaterThan(0);
@@ -113,5 +113,26 @@ describe('generateQuestions (9 core types)', () => {
 		const meaningToHanzi = questions.find((q) => q.type === 'meaning_to_hanzi');
 		expect(meaningToHanzi).toBeTruthy();
 		expect(meaningToHanzi!.options!.length).toBeGreaterThanOrEqual(2);
+	});
+
+	it('generates fill_sentence when word has fill examples', () => {
+		const wordWithExamples: CnWordCardDTO = {
+			...sampleWords[0],
+			examples: [{
+				id: 'ex1',
+				hanzi: '他是学生。',
+				pinyin: 'tā shì xuésheng.',
+				meaningVi: 'Anh ấy là học sinh.',
+				meaningViTemplate: 'Anh ấy là __.',
+				targetWordStart: 2,
+				targetWordEnd: 4,
+				naturalnessStatus: 'auto',
+			}],
+		};
+		const q = generateQuestionForWord(wordWithExamples, sampleWords, 'fill_sentence', 0);
+		expect(q).toBeTruthy();
+		expect(q!.sentenceTemplate).toContain('____');
+		expect(q!.sentenceMeaningVi).toContain('__');
+		expect(q!.options).toContain('学生');
 	});
 });

@@ -63,6 +63,7 @@ export interface CnExampleDTO {
 	hanzi: string;
 	pinyin: string;
 	meaningVi: string;
+	meaningViTemplate?: string;
 	targetWordStart?: number | null;
 	targetWordEnd?: number | null;
 	naturalnessStatus?: string;
@@ -115,6 +116,7 @@ export interface CnWordProgressDTO {
 	pinyinIntervalIdx: number;
 	sentenceIntervalIdx: number;
 	isStickingPoint?: boolean;
+	lastExampleId?: string | null;
 }
 
 export interface CnChannelMasteryDTO {
@@ -208,6 +210,7 @@ export interface CnPracticeQuestionDTO {
 	pinyin?: string;
 	meaningVi?: string;
 	sentenceTemplate?: string;
+	sentenceMeaningVi?: string;
 	components?: string[];
 	radical?: string;
 	explanation?: string;
@@ -216,6 +219,8 @@ export interface CnPracticeQuestionDTO {
 	/** Channel interval index */
 	channelIntervalIdx?: number;
 	isStickingPoint?: boolean;
+	/** CnExample id used for fill_sentence questions */
+	exampleId?: string;
 }
 
 export interface CnPracticeSubmitItem {
@@ -223,6 +228,7 @@ export interface CnPracticeSubmitItem {
 	questionType: CnQuestionType;
 	correct: boolean;
 	errorType?: CnErrorType;
+	exampleId?: string;
 }
 
 export interface CnPracticeSessionResultDTO {

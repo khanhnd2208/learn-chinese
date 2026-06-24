@@ -15,12 +15,15 @@ const QUESTION_ERROR_MAP: Record<CnQuestionType, CnErrorType> = {
 	audio_to_hanzi: 'nghe_khong_ra',
 	audio_to_hanzi_typed: 'nghe_khong_ra',
 	audio_to_meaning: 'nghe_khong_ra',
+	fill_sentence: 'sai_mau_cau',
+	fill_sentence_typed: 'sai_mau_cau',
 };
 
 const HEAVY_ERROR_TYPES: ReadonlySet<CnErrorType> = new Set([
 	'sai_nghia',
 	'quen_hanzi',
 	'nghe_khong_ra',
+	'sai_mau_cau',
 ]);
 
 export function inferErrorType(questionType: CnQuestionType): CnErrorType {

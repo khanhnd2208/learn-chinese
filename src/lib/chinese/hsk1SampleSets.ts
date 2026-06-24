@@ -9,6 +9,8 @@ export interface Hsk1SampleWord {
 	hanViet: string;
 	partOfSpeech: string;
 	ghiChu: string;
+	/** Pre-built vi_du cells; if omitted, generated at workbook build time */
+	examples?: string[];
 }
 
 export type Hsk1SampleSetId = 'bai1' | 'bai2' | 'bai3';
