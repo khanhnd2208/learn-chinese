@@ -10,7 +10,7 @@ import {
 	onSetDeleted,
 	onWordRemovedFromActiveSet,
 } from '@/services/chinese/cnSrsEnrollmentService';
-import { countDueChannelsForProgressList, fetchProgressDueCandidates } from '@/services/chinese/cnSrsService';
+import { countDueChannelsForProgressList, fetchProgressDueCandidates, loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
 import { normalizeTerm, uniqueTerms } from '@/lib/chinese/hanziUtils';
 import type {
 	CnCoverageReportDTO,
@@ -38,14 +38,15 @@ function wordToBrief(w: CnWord) {
 async function countDueAndWeak(userId: string, wordIds: string[], srsActive: boolean) {
 	if (!srsActive || !wordIds.length) return { dueCount: 0, weakCount: 0 };
 	const now = new Date();
-	const [candidates, allProgress] = await Promise.all([
+	const [candidates, allProgress, wordsWithFillExamples] = await Promise.all([
 		fetchProgressDueCandidates(userId, wordIds, now),
 		prisma.cnWordProgress.findMany({
 			where: { userId, wordId: { in: wordIds } },
 			select: { state: true },
 		}),
+		loadWordIdsWithFillExamples(wordIds),
 	]);
-	const dueCount = countDueChannelsForProgressList(candidates, now);
+	const dueCount = countDueChannelsForProgressList(candidates, now, wordsWithFillExamples);
 	const weakCount = allProgress.filter((p) => p.state === 'weak' || p.state === 'learning').length;
 	return { dueCount, weakCount };
 }

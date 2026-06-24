@@ -1,5 +1,5 @@
 /* ════════════════════════════════════════════════════════════════════════
-   coreQuestionTypes.ts — MVP practice/SRS question types (9 active)
+   coreQuestionTypes.ts — MVP practice/SRS question types (11 active)
    ════════════════════════════════════════════════════════════════════════ */
 
 export const CORE_QUESTION_TYPES = [
@@ -12,16 +12,18 @@ export const CORE_QUESTION_TYPES = [
 	'meaning_to_hanzi_typed',
 	'hanzi_to_pinyin_typed',
 	'audio_to_hanzi_typed',
+	'fill_sentence',
+	'fill_sentence_typed',
 ] as const;
 
 export type CoreQuestionType = (typeof CORE_QUESTION_TYPES)[number];
 
 export const CORE_QUESTION_TYPE_SET = new Set<string>(CORE_QUESTION_TYPES);
 
-export type SkillChannel = 'meaning' | 'listening' | 'pinyin';
+export type SkillChannel = 'meaning' | 'listening' | 'pinyin' | 'sentence';
 
 export const ALL_SKILL_CHANNELS: SkillChannel[] = [
-	'meaning', 'listening', 'pinyin',
+	'meaning', 'listening', 'pinyin', 'sentence',
 ];
 
 export function questionChannel(type: CoreQuestionType): SkillChannel {
@@ -38,6 +40,9 @@ export function questionChannel(type: CoreQuestionType): SkillChannel {
 		case 'audio_to_hanzi':
 		case 'audio_to_hanzi_typed':
 			return 'listening';
+		case 'fill_sentence':
+		case 'fill_sentence_typed':
+			return 'sentence';
 	}
 }
 

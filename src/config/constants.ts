@@ -35,7 +35,7 @@ export const CN_DEFAULT_PRACTICE_COUNT = 20;
 export const CN_DEFAULT_REVIEW_COUNT = 25;
 /** Questions fetched per review batch (infinite queue) */
 export const CN_REVIEW_PREFETCH_SIZE = 5;
-export const CN_MAX_CHANNELS_PER_WORD_REVIEW = 2;
+export const CN_MAX_CHANNELS_PER_WORD_REVIEW = 3;
 export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 export const CN_CHANNEL_WEAK_THRESHOLD = 60;
 

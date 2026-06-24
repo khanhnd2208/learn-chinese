@@ -3,7 +3,7 @@ import { spreadByWordId } from '@/services/chinese/cnPracticeService';
 import { spreadShuffle } from '@/lib/chinese/generateQuestions';
 import type { CnPracticeQuestionDTO } from '@/types/chinese';
 
-function makeEntry(wordId: string, channel: 'meaning' | 'listening' | 'pinyin' = 'meaning') {
+function makeEntry(wordId: string, channel: 'meaning' | 'listening' | 'pinyin' | 'sentence' = 'meaning') {
 	return {
 		progress: { wordId },
 		channel,

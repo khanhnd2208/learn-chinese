@@ -3,6 +3,7 @@ import {
 	buildUserSetSampleWorkbook,
 	listUserSetSamples,
 } from '@/lib/chinese/userSetSampleWorkbook';
+import { VI_DU_COLUMN_KEYS } from '@/lib/chinese/parseFillExample';
 
 const REQUIRED_COLUMNS = [
 	'bo_tu',
@@ -12,6 +13,7 @@ const REQUIRED_COLUMNS = [
 	'han_viet',
 	'part_of_speech',
 	'ghi_chu',
+	...VI_DU_COLUMN_KEYS,
 ];
 
 function main() {
@@ -31,9 +33,8 @@ function main() {
 		console.log(`  sheets: ${wb.SheetNames.join(', ')}`);
 
 		const guide = XLSX.utils.sheet_to_json<string[]>(wb.Sheets.huong_dan, { header: 1 });
-		const legacyHint = guide.some((row) => String(row[0]).includes('câu ví dụ'));
-		if (legacyHint) {
-			console.error(`FAIL [${meta.id}]: huong_dan still mentions legacy example sentences`);
+		if (!guide.some((row) => String(row[0]).includes('CÂU VÍ DỤ'))) {
+			console.error(`FAIL [${meta.id}]: huong_dan missing fill-example guidance`);
 			failed = true;
 		}
 
@@ -47,6 +48,14 @@ function main() {
 		if (columns.join(',') !== [...REQUIRED_COLUMNS].sort().join(',')) {
 			console.error(`FAIL [${meta.id}]: unexpected columns: ${columns.join(', ')}`);
 			failed = true;
+		}
+
+		for (const row of rows) {
+			const filled = VI_DU_COLUMN_KEYS.filter((k) => String(row[k] ?? '').trim()).length;
+			if (filled < 5) {
+				console.error(`FAIL [${meta.id}]: ${row.simplified} has only ${filled}/5 vi_du examples`);
+				failed = true;
+			}
 		}
 	}
 

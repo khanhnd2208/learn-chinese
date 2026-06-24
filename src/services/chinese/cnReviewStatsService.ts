@@ -23,12 +23,13 @@ import {
 	type ProgressForMetrics,
 } from '@/lib/chinese/reviewMetrics';
 import { getSrsActiveWordIds } from '@/services/chinese/cnSrsEnrollmentService';
-import { countDueToday } from '@/services/chinese/cnSrsService';
+import { countDueToday, loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
 import type { CnErrorType, CnReviewStatsDTO, CnReviewStatusDTO } from '@/types/chinese';
 
 const HISTORY_DAYS = 90;
 
 function progressToMetrics(p: {
+	wordId: string;
 	state: ProgressForMetrics['state'];
 	meaningIntervalIdx: number;
 	listeningIntervalIdx: number;
@@ -38,9 +39,14 @@ function progressToMetrics(p: {
 	listeningDueAt: Date | null;
 	pinyinDueAt: Date | null;
 	sentenceDueAt: Date | null;
+	meaningTotal: number;
+	listeningTotal: number;
+	pinyinTotal: number;
+	sentenceTotal: number;
 	dueAt: Date;
 }): ProgressForMetrics {
 	return {
+		wordId: p.wordId,
 		state: p.state,
 		meaningIntervalIdx: p.meaningIntervalIdx,
 		listeningIntervalIdx: p.listeningIntervalIdx,
@@ -50,6 +56,10 @@ function progressToMetrics(p: {
 		listeningDueAt: p.listeningDueAt,
 		pinyinDueAt: p.pinyinDueAt,
 		sentenceDueAt: p.sentenceDueAt,
+		meaningTotal: p.meaningTotal,
+		listeningTotal: p.listeningTotal,
+		pinyinTotal: p.pinyinTotal,
+		sentenceTotal: p.sentenceTotal,
 		dueAt: p.dueAt,
 	};
 }
@@ -70,24 +80,35 @@ function aggregateDailySeries(
 		.sort((a, b) => a.dayKey.localeCompare(b.dayKey));
 }
 
-async function loadProgressMetrics(userId: string, activeIds: string[]): Promise<ProgressForMetrics[]> {
-	if (!activeIds.length) return [];
-	const rows = await prisma.cnWordProgress.findMany({
-		where: { userId, wordId: { in: activeIds } },
-		select: {
-			state: true,
-			meaningIntervalIdx: true,
-			listeningIntervalIdx: true,
-			pinyinIntervalIdx: true,
-			sentenceIntervalIdx: true,
-			meaningDueAt: true,
-			listeningDueAt: true,
-			pinyinDueAt: true,
-			sentenceDueAt: true,
-			dueAt: true,
-		},
-	});
-	return rows.map(progressToMetrics);
+async function loadProgressMetrics(
+	userId: string,
+	activeIds: string[],
+): Promise<{ metrics: ProgressForMetrics[]; wordsWithFillExamples: Set<string> }> {
+	if (!activeIds.length) return { metrics: [], wordsWithFillExamples: new Set() };
+	const [rows, wordsWithFillExamples] = await Promise.all([
+		prisma.cnWordProgress.findMany({
+			where: { userId, wordId: { in: activeIds } },
+			select: {
+				wordId: true,
+				state: true,
+				meaningIntervalIdx: true,
+				listeningIntervalIdx: true,
+				pinyinIntervalIdx: true,
+				sentenceIntervalIdx: true,
+				meaningDueAt: true,
+				listeningDueAt: true,
+				pinyinDueAt: true,
+				sentenceDueAt: true,
+				meaningTotal: true,
+				listeningTotal: true,
+				pinyinTotal: true,
+				sentenceTotal: true,
+				dueAt: true,
+			},
+		}),
+		loadWordIdsWithFillExamples(activeIds),
+	]);
+	return { metrics: rows.map(progressToMetrics), wordsWithFillExamples };
 }
 
 export async function getReviewStatus(userId: string): Promise<CnReviewStatusDTO> {
@@ -97,9 +118,9 @@ export async function getReviewStatus(userId: string): Promise<CnReviewStatusDTO
 		getSrsActiveWordIds(userId),
 	]);
 	const activeIds = [...activeWordIds];
-	const progressMetrics = await loadProgressMetrics(userId, activeIds);
+	const { metrics: progressMetrics, wordsWithFillExamples } = await loadProgressMetrics(userId, activeIds);
 	const todayStart = startOfLocalDay(now);
-	const overdueCount = countOverdueChannels(progressMetrics, todayStart);
+	const overdueCount = countOverdueChannels(progressMetrics, todayStart, wordsWithFillExamples);
 
 	const historySince = new Date(now.getTime() - HISTORY_DAYS * 86_400_000);
 	const reviewDayLogs = await prisma.cnAnswerLog.findMany({
@@ -166,9 +187,10 @@ export async function getReviewStats(userId: string): Promise<CnReviewStatsDTO> 
 		: [];
 
 	const progressMetrics = progress.map(progressToMetrics);
-	const overdueCount = countOverdueChannels(progressMetrics, todayStart);
-	const forecast = buildForecast(progressMetrics, now, 7);
-	const nextDueAt = dueTotal === 0 ? findNextDueAt(progressMetrics, now) : null;
+	const wordsWithFillExamples = await loadWordIdsWithFillExamples(activeIds);
+	const overdueCount = countOverdueChannels(progressMetrics, todayStart, wordsWithFillExamples);
+	const forecast = buildForecast(progressMetrics, now, 7, wordsWithFillExamples);
+	const nextDueAt = dueTotal === 0 ? findNextDueAt(progressMetrics, now, wordsWithFillExamples) : null;
 
 	const dailySeries = aggregateDailySeries(historyLogs);
 	const activeDayKeys = dailySeries.filter((d) => d.reviewed > 0).map((d) => d.dayKey);

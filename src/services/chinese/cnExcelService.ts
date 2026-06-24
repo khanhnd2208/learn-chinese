@@ -5,6 +5,12 @@ import { MAX_CN_TERMS_PER_SET, MAX_IMPORT_ROWS } from '@/config/constants';
 import { normalizeTerm } from '@/lib/chinese/hanziUtils';
 import { enrollWordsInSrs } from '@/services/chinese/cnSrsEnrollmentService';
 import { CORE_QUESTION_TYPE_SET } from '@/lib/chinese/coreQuestionTypes';
+import {
+	MIN_FILL_EXAMPLES_PER_WORD,
+	parseFillExampleCell,
+	VI_DU_COLUMN_KEYS,
+	type ParsedFillExample,
+} from '@/lib/chinese/parseFillExample';
 import type { CnErrorType, CnQuestionType, CnWordProgressState } from '@/types/chinese';
 
 type Row = Record<string, unknown>;
@@ -74,7 +80,7 @@ function isTuVungFormat(workbook: XLSX.WorkBook): boolean {
 export interface BadExampleWarning {
 	rowNumber: number;
 	simplified: string;
-	exampleIndex: 1 | 2 | 3;
+	exampleIndex: 1 | 2 | 3 | 4 | 5;
 	sentence: string;
 	reason: string;
 }
@@ -88,6 +94,7 @@ interface ParsedTuVungRow {
 	hanViet: string;
 	partOfSpeech: string;
 	ghiChu: string;
+	examples: ParsedFillExample[];
 }
 
 function parseTuVungRows(rows: Row[]): ParsedTuVungRow[] {
@@ -97,16 +104,26 @@ function parseTuVungRows(rows: Row[]): ParsedTuVungRow[] {
 		const legacyUsage = getField(row, 'usage_note_vi', 'usageNoteVi');
 		const mergedGhiChu = ghiChu
 			|| [legacyMnemonic, legacyUsage].filter(Boolean).join(' ').trim();
+		const simplified = getField(row, 'simplified');
+		const meaningVi = getField(row, 'meaning_vi', 'meaningVi');
+		const examples: ParsedFillExample[] = [];
+		for (const key of VI_DU_COLUMN_KEYS) {
+			const raw = getField(row, key);
+			if (!raw) continue;
+			const parsed = parseFillExampleCell(raw, simplified, meaningVi);
+			if (parsed.ok) examples.push(parsed.example);
+		}
 
 		return {
 			rowNumber: index + 2,
 			boTu: getField(row, 'bo_tu', 'boTu'),
-			simplified: getField(row, 'simplified'),
+			simplified,
 			pinyin: getField(row, 'pinyin'),
-			meaningVi: getField(row, 'meaning_vi', 'meaningVi'),
+			meaningVi,
 			hanViet: getField(row, 'han_viet', 'hanViet'),
 			partOfSpeech: getField(row, 'part_of_speech', 'partOfSpeech'),
 			ghiChu: mergedGhiChu,
+			examples,
 		};
 	});
 }
@@ -314,6 +331,10 @@ async function previewTuVungWorkbook(
 	const seenSimplified = new Set<string>();
 	const boTuSet = new Set<string>();
 	let validWords = 0;
+	let examplesTotal = 0;
+	let examplesAuto = 0;
+	let wordsWithExamples = 0;
+	const badExampleWarnings: BadExampleWarning[] = [];
 
 	for (const row of parsedRows) {
 		let rowValid = true;
@@ -341,6 +362,36 @@ async function previewTuVungWorkbook(
 				seenSimplified.add(row.simplified);
 			}
 		}
+
+		if (row.simplified && row.meaningVi) {
+			const rawRow = rows[row.rowNumber - 2];
+			for (let i = 0; i < VI_DU_COLUMN_KEYS.length; i++) {
+				const key = VI_DU_COLUMN_KEYS[i];
+				const rawStr = getField(rawRow, key);
+				if (!rawStr) continue;
+				const parsed = parseFillExampleCell(rawStr, row.simplified, row.meaningVi);
+				if (!parsed.ok) {
+					badExampleWarnings.push({
+						rowNumber: row.rowNumber,
+						simplified: row.simplified,
+						exampleIndex: (i + 1) as 1 | 2 | 3 | 4 | 5,
+						sentence: rawStr,
+						reason: parsed.reason,
+					});
+				}
+			}
+			if (row.examples.length < MIN_FILL_EXAMPLES_PER_WORD) {
+				errors.push(
+					`tu_vung dòng ${row.rowNumber} (${row.simplified}): cần đúng ${MIN_FILL_EXAMPLES_PER_WORD} ví dụ hợp lệ (vi_du_1…vi_du_5), hiện có ${row.examples.length}`,
+				);
+				rowValid = false;
+			} else {
+				examplesTotal += row.examples.length;
+				examplesAuto += row.examples.length;
+				wordsWithExamples++;
+			}
+		}
+
 		if (row.boTu) boTuSet.add(row.boTu);
 		if (!rowValid) continue;
 
@@ -382,12 +433,12 @@ async function previewTuVungWorkbook(
 		totalRows: parsedRows.length,
 		validWords,
 		setsCount: boTuSet.size,
-		examplesTotal: 0,
-		examplesAuto: 0,
+		examplesTotal,
+		examplesAuto,
 		examplesDraft: 0,
-		wordsWithExamples: 0,
-		wordsWithoutExamples: validWords,
-		badExampleWarnings: [],
+		wordsWithExamples,
+		wordsWithoutExamples: Math.max(0, validWords - wordsWithExamples),
+		badExampleWarnings,
 		duplicateSetNames,
 	};
 }
@@ -542,7 +593,8 @@ async function importTuVungWorkbook(
 ): Promise<{ preview: UserWorkbookPreview; createdSetIds: string[] }> {
 	const rows = sanitizeSheetRows(rowsFromSheet(workbook, 'tu_vung'));
 	const parsedRows = parseTuVungRows(rows).filter(
-		(row) => row.boTu && row.simplified && row.pinyin && row.meaningVi,
+		(row) => row.boTu && row.simplified && row.pinyin && row.meaningVi
+			&& row.examples.length >= MIN_FILL_EXAMPLES_PER_WORD,
 	);
 
 	const existingSets = await prisma.cnWordSet.findMany({
@@ -577,6 +629,22 @@ async function importTuVungWorkbook(
 				},
 			});
 			wordIdBySimplified.set(row.simplified, word.id);
+
+			await tx.cnExample.deleteMany({ where: { wordId: word.id } });
+			if (row.examples.length) {
+				await tx.cnExample.createMany({
+					data: row.examples.map((ex) => ({
+						wordId: word.id,
+						hanzi: ex.hanzi,
+						pinyin: ex.pinyin,
+						meaningVi: ex.meaningVi,
+						meaningViTemplate: ex.meaningViTemplate,
+						naturalnessStatus: ex.naturalnessStatus,
+						targetWordStart: ex.targetWordStart,
+						targetWordEnd: ex.targetWordEnd,
+					})),
+				});
+			}
 		}
 
 		const rowsBySet = new Map<string, ParsedTuVungRow[]>();

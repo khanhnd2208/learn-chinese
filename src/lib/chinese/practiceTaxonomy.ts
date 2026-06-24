@@ -7,6 +7,7 @@ import {
 	questionChannel,
 	type SkillChannel,
 } from '@/lib/chinese/coreQuestionTypes';
+import { pickFillExample } from '@/lib/chinese/verifiedExample';
 import type {
 	CnQuestionType,
 	CnWordCardDTO,
@@ -19,6 +20,7 @@ export { ALL_SKILL_CHANNELS, questionChannel };
 export type PracticeGroup =
 	| 'core_vocab'
 	| 'listening'
+	| 'sentence'
 	| 'smart_mixed';
 
 export type SessionContext = 'review' | 'practice';
@@ -27,23 +29,27 @@ export interface GoalWeights {
 	meaning: number;
 	listening: number;
 	pinyin: number;
+	sentence: number;
 }
 
 export const DEFAULT_GOAL_WEIGHTS: GoalWeights = {
-	meaning: 40,
-	listening: 35,
-	pinyin: 25,
+	meaning: 30,
+	listening: 25,
+	pinyin: 20,
+	sentence: 25,
 };
 
 export const GROUP_QUESTION_MAP: Record<Exclude<PracticeGroup, 'smart_mixed'>, CnQuestionType[]> = {
 	core_vocab: ['hanzi_to_meaning', 'meaning_to_hanzi', 'pinyin_to_hanzi', 'hanzi_to_pinyin'],
-	listening: ['audio_to_meaning', 'audio_to_hanzi'],
+	listening: ['audio_to_hanzi'],
+	sentence: ['fill_sentence'],
 };
 
 export const CHANNEL_TO_GROUP: Record<SkillChannel, Exclude<PracticeGroup, 'smart_mixed'>> = {
 	meaning: 'core_vocab',
 	listening: 'listening',
 	pinyin: 'core_vocab',
+	sentence: 'sentence',
 };
 
 const WEAK_MASTERY_THRESHOLD = 60;
@@ -56,6 +62,7 @@ export function practiceModeToGroup(mode: string): PracticeGroup {
 		core_vocab: 'core_vocab',
 		core: 'core_vocab',
 		listening: 'listening',
+		sentence: 'sentence',
 	};
 	return map[normalized] ?? 'smart_mixed';
 }
@@ -71,12 +78,13 @@ function shuffle<T>(arr: T[]): T[] {
 
 function channelRates(progress: CnWordProgressDTO | null): Record<SkillChannel, number | null> {
 	if (!progress) {
-		return { meaning: null, listening: null, pinyin: null };
+		return { meaning: null, listening: null, pinyin: null, sentence: null };
 	}
 	return {
 		meaning: progress.meaningRate,
 		listening: progress.listeningRate,
 		pinyin: progress.pinyinRate,
+		sentence: progress.sentenceRate,
 	};
 }
 
@@ -86,6 +94,7 @@ function channelIntervalIdx(progress: CnWordProgressDTO | null, channel: SkillCh
 		case 'meaning': return progress.meaningIntervalIdx;
 		case 'listening': return progress.listeningIntervalIdx;
 		case 'pinyin': return progress.pinyinIntervalIdx;
+		case 'sentence': return progress.sentenceIntervalIdx;
 	}
 }
 
@@ -98,28 +107,53 @@ export function isChannelUnlocked(
 }
 
 export function getUnlockedGroups(_progress: CnWordProgressDTO | null): PracticeGroup[] {
-	return ['core_vocab', 'listening'];
+	return ['core_vocab', 'listening', 'sentence'];
+}
+
+/** Pick a mixed question type for maintain stage (Lv6+) */
+export function reviewQuestionTypeForMaintain(
+	channel: SkillChannel,
+	rng: () => number = Math.random,
+): CnQuestionType {
+	const roll = rng();
+	switch (channel) {
+		case 'meaning':
+			return roll < 0.3 ? 'hanzi_to_meaning' : 'meaning_to_hanzi_typed';
+		case 'listening':
+			return roll < 0.3 ? 'audio_to_hanzi' : 'audio_to_hanzi_typed';
+		case 'pinyin':
+			return roll < 0.3 ? 'pinyin_to_hanzi' : 'hanzi_to_pinyin_typed';
+		case 'sentence':
+			return roll < 0.3 ? 'fill_sentence' : 'fill_sentence_typed';
+	}
 }
 
 /** Pick the review question type for a channel at its current SRS stage */
 export function reviewQuestionTypeForChannel(
 	channel: SkillChannel,
 	intervalIdx: number,
+	rng: () => number = Math.random,
 ): CnQuestionType {
 	const stage = stageFromIntervalIdx(intervalIdx);
 	switch (channel) {
 		case 'meaning':
 			if (stage === 'mcq1') return 'hanzi_to_meaning';
 			if (stage === 'mcq2') return 'meaning_to_hanzi';
+			if (stage === 'maintain') return reviewQuestionTypeForMaintain(channel, rng);
 			return 'meaning_to_hanzi_typed';
 		case 'pinyin':
 			if (stage === 'mcq1') return 'pinyin_to_hanzi';
 			if (stage === 'mcq2') return 'hanzi_to_pinyin';
+			if (stage === 'maintain') return reviewQuestionTypeForMaintain(channel, rng);
 			return 'hanzi_to_pinyin_typed';
 		case 'listening':
-			if (stage === 'mcq1') return 'audio_to_meaning';
-			if (stage === 'mcq2') return 'audio_to_hanzi';
+			if (stage === 'mcq1' || stage === 'mcq2') return 'audio_to_hanzi';
+			if (stage === 'maintain') return reviewQuestionTypeForMaintain(channel, rng);
 			return 'audio_to_hanzi_typed';
+		case 'sentence':
+			if (stage === 'mcq1' || stage === 'mcq2') return 'fill_sentence';
+			if (stage === 'maintain') return reviewQuestionTypeForMaintain(channel, rng);
+			return 'fill_sentence_typed';
 	}
 }
 
@@ -135,8 +169,9 @@ function channelWeaknessScore(
 			meaning: progress.meaningTotal,
 			listening: progress.listeningTotal,
 			pinyin: progress.pinyinTotal,
+			sentence: progress.sentenceTotal,
 		}
-		: { meaning: 0, listening: 0, pinyin: 0 };
+		: { meaning: 0, listening: 0, pinyin: 0, sentence: 0 };
 	const practiced = totals[channel] > 0;
 	const effectiveRate = practiced && rate !== null ? rate : 0;
 	return (100 - effectiveRate) * goalWeights[channel];
@@ -204,6 +239,44 @@ function typesForGroups(groups: PracticeGroup[]): CnQuestionType[] {
 	return [...new Set(types)];
 }
 
+function channelsForGroups(groups: PracticeGroup[]): SkillChannel[] {
+	const channels: SkillChannel[] = [];
+	for (const g of groups) {
+		if (g === 'smart_mixed') continue;
+		for (const ch of ALL_SKILL_CHANNELS) {
+			if (CHANNEL_TO_GROUP[ch] === g && !channels.includes(ch)) {
+				channels.push(ch);
+			}
+		}
+	}
+	return channels;
+}
+
+/** One stage-appropriate type per channel, in random channel order */
+function stageTypesForChannels(
+	progress: CnWordProgressDTO,
+	channels: SkillChannel[],
+): CnQuestionType[] {
+	return shuffle(channels).map((ch) =>
+		reviewQuestionTypeForChannel(ch, channelIntervalIdx(progress, ch)),
+	);
+}
+
+function priorityTypeForChannel(
+	progress: CnWordProgressDTO,
+	channel: SkillChannel,
+): CnQuestionType {
+	return reviewQuestionTypeForChannel(channel, channelIntervalIdx(progress, channel));
+}
+
+function reorderWithPriorityType(types: CnQuestionType[], priorityType: CnQuestionType | null): CnQuestionType[] {
+	if (!priorityType || !types.includes(priorityType)) {
+		return shuffle(types);
+	}
+	const rest = types.filter((t) => t !== priorityType);
+	return [priorityType, ...shuffle(rest)];
+}
+
 export function wordSupportsQuestionType(word: CnWordCardDTO, type: CnQuestionType): boolean {
 	switch (type) {
 		case 'hanzi_to_meaning':
@@ -217,6 +290,9 @@ export function wordSupportsQuestionType(word: CnWordCardDTO, type: CnQuestionTy
 		case 'audio_to_hanzi_typed':
 		case 'audio_to_meaning':
 			return !!word.simplified && !!word.pinyin;
+		case 'fill_sentence':
+		case 'fill_sentence_typed':
+			return !!word.simplified && !!pickFillExample(word);
 		default:
 			return false;
 	}
@@ -240,10 +316,21 @@ export function selectQuestionTypesForWord(
 		targetChannel,
 	} = options;
 	const allowedGroups = resolveAllowedGroups(group, progress, goalWeights);
-	let types = typesForGroups(allowedGroups).filter((t) => wordSupportsQuestionType(word, t));
+	let types: CnQuestionType[];
+
+	if (progress) {
+		const channels = channelsForGroups(allowedGroups);
+		types = stageTypesForChannels(progress, channels)
+			.filter((t) => wordSupportsQuestionType(word, t));
+	} else {
+		types = typesForGroups(allowedGroups).filter((t) => wordSupportsQuestionType(word, t));
+	}
 
 	if (!types.length) {
-		types = GROUP_QUESTION_MAP.core_vocab.filter((t) => wordSupportsQuestionType(word, t));
+		types = progress
+			? stageTypesForChannels(progress, ['meaning', 'pinyin'])
+				.filter((t) => wordSupportsQuestionType(word, t))
+			: GROUP_QUESTION_MAP.core_vocab.filter((t) => wordSupportsQuestionType(word, t));
 	}
 
 	if (targetChannel) {
@@ -251,25 +338,16 @@ export function selectQuestionTypesForWord(
 			targetChannel,
 			channelIntervalIdx(progress, targetChannel),
 		);
-		if (wordSupportsQuestionType(word, reviewType)) {
-			types = [reviewType, ...types.filter((t) => t !== reviewType)];
-		}
-		const priorityGroup = CHANNEL_TO_GROUP[targetChannel];
-		const priorityTypes = GROUP_QUESTION_MAP[priorityGroup].filter((t) => types.includes(t));
-		const rest = types.filter((t) => !priorityTypes.includes(t));
-		types = [...shuffle(priorityTypes), ...shuffle(rest)];
+		types = reorderWithPriorityType(
+			types,
+			wordSupportsQuestionType(word, reviewType) ? reviewType : null,
+		);
 	} else if (progress?.state === 'weak') {
 		const weakest = getWeakestChannel(progress, goalWeights);
-		const priorityGroup = CHANNEL_TO_GROUP[weakest];
-		const priorityTypes = GROUP_QUESTION_MAP[priorityGroup];
-		const rest = types.filter((t) => !priorityTypes.includes(t));
-		types = [...shuffle(priorityTypes), ...shuffle(rest)];
+		types = reorderWithPriorityType(types, priorityTypeForChannel(progress, weakest));
 	} else if (group === 'smart_mixed' && progress) {
 		const weakest = getWeakestChannel(progress, goalWeights);
-		const priorityGroup = CHANNEL_TO_GROUP[weakest];
-		const priorityTypes = GROUP_QUESTION_MAP[priorityGroup].filter((t) => types.includes(t));
-		const rest = types.filter((t) => !priorityTypes.includes(t));
-		types = [...shuffle(priorityTypes), ...shuffle(rest)];
+		types = reorderWithPriorityType(types, priorityTypeForChannel(progress, weakest));
 	} else {
 		types = shuffle(types);
 	}

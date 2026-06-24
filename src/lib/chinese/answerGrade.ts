@@ -33,5 +33,9 @@ export function gradeAnswer(question: CnPracticeQuestionDTO, answer: string): bo
 		return trimmed === correct;
 	}
 
+	if (question.type === 'fill_sentence' || question.type === 'fill_sentence_typed') {
+		return trimmed === correct;
+	}
+
 	return trimmed === correct;
 }

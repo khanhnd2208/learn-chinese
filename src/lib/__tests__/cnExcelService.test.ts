@@ -4,6 +4,8 @@ import {
 	previewUserWorkbook,
 	importUserWorkbook,
 } from '@/services/chinese/cnExcelService';
+import { VI_DU_COLUMN_KEYS } from '@/lib/chinese/parseFillExample';
+import { buildFiveFillExampleCells } from '@/lib/chinese/sampleFillExamples';
 
 vi.mock('@/lib/prisma', () => ({
 	prisma: {
@@ -18,6 +20,7 @@ vi.mock('@/lib/prisma', () => ({
 		cnExample: {
 			deleteMany: vi.fn(),
 			create: vi.fn(),
+			createMany: vi.fn(),
 		},
 		cnWordSetItem: {
 			create: vi.fn(),
@@ -47,6 +50,23 @@ function tuVungFile(rows: Record<string, unknown>[]): File {
 	return workbookFile({ tu_vung: rows });
 }
 
+function withFiveExamples(row: Record<string, unknown>): Record<string, unknown> {
+	const simplified = String(row.simplified ?? '');
+	const examples = buildFiveFillExampleCells({
+		simplified,
+		pinyin: String(row.pinyin ?? ''),
+		meaningVi: String(row.meaning_vi ?? ''),
+		hanViet: String(row.han_viet ?? ''),
+		partOfSpeech: String(row.part_of_speech ?? ''),
+		ghiChu: String(row.ghi_chu ?? ''),
+	});
+	const out = { ...row };
+	for (let i = 0; i < VI_DU_COLUMN_KEYS.length; i++) {
+		out[VI_DU_COLUMN_KEYS[i]] = examples[i];
+	}
+	return out;
+}
+
 beforeEach(() => {
 	mockWordFindMany.mockReset();
 	mockWordSetFindMany.mockReset();
@@ -59,49 +79,63 @@ beforeEach(() => {
 });
 
 describe('previewUserWorkbook — tu_vung format', () => {
-	it('accepts valid tu_vung workbook with 7-column format', async () => {
+	it('accepts valid tu_vung workbook with 12-column format', async () => {
 		const file = tuVungFile([
-			{
+			withFiveExamples({
 				bo_tu: 'Bài 1',
 				simplified: '学生',
 				pinyin: 'xuésheng',
 				meaning_vi: 'học sinh',
 				ghi_chu: '学 là học, 生 là người.',
-			},
-			{
+			}),
+			withFiveExamples({
 				bo_tu: 'Bài 1',
 				simplified: '你好',
 				pinyin: 'nǐ hǎo',
 				meaning_vi: 'xin chào',
-			},
+			}),
 		]);
 
 		const preview = await previewUserWorkbook(file, 'user-1');
 		expect(preview.errors).toHaveLength(0);
 		expect(preview.validWords).toBe(2);
 		expect(preview.setsCount).toBe(1);
-		expect(preview.wordsWithExamples).toBe(0);
-		expect(preview.wordsWithoutExamples).toBe(2);
-		expect(preview.examplesAuto).toBe(0);
+		expect(preview.wordsWithExamples).toBe(2);
+		expect(preview.wordsWithoutExamples).toBe(0);
+		expect(preview.examplesAuto).toBe(10);
 		expect(preview.matchedWords).toBe(2);
 		expect(preview.pendingWords).toBe(0);
 	});
 
 	it('merges legacy mnemonic/usage into ghi_chu', async () => {
 		const file = tuVungFile([
-			{
+			withFiveExamples({
 				bo_tu: 'Bài 1',
 				simplified: '朋友',
 				pinyin: 'péngyou',
 				meaning_vi: 'bạn bè',
 				mnemonic_vi: 'Mẹo nhớ',
 				usage_note_vi: 'Cách dùng',
-			},
+			}),
 		]);
 
 		const preview = await previewUserWorkbook(file);
 		expect(preview.errors).toHaveLength(0);
 		expect(preview.validWords).toBe(1);
+	});
+
+	it('rejects when fewer than 5 valid examples', async () => {
+		const file = tuVungFile([
+			{
+				bo_tu: 'Bài 1',
+				simplified: '学生',
+				pinyin: 'xuésheng',
+				meaning_vi: 'học sinh',
+				vi_du_1: '我喜欢__。|wǒ xǐhuān __.|Tôi thích __.',
+			},
+		]);
+		const preview = await previewUserWorkbook(file);
+		expect(preview.errors.some((e) => e.includes('5 ví dụ'))).toBe(true);
 	});
 
 	it('rejects missing required fields', async () => {
@@ -183,13 +217,13 @@ describe('previewUserWorkbook — legacy format', () => {
 describe('importUserWorkbook — tu_vung format', () => {
 	it('upserts words and creates set with suffix on collision', async () => {
 		const file = tuVungFile([
-			{
+			withFiveExamples({
 				bo_tu: 'Bài 1',
 				simplified: '学生',
 				pinyin: 'xuésheng',
 				meaning_vi: 'học sinh',
 				ghi_chu: 'Thường dùng cho học sinh phổ thông hoặc sinh viên.',
-			},
+			}),
 		]);
 
 		mockWordSetFindMany.mockResolvedValue([{ title: 'Bài 1' }] as never);
@@ -206,7 +240,7 @@ describe('importUserWorkbook — tu_vung format', () => {
 				},
 				cnExample: {
 					deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
-					create: vi.fn().mockResolvedValue({ id: 'ex-1' }),
+					createMany: vi.fn().mockResolvedValue({ count: 5 }),
 				},
 				cnWordSet: {
 					create: vi.fn().mockImplementation(({ data }) => {

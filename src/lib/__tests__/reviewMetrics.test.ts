@@ -7,9 +7,11 @@ import {
 	computeMaturePct,
 	computeStreak,
 	computeStateDistribution,
+	countDueChannelsForMetrics,
 	countOverdueChannels,
 	findNextDueAt,
 	generateReviewInsights,
+	isChannelDueForMetrics,
 	localDayKey,
 	overduePressureLevel,
 	splitRecallAccuracy,
@@ -20,6 +22,7 @@ import type { ProgressForMetrics } from '@/lib/chinese/reviewMetrics';
 function makeProgress(overrides: Partial<ProgressForMetrics> = {}): ProgressForMetrics {
 	const now = new Date('2026-06-23T10:00:00');
 	return {
+		wordId: 'w1',
 		state: 'learning',
 		meaningIntervalIdx: 1,
 		listeningIntervalIdx: 0,
@@ -29,13 +32,17 @@ function makeProgress(overrides: Partial<ProgressForMetrics> = {}): ProgressForM
 		listeningDueAt: now,
 		pinyinDueAt: now,
 		sentenceDueAt: null,
+		meaningTotal: 1,
+		listeningTotal: 1,
+		pinyinTotal: 1,
+		sentenceTotal: 0,
 		dueAt: now,
 		...overrides,
 	};
 }
 
 describe('reviewMetrics', () => {
-	it('counts overdue channels before today start', () => {
+	it('counts overdue channels before today start (practiced channels only)', () => {
 		const today = startOfLocalDay(new Date('2026-06-23T12:00:00'));
 		const yesterday = addLocalDays(today, -1);
 		const progress = [
@@ -44,9 +51,44 @@ describe('reviewMetrics', () => {
 				listeningDueAt: today,
 				pinyinDueAt: today,
 				sentenceDueAt: today,
+				meaningTotal: 1,
+				listeningTotal: 1,
+				pinyinTotal: 1,
+				sentenceTotal: 0,
 			}),
 		];
 		expect(countOverdueChannels(progress, today)).toBe(1);
+	});
+
+	it('excludes sentence channel without fill examples from metrics', () => {
+		const now = new Date('2026-06-23T12:00:00');
+		const progress = [makeProgress({ sentenceTotal: 0, sentenceDueAt: now })];
+		const withExamples = new Set<string>();
+		expect(countDueChannelsForMetrics(progress, now, withExamples)).toBe(3);
+		expect(countDueChannelsForMetrics(progress, now, new Set(['w1']))).toBe(4);
+	});
+
+	it('forecast today matches countDueChannelsForMetrics', () => {
+		const now = new Date('2026-06-23T12:00:00');
+		const today = startOfLocalDay(now);
+		const progress = [
+			makeProgress({
+				meaningDueAt: addLocalDays(today, -1),
+				listeningDueAt: today,
+				pinyinDueAt: addLocalDays(today, 1),
+				sentenceDueAt: addLocalDays(today, 2),
+				sentenceTotal: 1,
+			}),
+			makeProgress({
+				wordId: 'w2',
+				sentenceTotal: 0,
+				sentenceDueAt: today,
+			}),
+		];
+		const wordsWithFillExamples = new Set(['w1']);
+		const forecast = buildForecast(progress, now, 7, wordsWithFillExamples);
+		const dueNow = countDueChannelsForMetrics(progress, now, wordsWithFillExamples);
+		expect(forecast[0].dueCount).toBe(dueNow);
 	});
 
 	it('builds forecast buckets for 7 days', () => {
@@ -59,6 +101,10 @@ describe('reviewMetrics', () => {
 				listeningDueAt: today,
 				pinyinDueAt: tomorrow,
 				sentenceDueAt: addLocalDays(today, 2),
+				meaningTotal: 1,
+				listeningTotal: 1,
+				pinyinTotal: 1,
+				sentenceTotal: 1,
 			}),
 		];
 		const forecast = buildForecast(progress, now, 7);
@@ -69,11 +115,20 @@ describe('reviewMetrics', () => {
 		expect(forecast[2].dueCount).toBe(1);
 	});
 
+	it('isChannelDueForMetrics mirrors SRS due rules', () => {
+		const now = new Date('2026-06-23T12:00:00');
+		const future = addLocalDays(now, 1);
+		const p = makeProgress({ meaningTotal: 0, meaningDueAt: future });
+		expect(isChannelDueForMetrics(p, 'meaning', now)).toBe(true);
+		const practiced = makeProgress({ meaningTotal: 2, meaningDueAt: future });
+		expect(isChannelDueForMetrics(practiced, 'meaning', now)).toBe(false);
+	});
+
 	it('finds next due date after now', () => {
 		const now = new Date('2026-06-23T12:00:00');
 		const future = addLocalDays(now, 2);
 		const progress = [
-			makeProgress({ meaningDueAt: addLocalDays(now, -1), listeningDueAt: future }),
+			makeProgress({ meaningDueAt: addLocalDays(now, -1), listeningDueAt: future, listeningTotal: 1 }),
 		];
 		expect(findNextDueAt(progress, now)?.getTime()).toBe(future.getTime());
 	});

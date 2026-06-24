@@ -184,6 +184,7 @@ export default function ReviewStatsClient() {
 					<ChannelSkill label="Nghĩa" rate={stats.meaningRate} />
 					<ChannelSkill label="Nghe" rate={stats.listeningRate} />
 					<ChannelSkill label="Pinyin" rate={stats.pinyinRate} />
+					<ChannelSkill label="Câu" rate={stats.sentenceRate} />
 				</div>
 				{(stats.recallTotal > 0 || stats.mcqTotal > 0) && (
 					<div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2">

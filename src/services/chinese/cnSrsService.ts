@@ -44,12 +44,14 @@ const CHANNEL_FIELDS: Record<SkillChannel, {
 	meaning: { dueAt: 'meaningDueAt', intervalIdx: 'meaningIntervalIdx', correct: 'meaningCorrect', total: 'meaningTotal' },
 	listening: { dueAt: 'listeningDueAt', intervalIdx: 'listeningIntervalIdx', correct: 'listeningCorrect', total: 'listeningTotal' },
 	pinyin: { dueAt: 'pinyinDueAt', intervalIdx: 'pinyinIntervalIdx', correct: 'pinyinCorrect', total: 'pinyinTotal' },
+	sentence: { dueAt: 'sentenceDueAt', intervalIdx: 'sentenceIntervalIdx', correct: 'sentenceCorrect', total: 'sentenceTotal' },
 };
 
 const HEAVY_LAPSE_FIELDS: Record<SkillChannel, keyof CnWordProgress> = {
 	meaning: 'meaningHeavyLapses',
 	listening: 'listeningHeavyLapses',
 	pinyin: 'pinyinHeavyLapses',
+	sentence: 'sentenceHeavyLapses',
 };
 
 const STATE_RANK: Record<CnWordProgressState, number> = {
@@ -256,6 +258,7 @@ function channelWeaknessJitter(dto: CnWordProgressDTO, channel: SkillChannel): n
 		meaning: dto.meaningRate,
 		listening: dto.listeningRate,
 		pinyin: dto.pinyinRate,
+		sentence: dto.sentenceRate,
 	};
 	return (100 - rates[channel]) * 0.5;
 }
@@ -264,9 +267,15 @@ function collectDueChannelsForProgress(
 	p: CnWordProgress & { word: CnWord },
 	now: Date,
 	practiceAdjustments?: Map<string, number>,
+	wordsWithFillExamples?: Set<string>,
 ): DueChannelEntry[] {
 	const dto = progressToDTO(p);
-	const dueChannels = ALL_SKILL_CHANNELS.filter((ch) => isChannelDue(p, ch, now, dto));
+	const dueChannels = ALL_SKILL_CHANNELS.filter((ch) => {
+		if (ch === 'sentence' && wordsWithFillExamples && !wordsWithFillExamples.has(p.wordId)) {
+			return false;
+		}
+		return isChannelDue(p, ch, now, dto);
+	});
 
 	if (!dueChannels.length) return [];
 
@@ -293,15 +302,34 @@ function collectDueChannelsForProgress(
 export function countDueChannelsForProgressList(
 	progressList: CnWordProgress[],
 	now = new Date(),
+	wordsWithFillExamples?: Set<string>,
 ): number {
 	let count = 0;
 	for (const p of progressList) {
 		const dto = progressToDTO(p);
 		for (const ch of ALL_SKILL_CHANNELS) {
+			if (ch === 'sentence' && wordsWithFillExamples && !wordsWithFillExamples.has(p.wordId)) {
+				continue;
+			}
 			if (isChannelDue(p, ch, now, dto)) count++;
 		}
 	}
 	return count;
+}
+
+export async function loadWordIdsWithFillExamples(wordIds: string[]): Promise<Set<string>> {
+	if (!wordIds.length) return new Set();
+	const rows = await prisma.cnExample.findMany({
+		where: {
+			wordId: { in: wordIds },
+			naturalnessStatus: { in: ['auto', 'verified'] },
+			targetWordStart: { not: null },
+			targetWordEnd: { not: null },
+		},
+		select: { wordId: true },
+		distinct: ['wordId'],
+	});
+	return new Set(rows.map((r) => r.wordId));
 }
 
 async function fetchDueCandidateProgress(
@@ -338,9 +366,14 @@ export async function getDueChannels(userId: string, limit = 50): Promise<DueCha
 	>;
 
 	const wordIds = [...new Set(all.map((p) => p.wordId))];
-	const practiceAdjustments = await loadPracticePriorityAdjustments(userId, wordIds);
+	const [practiceAdjustments, wordsWithFillExamples] = await Promise.all([
+		loadPracticePriorityAdjustments(userId, wordIds),
+		loadWordIdsWithFillExamples(wordIds),
+	]);
 
-	const entries = all.flatMap((p) => collectDueChannelsForProgress(p, now, practiceAdjustments));
+	const entries = all.flatMap((p) =>
+		collectDueChannelsForProgress(p, now, practiceAdjustments, wordsWithFillExamples),
+	);
 	return entries
 		.sort((a, b) => b.priority - a.priority)
 		.slice(0, limit);
@@ -573,7 +606,12 @@ function applyPracticeItem(
 		getChannelIntervalIdx(progress, 'meaning'),
 		getChannelIntervalIdx(progress, 'listening'),
 		getChannelIntervalIdx(progress, 'pinyin'),
+		getChannelIntervalIdx(progress, 'sentence'),
 	);
+
+	if (channel === 'sentence' && item.exampleId) {
+		progress.lastExampleId = item.exampleId;
+	}
 }
 
 function progressToWriteData(progress: CnWordProgress): Parameters<typeof prisma.cnWordProgress.create>[0]['data'] {
@@ -661,6 +699,7 @@ export function progressToDTO(p: CnWordProgress): CnWordProgressDTO {
 		pinyinIntervalIdx: p.pinyinIntervalIdx,
 		sentenceIntervalIdx: p.sentenceIntervalIdx,
 		isStickingPoint: p.isStickingPoint,
+		lastExampleId: p.lastExampleId,
 	};
 }
 
