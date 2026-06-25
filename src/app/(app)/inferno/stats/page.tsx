@@ -1,5 +1,5 @@
-import InfernoStatsClient from '@/app/(app)/inferno/stats/InfernoStatsClient';
+import { redirect } from 'next/navigation';
 
 export default function InfernoStatsPage() {
-	return <InfernoStatsClient />;
+	redirect('/dashboard?tab=inferno');
 }

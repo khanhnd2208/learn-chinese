@@ -17,8 +17,8 @@ export const dynamic = 'force-dynamic';
 const ONBOARDING_STEPS = [
 	{
 		icon: 'upload_file',
-		title: 'Tạo bộ từ từ Excel',
-		description: 'Tải file mẫu, điền từ vựng theo 7 cột rồi import vào app.',
+		title: 'Import từ',
+		description: 'Import Excel theo mẫu hoặc dùng AI Smart Import — dán TSV từ Gen AI.',
 		href: '/sets/import',
 	},
 	{
@@ -29,8 +29,8 @@ const ONBOARDING_STEPS = [
 	},
 	{
 		icon: 'history',
-		title: 'Ôn tập hàng ngày',
-		description: 'Làm phiên ôn SRS mỗi ngày — mỗi từ qua 3 kênh: nghĩa, nghe, pinyin.',
+		title: 'Luyện SRS hàng ngày',
+		description: 'Làm phiên Luyện SRS mỗi ngày — mỗi từ qua 4 kênh: nghĩa, nghe, pinyin, câu.',
 		href: '/review',
 	},
 ] as const;
@@ -69,7 +69,7 @@ export default async function ChineseHomePage() {
 					<div>
 						<h2 className="text-xl font-black text-foreground">Bắt đầu trong 3 bước</h2>
 						<p className="mt-1 text-sm text-muted">
-							Import bộ từ từ Excel, bật SRS, rồi ôn tập mỗi ngày.
+							Import từ, bật SRS, rồi luyện SRS mỗi ngày.
 						</p>
 					</div>
 					<ol className="space-y-4">
@@ -94,7 +94,7 @@ export default async function ChineseHomePage() {
 					</ol>
 					<Link href="/sets/import" className="btn-primary w-full sm:w-auto">
 						<MaterialIcon name="upload_file" size={16} />
-						Tạo bộ từ đầu tiên
+						Import từ đầu tiên
 					</Link>
 				</section>
 			) : (
@@ -117,7 +117,7 @@ export default async function ChineseHomePage() {
 						{dueToday > 0 ? (
 							<Link href="/review" className="btn-primary">
 								<MaterialIcon name="play_arrow" size={16} />
-								Ôn {dueToday} mục
+								Luyện {dueToday} mục
 							</Link>
 						) : null}
 						<Link href="/inferno" className="btn-secondary border-warning/40 bg-warning/5 text-warning hover:bg-warning/10">
@@ -130,20 +130,16 @@ export default async function ChineseHomePage() {
 						</Link>
 						<Link href="/dashboard" className="btn-secondary">
 							<MaterialIcon name="query_stats" size={16} />
-							Xem tiến bộ
+							Báo cáo học tập
 						</Link>
 					</div>
 				</section>
 			)}
 
 			<section className="flex flex-wrap items-center gap-2">
-				<Link href="/sets/create" className="btn-primary hidden shadow-sm md:inline-flex">
-					<MaterialIcon name="add" size={16} />
-					Tạo bộ từ mới
-				</Link>
-				<Link href="/sets/import" className="btn-secondary">
+				<Link href="/sets/import" className="btn-primary shadow-sm">
 					<MaterialIcon name="upload_file" size={16} />
-					Import Excel
+					Import từ
 				</Link>
 			</section>
 
@@ -158,7 +154,7 @@ export default async function ChineseHomePage() {
 				{sets.length === 0 ? (
 					<div className="text-sm text-muted">
 						<p>Chưa có bộ từ.</p>
-						<p className="mt-1">Bắt đầu bằng cách import file Excel mẫu.</p>
+						<p className="mt-1">Bắt đầu bằng cách import từ (Excel hoặc AI Smart Import).</p>
 					</div>
 				) : (
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">

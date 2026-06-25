@@ -1,5 +1,5 @@
-import ReviewStatsClient from '@/app/(app)/review/stats/ReviewStatsClient';
+import { redirect } from 'next/navigation';
 
 export default function ReviewStatsPage() {
-	return <ReviewStatsClient />;
+	redirect('/dashboard');
 }

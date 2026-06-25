@@ -10,6 +10,8 @@ import {
 	selectQuestionTypesForWord,
 	wordSupportsQuestionType,
 	practiceIntervalIdxForChannel,
+	PRACTICE_FILL_TYPES_BY_CHANNEL,
+	PRACTICE_MCQ_TYPES_BY_CHANNEL,
 } from '@/lib/chinese/practiceTaxonomy';
 import { ALL_SKILL_CHANNELS } from '@/lib/chinese/coreQuestionTypes';
 import { buildMcqOptionsForType } from '@/lib/chinese/distractorSelect';

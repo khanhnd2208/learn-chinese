@@ -41,7 +41,7 @@ export default function SetStudyPanel({ set }: Props) {
 					<div className="mt-3">
 						<Link href="/review" className="btn-primary w-full justify-center sm:w-auto">
 							<MaterialIcon name="school" size={16} />
-							Ôn tập SRS ({set.dueCount} mục)
+							Luyện SRS ({set.dueCount} mục)
 						</Link>
 					</div>
 				)}

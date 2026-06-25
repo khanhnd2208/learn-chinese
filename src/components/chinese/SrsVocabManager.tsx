@@ -108,9 +108,9 @@ export default function SrsVocabManager({ open, onClose, onUpdated }: Props) {
 						<div className="space-y-3 py-6 text-center">
 							<MaterialIcon name="menu_book" className="mx-auto text-muted" size={40} />
 							<p className="text-sm text-muted">Chưa có bộ từ nào.</p>
-							<Link href="/sets/create" className="btn-primary inline-flex" onClick={onClose}>
-								<MaterialIcon name="add" size={16} />
-								Tạo bộ từ
+							<Link href="/sets/import" className="btn-primary inline-flex" onClick={onClose}>
+								<MaterialIcon name="upload_file" size={16} />
+								Import từ
 							</Link>
 						</div>
 					)}

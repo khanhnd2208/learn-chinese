@@ -185,7 +185,7 @@ export default function ReviewSessionClient() {
 		try {
 			await flushAndWait();
 			if (reviewedCountRef.current > 0) showSummary('exit');
-			else router.push('/review/stats');
+			else router.push('/dashboard');
 		} catch {
 			setIsExiting(false);
 		}
@@ -277,9 +277,9 @@ export default function ReviewSessionClient() {
 								để đưa từ vào hàng đợi ôn.
 							</p>
 							<div className="mt-6 flex flex-wrap justify-center gap-3">
-								<Link href="/review/stats" className="btn-primary">
+								<Link href="/dashboard" className="btn-primary">
 									<MaterialIcon name="query_stats" size={16} />
-									Xem tiến độ
+									Báo cáo học tập
 								</Link>
 								<Link href="/sets" className="btn-secondary">
 									<MaterialIcon name="menu_book" size={16} />
@@ -311,7 +311,7 @@ export default function ReviewSessionClient() {
 				onPrimaryAction={() => {
 					void loadInitial();
 				}}
-				primaryLabel="Ôn tiếp"
+				primaryLabel="Luyện tiếp"
 				/>
 				{managerModal}
 			</>
