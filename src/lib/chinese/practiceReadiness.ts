@@ -1,6 +1,7 @@
 /* ════════════════════════════════════════════════════════════════════════
    practiceReadiness.ts — Assess word data readiness for practice modes
    ════════════════════════════════════════════════════════════════════════ */
+import { enrichWordExamplesForFill, wordSupportsFillSentence } from '@/lib/chinese/verifiedExample';
 import type { CnWordCardDTO } from '@/types/chinese';
 
 export interface PracticeReadiness {
@@ -9,9 +10,10 @@ export interface PracticeReadiness {
 }
 
 export function assessWordCardReadiness(word: CnWordCardDTO): PracticeReadiness {
+	const enriched = enrichWordExamplesForFill(word);
 	return {
-		hasExample: word.examples.length > 0 && !!word.examples[0]?.hanzi,
-		supportsSentence: false,
+		hasExample: enriched.examples.some((example) => !!example.hanzi),
+		supportsSentence: wordSupportsFillSentence(enriched),
 	};
 }
 

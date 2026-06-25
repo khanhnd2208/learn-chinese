@@ -1,6 +1,7 @@
 /* ════════════════════════════════════════════════════════════════════════
    verifiedExample.ts — Example selection for fill_sentence
    ════════════════════════════════════════════════════════════════════════ */
+import { enrichExampleForFillWithExisting } from '@/lib/chinese/fillExampleValidator';
 import type { CnExampleDTO, CnWordCardDTO } from '@/types/chinese';
 
 export const FILL_EXAMPLE_STATUSES = ['verified', 'auto'] as const;
@@ -26,14 +27,52 @@ export function isVerifiedFillExample(example: CnExampleDTO, targetWord: string)
 	return isFillExample(example, targetWord, ['verified']);
 }
 
+/** Derive fill_sentence offsets from hanzi when DB rows are missing metadata. */
+export function enrichExampleDtoForFill(
+	example: CnExampleDTO,
+	targetWord: string,
+): CnExampleDTO {
+	const meta = enrichExampleForFillWithExisting(example.hanzi, targetWord, {
+		naturalnessStatus: example.naturalnessStatus,
+		targetWordStart: example.targetWordStart ?? null,
+		targetWordEnd: example.targetWordEnd ?? null,
+	});
+	const meaningViTemplate = example.meaningViTemplate?.includes('__')
+		? example.meaningViTemplate
+		: example.meaningVi.includes('__')
+			? example.meaningVi
+			: example.meaningViTemplate;
+
+	return {
+		...example,
+		meaningViTemplate,
+		targetWordStart: meta.targetWordStart,
+		targetWordEnd: meta.targetWordEnd,
+		naturalnessStatus: meta.naturalnessStatus,
+	};
+}
+
+export function enrichWordExamplesForFill(word: CnWordCardDTO): CnWordCardDTO {
+	if (!word.examples.length) return word;
+	return {
+		...word,
+		examples: word.examples.map((example) => enrichExampleDtoForFill(example, word.simplified)),
+	};
+}
+
+export function wordSupportsFillSentence(word: CnWordCardDTO): boolean {
+	return !!pickFillExample(enrichWordExamplesForFill(word));
+}
+
 export function pickFillExample(
 	word: CnWordCardDTO,
 	allowedStatuses: readonly FillExampleStatus[] = FILL_EXAMPLE_STATUSES,
 	rng: () => number = Math.random,
 	excludeId?: string,
 ): CnExampleDTO | null {
-	const allCandidates = word.examples.filter((example) =>
-		isFillExample(example, word.simplified, allowedStatuses),
+	const enriched = enrichWordExamplesForFill(word);
+	const allCandidates = enriched.examples.filter((example) =>
+		isFillExample(example, enriched.simplified, allowedStatuses),
 	);
 	const candidates = excludeId
 		? allCandidates.filter((example) => example.id !== excludeId)

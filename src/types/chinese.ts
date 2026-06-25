@@ -254,6 +254,13 @@ export interface CnReviewForecastDayDTO {
 	overdueCount: number;
 }
 
+export interface CnUpcomingSlotDTO {
+	key: string;
+	label: string;
+	count: number;
+	overdueCount?: number;
+}
+
 export interface CnReviewDailyActivityDTO {
 	dayKey: string;
 	reviewed: number;
@@ -315,12 +322,20 @@ export interface CnDashboardDTO {
 	wordsLearned: number;
 	wordsMastered: number;
 	weakCount: number;
-	dueToday: number;
+	/** Unique words with ≥1 due channel today */
+	dueWordsToday: number;
+	/** Due (word, channel) pairs — equals question count in review */
+	dueChannelsToday: number;
 	overdueCount: number;
 	forecast: CnReviewForecastDayDTO[];
+	upcomingSchedule: CnUpcomingSlotDTO[];
+	nextDueAt: string | null;
+	nextDueLabel: string | null;
+	reviewedToday: number;
 	stateDistribution: CnReviewStateDistributionDTO;
 	maturePct: number;
 	streak: number;
+	dailySeries: CnReviewDailyActivityDTO[];
 	overallRate: number;
 	listeningRate: number;
 	pinyinRate: number;
@@ -328,7 +343,6 @@ export interface CnDashboardDTO {
 	meaningRate: number;
 	topErrors: Array<{ errorType: CnErrorType; count: number }>;
 	weakWords: Array<{ wordId: string; simplified: string; state: CnWordProgressState }>;
-	suggestions: string[];
 }
 
 export interface CreateCnWordSetInput {

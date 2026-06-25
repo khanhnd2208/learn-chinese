@@ -5,6 +5,8 @@ import {
 	blankVerifiedExample,
 	pickVerifiedFillExample,
 	pickFillExample,
+	enrichExampleDtoForFill,
+	wordSupportsFillSentence,
 } from '@/lib/chinese/verifiedExample';
 import type { CnExampleDTO, CnWordCardDTO } from '@/types/chinese';
 
@@ -149,5 +151,24 @@ describe('verifiedExample', () => {
 		};
 		expect(pickFillExample(multiWord, ['auto'], () => 0, 'e2')?.id).toBe('e3');
 		expect(pickFillExample(multiWord, ['auto'], () => 0, 'e3')?.id).toBe('e2');
+	});
+
+	it('enriches draft examples missing offsets when target appears once in hanzi', () => {
+		const draftExample: CnExampleDTO = {
+			id: 'e-draft',
+			hanzi: '我是学生。',
+			pinyin: 'wǒ shì xuésheng.',
+			meaningVi: 'Tôi là học sinh.',
+			naturalnessStatus: 'draft',
+		};
+		const enriched = enrichExampleDtoForFill(draftExample, '学生');
+		expect(enriched.naturalnessStatus).toBe('auto');
+		expect(enriched.targetWordStart).toBe(2);
+		expect(enriched.targetWordEnd).toBe(4);
+		expect(wordSupportsFillSentence({
+			...word,
+			simplified: '学生',
+			examples: [enriched],
+		})).toBe(true);
 	});
 });

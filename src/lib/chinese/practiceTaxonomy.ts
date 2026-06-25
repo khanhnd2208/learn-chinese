@@ -55,16 +55,69 @@ export const CHANNEL_TO_GROUP: Record<SkillChannel, Exclude<PracticeGroup, 'smar
 const WEAK_MASTERY_THRESHOLD = 60;
 
 export function practiceModeToGroup(mode: string): PracticeGroup {
+	return resolvePracticeSessionMode(mode).group;
+}
+
+export interface PracticeSessionMode {
+	group: PracticeGroup;
+	targetChannel?: SkillChannel;
+	/** Fixed SRS interval for all channels — practice only, ignores per-word progress. */
+	fixedIntervalIdx?: number;
+}
+
+/** URL `mode` → session options. Level modes fix SRS difficulty; mix uses each word's progress. */
+export function resolvePracticeSessionMode(mode: string): PracticeSessionMode {
 	const normalized = mode.trim().toLowerCase();
-	const map: Record<string, PracticeGroup> = {
-		mixed: 'smart_mixed',
-		smart_mixed: 'smart_mixed',
-		core_vocab: 'core_vocab',
-		core: 'core_vocab',
-		listening: 'listening',
-		sentence: 'sentence',
-	};
-	return map[normalized] ?? 'smart_mixed';
+	switch (normalized) {
+		case 'mixed':
+		case 'smart_mixed':
+			return { group: 'smart_mixed' };
+		case 'level_mcq1':
+		case 'lv0':
+		case 'srs_mcq1':
+			return { group: 'smart_mixed', fixedIntervalIdx: 0 };
+		case 'level_mcq2':
+		case 'lv1':
+		case 'srs_mcq2':
+			return { group: 'smart_mixed', fixedIntervalIdx: 1 };
+		case 'level_recall':
+		case 'lv2':
+		case 'srs_recall':
+			return { group: 'smart_mixed', fixedIntervalIdx: 2 };
+		case 'level_maintain':
+		case 'lv3':
+		case 'srs_maintain':
+			return { group: 'smart_mixed', fixedIntervalIdx: 3 };
+		// Legacy channel modes (deep links)
+		case 'meaning':
+		case 'core_vocab':
+		case 'core':
+			return { group: 'core_vocab', targetChannel: 'meaning' };
+		case 'pinyin':
+			return { group: 'core_vocab', targetChannel: 'pinyin' };
+		case 'listening':
+			return { group: 'listening', targetChannel: 'listening' };
+		case 'sentence':
+			return { group: 'sentence', targetChannel: 'sentence' };
+		default:
+			return { group: 'smart_mixed' };
+	}
+}
+
+export function practiceIntervalIdxForChannel(
+	progress: CnWordProgressDTO | null,
+	channel: SkillChannel,
+	fixedIntervalIdx?: number,
+): number {
+	if (fixedIntervalIdx !== undefined) return fixedIntervalIdx;
+	return channelIntervalIdxForProgress(progress, channel);
+}
+
+export function channelIntervalIdxForProgress(
+	progress: CnWordProgressDTO | null,
+	channel: SkillChannel,
+): number {
+	return channelIntervalIdx(progress, channel);
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -254,7 +307,7 @@ function channelsForGroups(groups: PracticeGroup[]): SkillChannel[] {
 
 /** One stage-appropriate type per channel, in random channel order */
 function stageTypesForChannels(
-	progress: CnWordProgressDTO,
+	progress: CnWordProgressDTO | null,
 	channels: SkillChannel[],
 ): CnQuestionType[] {
 	return shuffle(channels).map((ch) =>
@@ -307,6 +360,7 @@ export function selectQuestionTypesForWord(
 		count?: number;
 		targetChannel?: SkillChannel;
 		sessionContext?: SessionContext;
+		fixedIntervalIdx?: number;
 	},
 ): CnQuestionType[] {
 	const {
@@ -314,12 +368,15 @@ export function selectQuestionTypesForWord(
 		goalWeights = DEFAULT_GOAL_WEIGHTS,
 		count = 3,
 		targetChannel,
+		fixedIntervalIdx,
 	} = options;
 	const allowedGroups = resolveAllowedGroups(group, progress, goalWeights);
 	let types: CnQuestionType[];
 
+	const sessionContext = options.sessionContext ?? 'practice';
+	const channels = channelsForGroups(allowedGroups);
+
 	if (progress) {
-		const channels = channelsForGroups(allowedGroups);
 		types = stageTypesForChannels(progress, channels)
 			.filter((t) => wordSupportsQuestionType(word, t));
 	} else {
@@ -328,20 +385,32 @@ export function selectQuestionTypesForWord(
 
 	if (!types.length) {
 		types = progress
-			? stageTypesForChannels(progress, ['meaning', 'pinyin'])
+			? stageTypesForChannels(progress, ['meaning', 'pinyin', 'sentence'])
 				.filter((t) => wordSupportsQuestionType(word, t))
 			: GROUP_QUESTION_MAP.core_vocab.filter((t) => wordSupportsQuestionType(word, t));
+	}
+
+	if (targetChannel && sessionContext === 'practice') {
+		const reviewType = reviewQuestionTypeForChannel(
+			targetChannel,
+			practiceIntervalIdxForChannel(progress, targetChannel, fixedIntervalIdx),
+		);
+		return wordSupportsQuestionType(word, reviewType)
+			? [reviewType]
+			: [];
 	}
 
 	if (targetChannel) {
 		const reviewType = reviewQuestionTypeForChannel(
 			targetChannel,
-			channelIntervalIdx(progress, targetChannel),
+			practiceIntervalIdxForChannel(progress, targetChannel, fixedIntervalIdx),
 		);
 		types = reorderWithPriorityType(
 			types,
 			wordSupportsQuestionType(word, reviewType) ? reviewType : null,
 		);
+	} else if (sessionContext === 'practice' && group === 'smart_mixed') {
+		types = shuffle(types);
 	} else if (progress?.state === 'weak') {
 		const weakest = getWeakestChannel(progress, goalWeights);
 		types = reorderWithPriorityType(types, priorityTypeForChannel(progress, weakest));

@@ -39,15 +39,22 @@ export function enrichExampleForFill(
 	targetWord: string,
 	existingStatus?: string | null,
 ): FillExampleEnrichment {
+	const offsets = computeFillTarget(hanzi, targetWord);
+
 	if (existingStatus === 'verified') {
-		return {
-			naturalnessStatus: 'verified',
-			targetWordStart: null,
-			targetWordEnd: null,
-		};
+		return offsets
+			? {
+				naturalnessStatus: 'verified',
+				targetWordStart: offsets.start,
+				targetWordEnd: offsets.end,
+			}
+			: {
+				naturalnessStatus: 'verified',
+				targetWordStart: null,
+				targetWordEnd: null,
+			};
 	}
 
-	const offsets = computeFillTarget(hanzi, targetWord);
 	if (!offsets) {
 		return {
 			naturalnessStatus: 'draft',

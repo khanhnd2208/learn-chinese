@@ -12,6 +12,11 @@ export const GET = withAuth(async (request, user, ctx) => {
 		?? undefined;
 
 	const questions = await buildPracticeSession(user.id, setId, count, mode, wordId);
-	if (!questions.length) return apiError('Không có từ nào có đủ dữ liệu để luyện', 404);
+	if (!questions.length) {
+		const message = mode === 'sentence'
+			? 'Không có từ nào có câu ví dụ đủ điều kiện điền từ (cần ví dụ chứa từ mục tiêu)'
+			: 'Không có từ nào có đủ dữ liệu để luyện';
+		return apiError(message, 404);
+	}
 	return apiSuccess({ questions, total: questions.length, mode });
 });

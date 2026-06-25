@@ -4,6 +4,7 @@
 import { prisma } from '@/lib/prisma';
 import { splitHanzi } from '@/lib/chinese/hanziUtils';
 import { assessLookupReadiness } from '@/lib/chinese/practiceReadiness';
+import { enrichExampleDtoForFill } from '@/lib/chinese/verifiedExample';
 import {
 	channelMasteryLabel,
 	channelMasteryLevel,
@@ -208,16 +209,18 @@ export async function getWordCard(wordId: string, userId?: string): Promise<CnWo
 
 	return {
 		...wordToDTO(word),
-		examples: word.examples.map((e): CnExampleDTO => ({
-			id: e.id,
-			hanzi: e.hanzi,
-			pinyin: e.pinyin,
-			meaningVi: e.meaningVi,
-			meaningViTemplate: e.meaningViTemplate,
-			targetWordStart: e.targetWordStart,
-			targetWordEnd: e.targetWordEnd,
-			naturalnessStatus: e.naturalnessStatus,
-		})),
+		examples: word.examples.map((e): CnExampleDTO =>
+			enrichExampleDtoForFill({
+				id: e.id,
+				hanzi: e.hanzi,
+				pinyin: e.pinyin,
+				meaningVi: e.meaningVi,
+				meaningViTemplate: e.meaningViTemplate,
+				targetWordStart: e.targetWordStart,
+				targetWordEnd: e.targetWordEnd,
+				naturalnessStatus: e.naturalnessStatus,
+			}, word.simplified),
+		),
 		patterns: word.patterns.map(patternToDTO),
 		chars: word.chars.map((wc) => ({ ...hanziToDTO(wc.hanzi), position: wc.position })),
 		relatedWords: related.map(wordToDTO),

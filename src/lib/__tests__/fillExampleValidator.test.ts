@@ -39,5 +39,7 @@ describe('fillExampleValidator', () => {
 	it('does not downgrade verified status', () => {
 		const meta = enrichExampleForFill('他是老师。', '老师', 'verified');
 		expect(meta.naturalnessStatus).toBe('verified');
+		expect(meta.targetWordStart).toBe(2);
+		expect(meta.targetWordEnd).toBe(4);
 	});
 });

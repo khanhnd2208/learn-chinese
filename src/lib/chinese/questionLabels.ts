@@ -1,5 +1,6 @@
 import type { CnQuestionType, CnWordProgressState } from '@/types/chinese';
 import type { SkillChannel } from '@/lib/chinese/coreQuestionTypes';
+import { resolvePracticeSessionMode } from '@/lib/chinese/practiceTaxonomy';
 
 export function learnerQuestionLabel(type: CnQuestionType): string {
 	const labels: Record<CnQuestionType, string> = {
@@ -54,22 +55,69 @@ export function questionTypeLabel(type: CnQuestionType): string {
 
 export function practiceModeLabel(mode: string): string {
 	const labels: Record<string, string> = {
-		core_vocab: 'Nhớ nghĩa',
-		core: 'Nhớ nghĩa',
-		listening: 'Nghe nhận ra',
-		sentence: 'Dùng câu',
-		smart_mixed: 'Ôn nhanh',
-		mixed: 'Ôn nhanh',
+		smart_mixed: 'Tổng hợp',
+		mixed: 'Tổng hợp',
+		level_mcq1: 'Mới nhận ra',
+		level_mcq2: 'Đang làm quen',
+		level_recall: 'Bắt đầu nhớ',
+		level_maintain: 'Thuần thục',
+		meaning: 'Nghĩa',
+		pinyin: 'Pinyin',
+		core_vocab: 'Nghĩa',
+		core: 'Nghĩa',
+		listening: 'Nghe',
+		sentence: 'Câu',
 	};
 	return labels[mode] ?? 'Luyện tập';
 }
 
-export const PRACTICE_MODES = [
-	{ mode: 'core_vocab', label: 'Học từ mới', icon: 'menu_book' },
-	{ mode: 'listening', label: 'Luyện nghe', icon: 'hearing' },
-	{ mode: 'sentence', label: 'Luyện câu', icon: 'edit_note' },
-	{ mode: 'smart_mixed', label: 'Ôn nhanh', icon: 'shuffle' },
+export const PRACTICE_MIX_MODE = {
+	mode: 'smart_mixed',
+	label: 'Tổng hợp',
+	description: 'Xen 4 kênh · level SRS theo tiến độ từng từ',
+	icon: 'shuffle',
+} as const;
+
+/** Fixed SRS difficulty — rotates all 4 channels at the chosen level (does not change SRS data). */
+export const PRACTICE_LEVEL_MODES = [
+	{
+		mode: 'level_mcq1',
+		label: 'Mới nhận ra',
+		description: 'MCQ nhận biết',
+		icon: 'looks_one',
+		intervalIdx: 0,
+	},
+	{
+		mode: 'level_mcq2',
+		label: 'Đang làm quen',
+		description: 'MCQ nhớ chiều ngược',
+		icon: 'looks_two',
+		intervalIdx: 1,
+	},
+	{
+		mode: 'level_recall',
+		label: 'Bắt đầu nhớ',
+		description: 'Gõ chữ / pinyin / câu',
+		icon: 'looks_3',
+		intervalIdx: 2,
+	},
+	{
+		mode: 'level_maintain',
+		label: 'Thuần thục',
+		description: 'Ôn sâu xen kênh',
+		icon: 'military_tech',
+		intervalIdx: 3,
+	},
 ] as const;
+
+export const PRACTICE_MODES = [PRACTICE_MIX_MODE, ...PRACTICE_LEVEL_MODES];
+
+/** @deprecated Use PRACTICE_LEVEL_MODES — kept for imports */
+export const PRACTICE_CHANNEL_MODES = PRACTICE_LEVEL_MODES;
+
+export function practiceModeChannel(mode: string): SkillChannel | null {
+	return resolvePracticeSessionMode(mode).targetChannel ?? null;
+}
 
 export function channelLabel(channel: string): string {
 	const labels: Record<string, string> = {

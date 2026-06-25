@@ -27,9 +27,7 @@ export default async function ChineseSetDetailPage({ params }: Props) {
 				<MaterialIcon name="arrow_back" size={16} />
 				Bộ từ
 			</Link>
-			<div className="md:hidden">
-				<SetStudyPanel set={set} />
-			</div>
+			<SetStudyPanel set={set} />
 			<SetManagePanel set={set} allSets={allSets} />
 		</div>
 	);
