@@ -2,13 +2,14 @@
    cnPracticeService.ts — Practice session orchestration
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
-import { practiceModeToGroup } from '@/lib/chinese/practiceTaxonomy';
+import { practiceModeToGroup, resolvePracticeSessionMode } from '@/lib/chinese/practiceTaxonomy';
 import {
 	generatePracticeSession,
 	generateReviewQuestion,
 	mergeWordPools,
 } from '@/lib/chinese/generateQuestions';
 import { CN_DEFAULT_PRACTICE_COUNT, CN_DEFAULT_REVIEW_COUNT, CN_MAX_CHANNELS_PER_WORD_REVIEW } from '@/config/constants';
+import { wordSupportsFillSentence } from '@/lib/chinese/verifiedExample';
 import { getWordCard, getUserDistractorPool } from '@/services/chinese/cnContentService';
 import { getReviewSession, progressToDTO } from '@/services/chinese/cnSrsService';
 import type {
@@ -54,6 +55,7 @@ export async function buildPracticeSession(
 	mode = 'smart_mixed',
 	wordId?: string,
 ): Promise<CnPracticeQuestionDTO[]> {
+	const sessionMode = resolvePracticeSessionMode(mode);
 	const group = practiceModeToGroup(mode);
 	const { words: setWords, progressMap } = await getWordsForSet(userId, setId);
 	let words = setWords;
@@ -65,7 +67,18 @@ export async function buildPracticeSession(
 		? words
 		: mergeWordPools(words, await getUserDistractorPool(userId));
 
-	return generatePracticeSession(words, count, { group, progressMap, distractorPool });
+	if (sessionMode.targetChannel === 'sentence') {
+		words = words.filter((word) => wordSupportsFillSentence(word));
+		if (!words.length) return [];
+	}
+
+	return generatePracticeSession(words, count, {
+		group,
+		targetChannel: sessionMode.targetChannel,
+		fixedIntervalIdx: sessionMode.fixedIntervalIdx,
+		progressMap,
+		distractorPool,
+	});
 }
 
 export async function buildListeningSession(userId: string, setId: string, count = 10) {

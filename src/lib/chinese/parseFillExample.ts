@@ -15,6 +15,8 @@ export interface ParsedFillExample {
 	targetWordStart: number;
 	targetWordEnd: number;
 	naturalnessStatus: 'auto';
+	/** True when the parser auto-inserted a blank (e.g. target word present but blank missing). */
+	repaired?: boolean;
 }
 
 export type ParseFillExampleResult =
@@ -39,7 +41,45 @@ function targetAppearsOnlyAtBlank(hanzi: string, targetWord: string, start: numb
 	return hanzi.slice(start, end) === targetWord;
 }
 
-/** Parse one vi_du cell: `câu Hán có __ | pinyin | câu Việt có __` */
+/** Normalize alternate blank tokens and strip markdown artifacts to internal `__`. */
+export function normalizeFillBlankToken(text: string): string {
+	return text
+		.replace(/\*\*/g, '')
+		.replace(/\[blank\]/gi, FILL_BLANK)
+		.replace(/【】/g, FILL_BLANK)
+		.replace(/_{3,}/g, FILL_BLANK);
+}
+
+function duplicateTargetReason(targetWord: string): string {
+	return `từ mục tiêu "${targetWord}" đã xuất hiện sẵn trong câu — phải thay nó bằng [BLANK], không viết cả từ lẫn [BLANK]`;
+}
+
+function missingBlankReason(): string {
+	return 'câu Hán mất dấu trống — có thể do Markdown nuốt __; copy lại output trong code block hoặc dùng [BLANK]';
+}
+
+/**
+ * Normalize blank tokens; if Chinese part has no blank but still contains the target word,
+ * replace the first occurrence with `__` (Pattern A auto-repair).
+ */
+export function prepareFillExampleParts(
+	chinesePart: string,
+	vnPart: string,
+	targetWord: string,
+): { chinese: string; vn: string; repaired: boolean } {
+	let chinese = normalizeFillBlankToken(chinesePart);
+	const vn = normalizeFillBlankToken(vnPart);
+	let repaired = false;
+
+	if (countBlanks(chinese) === 0 && targetWord && chinese.includes(targetWord)) {
+		chinese = chinese.replace(targetWord, FILL_BLANK);
+		repaired = true;
+	}
+
+	return { chinese, vn, repaired };
+}
+
+/** Parse one vi_du cell: `câu Hán có __ | pinyin | câu Việt có __` (also accepts [BLANK]) */
 export function parseFillExampleCell(
 	rawCell: string,
 	targetWord: string,
@@ -55,8 +95,18 @@ export function parseFillExampleCell(
 		return { ok: false, reason: 'cần đúng 3 phần: câu Hán | pinyin | nghĩa Việt (phân tách bằng |)' };
 	}
 
-	const [chinesePart, pinyin, vnPart] = parts;
+	const [rawChinese, rawPinyin, rawVn] = parts;
+	const pinyin = normalizeFillBlankToken(rawPinyin);
+	const { chinese: chinesePart, vn: vnPart, repaired } = prepareFillExampleParts(
+		rawChinese,
+		rawVn,
+		targetWord,
+	);
+
 	if (countBlanks(chinesePart) !== 1) {
+		if (countBlanks(chinesePart) === 0) {
+			return { ok: false, reason: missingBlankReason() };
+		}
 		return { ok: false, reason: 'câu Hán phải có đúng một __' };
 	}
 	if (countBlanks(vnPart) !== 1) {
@@ -75,7 +125,7 @@ export function parseFillExampleCell(
 		return { ok: false, reason: `câu Hán quá dài (tối đa ${MAX_FILL_SENTENCE_HAN_LENGTH} chữ Hán)` };
 	}
 	if (!targetAppearsOnlyAtBlank(hanzi, targetWord, targetWordStart, targetWordEnd)) {
-		return { ok: false, reason: 'từ mục tiêu chỉ được xuất hiện tại vị trí __' };
+		return { ok: false, reason: duplicateTargetReason(targetWord) };
 	}
 
 	const meaningViTemplate = vnPart;
@@ -92,6 +142,7 @@ export function parseFillExampleCell(
 			targetWordStart,
 			targetWordEnd,
 			naturalnessStatus: 'auto',
+			...(repaired ? { repaired: true } : {}),
 		},
 	};
 }

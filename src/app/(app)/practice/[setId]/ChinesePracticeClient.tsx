@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import QuestionRenderer from '@/components/chinese/QuestionRenderer';
-import { channelLabel } from '@/lib/chinese/questionLabels';
+import { channelLabel, practiceModeLabel } from '@/lib/chinese/questionLabels';
 import { questionChannel } from '@/lib/chinese/coreQuestionTypes';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
 import type { CnPracticeQuestionDTO, CnQuestionType } from '@/types/chinese';
@@ -140,13 +140,16 @@ export default function ChinesePracticeClient() {
 
 	return (
 		<div className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 py-6 md:py-8">
+			<p className="mb-4 text-center text-xs font-bold uppercase tracking-wide text-muted">
+				{practiceModeLabel(mode)}
+			</p>
 			{questions.length ? (
 				<QuestionRenderer
 					questions={questions}
 					onAnswer={handleAnswer}
 					onComplete={() => { void handleComplete(); }}
 					onExit={() => { void handleExit(); }}
-					incremental
+					exitLabel="Dừng"
 					isExiting={isExiting || isFlushing}
 					sessionProgress={{
 						reviewed: reviewedCount,

@@ -25,6 +25,13 @@ export interface ForecastDay {
 	overdueCount: number;
 }
 
+export interface UpcomingSlotDTO {
+	key: string;
+	label: string;
+	count: number;
+	overdueCount?: number;
+}
+
 export interface StateDistribution {
 	new: number;
 	learning: number;
@@ -163,6 +170,33 @@ export function countDueChannelsForMetrics(
 	return count;
 }
 
+/** Unique words with at least one due channel today */
+export function countDueWordsForMetrics(
+	progressList: ProgressForMetrics[],
+	now = new Date(),
+	wordsWithFillExamples?: Set<string>,
+): number {
+	return progressList.filter((p) =>
+		ALL_SKILL_CHANNELS.some((ch) => isChannelDueForMetrics(p, ch, now, wordsWithFillExamples)),
+	).length;
+}
+
+export function aggregateDailySeries(
+	logs: Array<{ createdAt: Date; correct: boolean }>,
+): DailyActivityRow[] {
+	const map = new Map<string, { reviewed: number; correct: number }>();
+	for (const log of logs) {
+		const dayKey = localDayKey(log.createdAt);
+		const row = map.get(dayKey) ?? { reviewed: 0, correct: 0 };
+		row.reviewed++;
+		if (log.correct) row.correct++;
+		map.set(dayKey, row);
+	}
+	return [...map.entries()]
+		.map(([dayKey, row]) => ({ dayKey, ...row }))
+		.sort((a, b) => a.dayKey.localeCompare(b.dayKey));
+}
+
 export function countOverdueChannels(
 	progressList: ProgressForMetrics[],
 	todayStart = startOfLocalDay(),
@@ -233,6 +267,94 @@ export function buildForecast(
 	}
 
 	return buckets;
+}
+
+const UPCOMING_SLOT_ORDER = ['now', 'in30m', 'in2h', 'today', 'day-1', 'day-2', 'day-3', 'day-4', 'day-5', 'day-6'] as const;
+
+export function buildUpcomingSchedule(
+	progressList: ProgressForMetrics[],
+	now = new Date(),
+	wordsWithFillExamples?: Set<string>,
+): UpcomingSlotDTO[] {
+	const todayStart = startOfLocalDay(now);
+	const todayEnd = addLocalDays(todayStart, 1);
+	const in30m = new Date(now.getTime() + 30 * 60_000);
+	const in2h = new Date(now.getTime() + 2 * 60 * 60_000);
+
+	const slotMap = new Map<string, { label: string; count: number; overdueCount: number }>();
+
+	const ensureSlot = (key: string, label: string) => {
+		let row = slotMap.get(key);
+		if (!row) {
+			row = { label, count: 0, overdueCount: 0 };
+			slotMap.set(key, row);
+		}
+		return row;
+	};
+
+	ensureSlot('now', 'Ngay bây giờ');
+	ensureSlot('in30m', 'Sau 30 phút');
+	ensureSlot('in2h', 'Sau 2 giờ');
+	ensureSlot('today', 'Còn lại hôm nay');
+	for (let offset = 1; offset <= 6; offset++) {
+		const dayDate = addLocalDays(todayStart, offset);
+		ensureSlot(`day-${offset}`, forecastLabel(offset, dayDate));
+	}
+
+	for (const p of progressList) {
+		for (const ch of ALL_SKILL_CHANNELS) {
+			if (ch === 'sentence' && !isSentenceChannelEligible(p, wordsWithFillExamples)) continue;
+			const total = p[CHANNEL_TOTAL_FIELDS[ch]] as number;
+			const dueAt = channelDueAt(p, ch);
+
+			if (total === 0) {
+				ensureSlot('now', 'Ngay bây giờ').count++;
+				continue;
+			}
+
+			if (dueAt <= now) {
+				const slot = ensureSlot('now', 'Ngay bây giờ');
+				slot.count++;
+				if (dueAt < todayStart) slot.overdueCount++;
+				continue;
+			}
+
+			if (dueAt <= in30m) {
+				ensureSlot('in30m', 'Sau 30 phút').count++;
+				continue;
+			}
+
+			if (dueAt <= in2h) {
+				ensureSlot('in2h', 'Sau 2 giờ').count++;
+				continue;
+			}
+
+			if (dueAt < todayEnd) {
+				ensureSlot('today', 'Còn lại hôm nay').count++;
+				continue;
+			}
+
+			for (let offset = 1; offset <= 6; offset++) {
+				const dayDate = addLocalDays(todayStart, offset);
+				const dayEnd = addLocalDays(dayDate, 1);
+				if (dueAt >= dayDate && dueAt < dayEnd) {
+					ensureSlot(`day-${offset}`, forecastLabel(offset, dayDate)).count++;
+					break;
+				}
+			}
+		}
+	}
+
+	return UPCOMING_SLOT_ORDER.map((key) => {
+		const row = slotMap.get(key);
+		if (!row) return { key, label: key, count: 0 };
+		return {
+			key,
+			label: row.label,
+			count: row.count,
+			...(key === 'now' && row.overdueCount > 0 ? { overdueCount: row.overdueCount } : {}),
+		};
+	});
 }
 
 export function findNextDueAt(
@@ -440,6 +562,11 @@ export function formatNextDueLabel(nextDueAt: Date | null, now = new Date()): st
 	if (!nextDueAt) return null;
 	const diffMs = nextDueAt.getTime() - now.getTime();
 	if (diffMs <= 0) return null;
+
+	const diffMinutes = Math.max(1, Math.round(diffMs / 60_000));
+	if (diffMinutes < 60) {
+		return `Mục tiếp theo sau ~${diffMinutes} phút`;
+	}
 
 	const diffHours = Math.round(diffMs / 3_600_000);
 	if (diffHours < 24) {

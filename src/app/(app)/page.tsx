@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
+import PracticeModePicker from '@/components/chinese/PracticeModePicker';
 import { auth } from '@/lib/auth';
 import {
 	computeSetChannelProgress,
@@ -197,15 +198,10 @@ export default async function ChineseHomePage() {
 											)}
 										</div>
 									</Link>
-									<div className="relative z-10 flex gap-2 pt-2">
-										<Link
-											href={`/practice/${set.id}?mode=smart_mixed`}
-											className="btn-primary flex-1"
-										>
-											<MaterialIcon name="play_arrow" size={16} />
-											Luyện tập
-										</Link>
-										<Link href={`/sets/${set.id}`} className="btn-secondary shrink-0">
+									<div className="relative z-10 flex flex-col gap-2 pt-2">
+										<PracticeModePicker setId={set.id} variant="compact" />
+										<Link href={`/sets/${set.id}`} className="btn-secondary w-full justify-center">
+											<MaterialIcon name="list" size={16} />
 											Xem từ
 										</Link>
 									</div>

@@ -4,6 +4,7 @@ import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
 import SetCardActions from '@/app/(app)/sets/SetCardActions';
 import SetSrsToggle from '@/app/(app)/sets/SetSrsToggle';
+import PracticeModePicker from '@/components/chinese/PracticeModePicker';
 import { auth } from '@/lib/auth';
 import {
 	computeSetChannelProgress,
@@ -88,15 +89,10 @@ export default async function ChineseSetsPage() {
 										{set.srsActive && <ProgressBar value={progress} />}
 									</div>
 								</div>
-								<div className="flex gap-2 pt-2">
-									<Link
-										href={`/practice/${set.id}?mode=smart_mixed`}
-										className="btn-primary flex-1"
-									>
-										<MaterialIcon name="play_arrow" size={16} />
-										Luyện tập
-									</Link>
-									<Link href={`/sets/${set.id}`} className="btn-secondary shrink-0">
+								<div className="flex flex-col gap-2 pt-2">
+									<PracticeModePicker setId={set.id} variant="compact" />
+									<Link href={`/sets/${set.id}`} className="btn-secondary w-full justify-center">
+										<MaterialIcon name="list" size={16} />
 										Xem từ
 									</Link>
 								</div>

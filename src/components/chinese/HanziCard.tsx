@@ -6,23 +6,18 @@ import MaterialIcon from '@/components/ui/MaterialIcon';
 import SpeakButton from '@/components/chinese/SpeakButton';
 import CharBreakdown from '@/components/chinese/CharBreakdown';
 import ChannelMasteryPanel from '@/components/chinese/ChannelMasteryPanel';
-import { PRACTICE_MODES } from '@/lib/chinese/questionLabels';
+import PracticeModePicker from '@/components/chinese/PracticeModePicker';
 import type { CnWordCardDTO } from '@/types/chinese';
-
-const TABS = ['Tổng quan', 'Ví dụ', 'Cấu tạo chữ', 'Cách dùng', 'Luyện tập'] as const;
-const PRIMARY_PRACTICE_MODES = ['smart_mixed', 'listening'] as const;
-const OTHER_PRACTICE_MODES = PRACTICE_MODES.filter(
-	(m) => !PRIMARY_PRACTICE_MODES.includes(m.mode as typeof PRIMARY_PRACTICE_MODES[number]),
-);
 
 interface Props {
 	word: CnWordCardDTO;
 	setId?: string;
 }
 
+const TABS = ['Tổng quan', 'Ví dụ', 'Cấu tạo chữ', 'Cách dùng', 'Luyện tập'] as const;
+
 export default function HanziCard({ word, setId }: Props) {
 	const [tab, setTab] = useState<(typeof TABS)[number]>(setId ? 'Luyện tập' : 'Tổng quan');
-	const [showOtherModes, setShowOtherModes] = useState(false);
 
 	const practiceHref = (mode: string) => {
 		const params = new URLSearchParams({ mode });
@@ -174,44 +169,8 @@ export default function HanziCard({ word, setId }: Props) {
 
 				{tab === 'Luyện tập' && (
 					<div className="space-y-3">
-						<p className="text-sm text-foreground-secondary">Luyện tập trực tiếp với từ này:</p>
 						{setId ? (
-							<>
-								<div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-									<Link href={practiceHref('smart_mixed')} className="btn-primary w-full justify-center sm:w-auto">
-										Ôn tổng hợp
-									</Link>
-									<Link href={practiceHref('listening')} className="btn-secondary w-full justify-center sm:w-auto">
-										Nghe nhận ra
-									</Link>
-								</div>
-								<div className="md:hidden">
-									<button
-										type="button"
-										onClick={() => setShowOtherModes(!showOtherModes)}
-										className="flex items-center gap-1 text-sm font-bold text-foreground-secondary transition-colors hover:text-accent"
-									>
-										<MaterialIcon name={showOtherModes ? 'expand_less' : 'expand_more'} size={18} />
-										Chế độ khác
-									</button>
-									{showOtherModes && (
-										<div className="mt-2 flex flex-wrap gap-2">
-											{OTHER_PRACTICE_MODES.map((m) => (
-												<Link key={m.mode} href={practiceHref(m.mode)} className="btn-secondary">
-													{m.label}
-												</Link>
-											))}
-										</div>
-									)}
-								</div>
-								<div className="hidden flex-wrap gap-2 md:flex">
-									{OTHER_PRACTICE_MODES.map((m) => (
-										<Link key={m.mode} href={practiceHref(m.mode)} className="btn-secondary">
-											{m.label}
-										</Link>
-									))}
-								</div>
-							</>
+							<PracticeModePicker setId={setId} wordId={word.id} />
 						) : (
 							<p className="text-xs text-muted">Thêm từ vào bộ từ để luyện tập.</p>
 						)}

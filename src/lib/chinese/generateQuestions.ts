@@ -8,7 +8,10 @@ import {
 	questionChannel,
 	reviewQuestionTypeForChannel,
 	selectQuestionTypesForWord,
+	wordSupportsQuestionType,
+	practiceIntervalIdxForChannel,
 } from '@/lib/chinese/practiceTaxonomy';
+import { ALL_SKILL_CHANNELS } from '@/lib/chinese/coreQuestionTypes';
 import { buildMcqOptionsForType } from '@/lib/chinese/distractorSelect';
 import { blankMeaningViExample, blankVerifiedExample, FILL_EXAMPLE_STATUSES, pickFillExample } from '@/lib/chinese/verifiedExample';
 import type { CnPracticeQuestionDTO, CnQuestionType, CnWordCardDTO, CnWordProgressDTO } from '@/types/chinese';
@@ -22,6 +25,8 @@ export interface GenerateSessionOptions {
 	targetChannel?: SkillChannel;
 	distractorPool?: CnWordCardDTO[];
 	sessionContext?: SessionContext;
+	/** Practice-only: force all channels to this SRS interval (ignores progress). */
+	fixedIntervalIdx?: number;
 }
 
 export function mergeWordPools(
@@ -117,9 +122,10 @@ function channelIntervalIdx(progress: CnWordProgressDTO | null, channel: SkillCh
 export function enrichQuestionWithProgress(
 	q: CnPracticeQuestionDTO,
 	progress: CnWordProgressDTO | null,
+	displayIntervalIdx?: number,
 ): CnPracticeQuestionDTO {
 	const channel = questionChannel(q.type);
-	const channelIdx = channelIntervalIdx(progress, channel);
+	const channelIdx = displayIntervalIdx ?? channelIntervalIdx(progress, channel);
 	return {
 		...q,
 		channelIntervalIdx: channelIdx,
@@ -161,7 +167,9 @@ function buildFillSentenceQuestion(
 	}
 
 	const options = buildMcqOptionsForType('fill_sentence', word, allWords, word.simplified);
-	if (!options || options.length < MIN_MCQ_OPTIONS) return null;
+	if (!options || options.length < MIN_MCQ_OPTIONS) {
+		return buildFillSentenceQuestion(word, allWords, 'fill_sentence_typed', idx, excludeExampleId);
+	}
 	return { ...base, options };
 }
 
@@ -307,6 +315,74 @@ export function generateQuestionForWord(
 	}
 }
 
+/** Rotate all four SRS channels so practice covers meaning, listening, pinyin, and sentence. */
+function generateBalancedChannelPracticeSession(
+	words: CnWordCardDTO[],
+	count: number,
+	progressMap: Map<string, CnWordProgressDTO | null>,
+	poolWords: CnWordCardDTO[],
+	fixedIntervalIdx?: number,
+): CnPracticeQuestionDTO[] {
+	const questions: CnPracticeQuestionDTO[] = [];
+	let channelRound = 0;
+	let wordRound = 0;
+	const maxAttempts = count * Math.max(1, words.length) * ALL_SKILL_CHANNELS.length;
+
+	for (let attempt = 0; attempt < maxAttempts && questions.length < count; attempt++) {
+		const word = words[wordRound % words.length];
+		const channel = ALL_SKILL_CHANNELS[channelRound % ALL_SKILL_CHANNELS.length];
+		const progress = progressMap.get(word.id) ?? null;
+		const intervalIdx = practiceIntervalIdxForChannel(progress, channel, fixedIntervalIdx);
+		const type = reviewQuestionTypeForChannel(channel, intervalIdx);
+
+		if (wordSupportsQuestionType(word, type)) {
+			const q = generateQuestionForWord(word, poolWords, type, questions.length);
+			if (q) {
+				questions.push(enrichQuestionWithProgress(q, progress, intervalIdx));
+			}
+		}
+
+		channelRound++;
+		if (channelRound % ALL_SKILL_CHANNELS.length === 0) {
+			wordRound++;
+		}
+	}
+
+	return spreadShuffle(questions).slice(0, count);
+}
+
+/** One SRS channel only — stage from progress or fixed interval. */
+function generateSingleChannelPracticeSession(
+	words: CnWordCardDTO[],
+	count: number,
+	progressMap: Map<string, CnWordProgressDTO | null>,
+	poolWords: CnWordCardDTO[],
+	channel: SkillChannel,
+	fixedIntervalIdx?: number,
+): CnPracticeQuestionDTO[] {
+	const questions: CnPracticeQuestionDTO[] = [];
+	let wordRound = 0;
+	const maxAttempts = count * Math.max(1, words.length) * 2;
+
+	for (let attempt = 0; attempt < maxAttempts && questions.length < count; attempt++) {
+		const word = words[wordRound % words.length];
+		const progress = progressMap.get(word.id) ?? null;
+		const intervalIdx = practiceIntervalIdxForChannel(progress, channel, fixedIntervalIdx);
+		const type = reviewQuestionTypeForChannel(channel, intervalIdx);
+
+		if (wordSupportsQuestionType(word, type)) {
+			const q = generateQuestionForWord(word, poolWords, type, questions.length);
+			if (q) {
+				questions.push(enrichQuestionWithProgress(q, progress, intervalIdx));
+			}
+		}
+
+		wordRound++;
+	}
+
+	return spreadShuffle(questions).slice(0, count);
+}
+
 export function generatePracticeSession(
 	words: CnWordCardDTO[],
 	count = 20,
@@ -319,8 +395,40 @@ export function generatePracticeSession(
 		: optionsOrTypes;
 
 	const group = options.group ?? 'smart_mixed';
+	const sessionContext = options.sessionContext ?? 'practice';
 	const progressMap = options.progressMap ?? new Map<string, CnWordProgressDTO | null>();
 	const poolWords = mergeWordPools(words, options.distractorPool);
+
+	if (
+		group === 'smart_mixed'
+		&& sessionContext === 'practice'
+		&& !options.types?.length
+		&& !options.targetChannel
+	) {
+		return generateBalancedChannelPracticeSession(
+			words,
+			count,
+			progressMap,
+			poolWords,
+			options.fixedIntervalIdx,
+		);
+	}
+
+	if (
+		options.targetChannel
+		&& sessionContext === 'practice'
+		&& !options.types?.length
+	) {
+		return generateSingleChannelPracticeSession(
+			words,
+			count,
+			progressMap,
+			poolWords,
+			options.targetChannel,
+			options.fixedIntervalIdx,
+		);
+	}
+
 	const questions: CnPracticeQuestionDTO[] = [];
 	const perWord = Math.max(1, Math.ceil(count / words.length));
 
@@ -333,7 +441,8 @@ export function generatePracticeSession(
 				group,
 				count: perWord * 4,
 				targetChannel: options.targetChannel,
-				sessionContext: options.sessionContext ?? 'practice',
+				sessionContext,
+				fixedIntervalIdx: options.fixedIntervalIdx,
 			});
 
 		for (let ti = 0; ti < typePool.length && questions.length < count; ti++) {

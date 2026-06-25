@@ -8,6 +8,7 @@ import {
 	getUnlockedGroups,
 	isChannelUnlocked,
 	practiceModeToGroup,
+	resolvePracticeSessionMode,
 	reviewQuestionTypeForChannel,
 	reviewQuestionTypeForMaintain,
 	selectQuestionTypesForWord,
@@ -74,10 +75,50 @@ describe('practiceTaxonomy (11 core types, 4 channels)', () => {
 
 	it('practice modes map to groups + smart_mixed', () => {
 		expect(practiceModeToGroup('smart_mixed')).toBe('smart_mixed');
+		expect(practiceModeToGroup('meaning')).toBe('core_vocab');
+		expect(practiceModeToGroup('pinyin')).toBe('core_vocab');
 		expect(practiceModeToGroup('core_vocab')).toBe('core_vocab');
 		expect(practiceModeToGroup('listening')).toBe('listening');
 		expect(practiceModeToGroup('sentence')).toBe('sentence');
 		expect(practiceModeToGroup('unknown')).toBe('smart_mixed');
+	});
+
+	it('resolvePracticeSessionMode maps channel modes', () => {
+		expect(resolvePracticeSessionMode('meaning')).toEqual({ group: 'core_vocab', targetChannel: 'meaning' });
+		expect(resolvePracticeSessionMode('pinyin')).toEqual({ group: 'core_vocab', targetChannel: 'pinyin' });
+		expect(resolvePracticeSessionMode('smart_mixed')).toEqual({ group: 'smart_mixed' });
+	});
+
+	it('resolvePracticeSessionMode maps fixed SRS level modes', () => {
+		expect(resolvePracticeSessionMode('level_mcq1')).toEqual({ group: 'smart_mixed', fixedIntervalIdx: 0 });
+		expect(resolvePracticeSessionMode('level_mcq2')).toEqual({ group: 'smart_mixed', fixedIntervalIdx: 1 });
+		expect(resolvePracticeSessionMode('level_recall')).toEqual({ group: 'smart_mixed', fixedIntervalIdx: 2 });
+		expect(resolvePracticeSessionMode('level_maintain')).toEqual({ group: 'smart_mixed', fixedIntervalIdx: 3 });
+	});
+
+	it('single-channel practice returns only that channel type', () => {
+		const word = mkWord();
+		const progress = mkProgress({ meaningIntervalIdx: 2, pinyinIntervalIdx: 0, listeningIntervalIdx: 0 });
+		const types = selectQuestionTypesForWord(word, progress, {
+			group: 'core_vocab',
+			targetChannel: 'meaning',
+			count: 3,
+			sessionContext: 'practice',
+		});
+		expect(types).toEqual(['meaning_to_hanzi_typed']);
+	});
+
+	it('fixed level practice ignores progress interval', () => {
+		const word = mkWord();
+		const progress = mkProgress({ meaningIntervalIdx: 2, pinyinIntervalIdx: 2, listeningIntervalIdx: 2 });
+		const types = selectQuestionTypesForWord(word, progress, {
+			group: 'smart_mixed',
+			targetChannel: 'meaning',
+			count: 3,
+			sessionContext: 'practice',
+			fixedIntervalIdx: 0,
+		});
+		expect(types).toEqual(['hanzi_to_meaning']);
 	});
 
 	it('all channels always unlocked', () => {
@@ -154,6 +195,52 @@ describe('practiceTaxonomy (11 core types, 4 channels)', () => {
 			expect(types).toContain('audio_to_hanzi');
 			expect(types).not.toContain('audio_to_meaning');
 			expect(types).toHaveLength(3);
+		});
+
+		it('includes sentence channel in smart_mixed when word has fill examples', () => {
+			const word = mkWord({
+				examples: [{
+					id: 'ex1',
+					hanzi: '我在学习。',
+					pinyin: 'wǒ zài xuéxí.',
+					meaningVi: 'Tôi đang học.',
+					meaningViTemplate: 'Tôi đang __.',
+					targetWordStart: 2,
+					targetWordEnd: 4,
+					naturalnessStatus: 'auto',
+				}],
+			});
+			const progress = mkProgress({
+				meaningIntervalIdx: 0,
+				pinyinIntervalIdx: 0,
+				listeningIntervalIdx: 0,
+				sentenceIntervalIdx: 1,
+			});
+			const types = selectQuestionTypesForWord(word, progress, {
+				group: 'smart_mixed',
+				count: 6,
+				sessionContext: 'practice',
+			});
+			expect(types).toContain('fill_sentence');
+			expect(types).toHaveLength(4);
+		});
+
+		it('uses stage-appropriate sentence type in sentence mode', () => {
+			const word = mkWord({
+				examples: [{
+					id: 'ex1',
+					hanzi: '我在学习。',
+					pinyin: 'wǒ zài xuéxí.',
+					meaningVi: 'Tôi đang học.',
+					meaningViTemplate: 'Tôi đang __.',
+					targetWordStart: 2,
+					targetWordEnd: 4,
+					naturalnessStatus: 'auto',
+				}],
+			});
+			const progress = mkProgress({ sentenceIntervalIdx: 2 });
+			const types = selectQuestionTypesForWord(word, progress, { group: 'sentence', count: 3 });
+			expect(types).toEqual(['fill_sentence_typed']);
 		});
 
 		it('falls back to MCQ pool when progress is null', () => {

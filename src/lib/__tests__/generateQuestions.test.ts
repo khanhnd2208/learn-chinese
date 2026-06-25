@@ -4,7 +4,7 @@ import {
 	generateQuestionForWord,
 	generateReviewQuestion,
 } from '@/lib/chinese/generateQuestions';
-import { CORE_QUESTION_TYPES } from '@/lib/chinese/coreQuestionTypes';
+import { CORE_QUESTION_TYPES, questionChannel } from '@/lib/chinese/coreQuestionTypes';
 import type { CnWordCardDTO, CnWordProgressDTO } from '@/types/chinese';
 
 const sampleWords: CnWordCardDTO[] = [
@@ -123,16 +123,94 @@ describe('generateQuestions (11 core types)', () => {
 				hanzi: '他是学生。',
 				pinyin: 'tā shì xuésheng.',
 				meaningVi: 'Anh ấy là học sinh.',
+				naturalnessStatus: 'draft',
+			}],
+		};
+		const q = generateQuestionForWord(wordWithExamples, sampleWords, 'fill_sentence', 0);
+		expect(q).toBeTruthy();
+		expect(q!.sentenceTemplate).toContain('____');
+		expect(q!.correctAnswer).toBe('学生');
+		if (q!.type === 'fill_sentence') {
+			expect(q!.options).toContain('学生');
+		}
+	});
+
+	it('smart_mixed practice rotates all four SRS channels including sentence', () => {
+		const wordWithExamples: CnWordCardDTO = {
+			...sampleWords[0],
+			examples: [{
+				id: 'ex1',
+				hanzi: '他是学生。',
+				pinyin: 'tā shì xuésheng.',
+				meaningVi: 'Anh ấy là học sinh.',
 				meaningViTemplate: 'Anh ấy là __.',
 				targetWordStart: 2,
 				targetWordEnd: 4,
 				naturalnessStatus: 'auto',
 			}],
 		};
-		const q = generateQuestionForWord(wordWithExamples, sampleWords, 'fill_sentence', 0);
-		expect(q).toBeTruthy();
-		expect(q!.sentenceTemplate).toContain('____');
-		expect(q!.sentenceMeaningVi).toContain('__');
-		expect(q!.options).toContain('学生');
+		const progressMap = new Map<string, CnWordProgressDTO | null>([
+			[wordWithExamples.id, progressAtRecall],
+		]);
+		const questions = generatePracticeSession([wordWithExamples], 8, {
+			group: 'smart_mixed',
+			progressMap,
+			distractorPool: sampleWords,
+		});
+		const channels = new Set(questions.map((q) => questionChannel(q.type)));
+		expect(channels.has('meaning')).toBe(true);
+		expect(channels.has('listening')).toBe(true);
+		expect(channels.has('pinyin')).toBe(true);
+		expect(channels.has('sentence')).toBe(true);
+		expect(questions.some((q) => q.type === 'fill_sentence' || q.type === 'fill_sentence_typed')).toBe(true);
+	});
+
+	it('falls back to fill_sentence_typed when MCQ distractors are insufficient', () => {
+		const wordWithExamples: CnWordCardDTO = {
+			...sampleWords[0],
+			examples: [{
+				id: 'ex1',
+				hanzi: '他是学生。',
+				pinyin: 'tā shì xuésheng.',
+				meaningVi: 'Anh ấy là học sinh.',
+				naturalnessStatus: 'auto',
+				targetWordStart: 2,
+				targetWordEnd: 4,
+			}],
+		};
+		const q = generateQuestionForWord(wordWithExamples, [wordWithExamples], 'fill_sentence', 0);
+		expect(q?.type).toBe('fill_sentence_typed');
+		expect(q?.sentenceTemplate).toContain('____');
+	});
+
+	it('meaning channel mode uses stage-appropriate type only', () => {
+		const progressMap = new Map<string, CnWordProgressDTO | null>([
+			[sampleWords[0].id, progressAtRecall],
+		]);
+		const questions = generatePracticeSession([sampleWords[0]], 4, {
+			group: 'core_vocab',
+			targetChannel: 'meaning',
+			progressMap,
+			distractorPool: sampleWords,
+		});
+		expect(questions.length).toBeGreaterThan(0);
+		expect(questions.every((q) => q.type === 'meaning_to_hanzi_typed')).toBe(true);
+	});
+
+	it('level_mcq1 mode uses MCQ1 types across channels at fixed interval', () => {
+		const progressMap = new Map<string, CnWordProgressDTO | null>([
+			[sampleWords[0].id, progressAtRecall],
+		]);
+		const questions = generatePracticeSession([sampleWords[0]], 8, {
+			group: 'smart_mixed',
+			fixedIntervalIdx: 0,
+			progressMap,
+			distractorPool: sampleWords,
+		});
+		const types = new Set(questions.map((q) => q.type));
+		expect(types.has('hanzi_to_meaning')).toBe(true);
+		expect(types.has('audio_to_hanzi')).toBe(true);
+		expect(types.has('pinyin_to_hanzi')).toBe(true);
+		expect(types.has('meaning_to_hanzi_typed')).toBe(false);
 	});
 });

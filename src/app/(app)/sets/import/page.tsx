@@ -18,9 +18,9 @@ export default async function SetImportPage() {
 					Bộ từ
 				</Link>
 				<span className="label-caps mt-4 block tracking-widest">Thêm bộ từ</span>
-				<h1 className="mt-2 text-3xl font-black text-foreground">Import từ Excel</h1>
+				<h1 className="mt-2 text-3xl font-black text-foreground">Import bộ từ</h1>
 				<p className="mt-2 max-w-2xl text-sm text-foreground-secondary">
-					Tải file mẫu Excel (5 từ ví dụ + sheet hướng dẫn) hoặc tự tạo file theo cùng định dạng 7 cột để import bộ riêng cho luyện tập và SRS.
+					Tải file Excel theo mẫu hệ thống, hoặc dùng <strong>AI Smart Import</strong>: copy prompt có sẵn sang Gen AI bên ngoài, rồi dán kết quả TSV trở lại app — không cần tự làm file Excel.
 				</p>
 				<p className="mt-2 text-xs text-muted md:hidden">
 					Trên điện thoại vẫn import được — nên dùng file .xlsx từ Files/Drive.

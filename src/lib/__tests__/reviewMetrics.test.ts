@@ -3,13 +3,16 @@ import {
 	addLocalDays,
 	avgPerDay,
 	buildForecast,
+	buildUpcomingSchedule,
 	computeBestStreak,
 	computeMaturePct,
 	computeStreak,
 	computeStateDistribution,
 	countDueChannelsForMetrics,
+	countDueWordsForMetrics,
 	countOverdueChannels,
 	findNextDueAt,
+	formatNextDueLabel,
 	generateReviewInsights,
 	isChannelDueForMetrics,
 	localDayKey,
@@ -66,6 +69,27 @@ describe('reviewMetrics', () => {
 		const withExamples = new Set<string>();
 		expect(countDueChannelsForMetrics(progress, now, withExamples)).toBe(3);
 		expect(countDueChannelsForMetrics(progress, now, new Set(['w1']))).toBe(4);
+	});
+
+	it('counts unique due words separately from due channels', () => {
+		const now = new Date('2026-06-23T12:00:00');
+		const future = addLocalDays(now, 1);
+		const progress = [
+			makeProgress({ wordId: 'w1' }),
+			makeProgress({
+				wordId: 'w2',
+				meaningTotal: 2,
+				meaningDueAt: future,
+				listeningTotal: 2,
+				listeningDueAt: future,
+				pinyinTotal: 2,
+				pinyinDueAt: future,
+				sentenceTotal: 1,
+				sentenceDueAt: future,
+			}),
+		];
+		expect(countDueWordsForMetrics(progress, now)).toBe(1);
+		expect(countDueChannelsForMetrics(progress, now)).toBe(4);
 	});
 
 	it('forecast today matches countDueChannelsForMetrics', () => {
@@ -206,5 +230,65 @@ describe('reviewMetrics', () => {
 		});
 		expect(insights.length).toBeLessThanOrEqual(2);
 		expect(insights[0]).toContain('trễ');
+	});
+
+	it('builds upcoming schedule with intraday buckets', () => {
+		const now = new Date('2026-06-23T12:00:00');
+		const future = addLocalDays(now, 10);
+		const in20m = new Date(now.getTime() + 20 * 60_000);
+		const in1h = new Date(now.getTime() + 60 * 60_000);
+		const laterToday = new Date('2026-06-23T20:00:00');
+		const tomorrow = addLocalDays(startOfLocalDay(now), 1);
+		const idle = {
+			meaningDueAt: future,
+			listeningDueAt: future,
+			pinyinDueAt: future,
+			sentenceDueAt: future,
+			meaningTotal: 1,
+			listeningTotal: 1,
+			pinyinTotal: 1,
+			sentenceTotal: 1,
+		};
+		const progress = [
+			makeProgress({
+				...idle,
+				meaningDueAt: addLocalDays(startOfLocalDay(now), -1),
+				meaningTotal: 2,
+			}),
+			makeProgress({
+				wordId: 'w2',
+				...idle,
+				listeningDueAt: in20m,
+			}),
+			makeProgress({
+				wordId: 'w3',
+				...idle,
+				pinyinDueAt: in1h,
+			}),
+			makeProgress({
+				wordId: 'w4',
+				...idle,
+				sentenceDueAt: laterToday,
+			}),
+			makeProgress({
+				wordId: 'w5',
+				...idle,
+				meaningDueAt: tomorrow,
+			}),
+		];
+		const schedule = buildUpcomingSchedule(progress, now, new Set(['w4']));
+		const byKey = Object.fromEntries(schedule.map((s) => [s.key, s]));
+		expect(byKey.now?.count).toBe(1);
+		expect(byKey.now?.overdueCount).toBe(1);
+		expect(byKey.in30m?.count).toBe(1);
+		expect(byKey.in2h?.count).toBe(1);
+		expect(byKey.today?.count).toBe(1);
+		expect(byKey['day-1']?.count).toBe(1);
+	});
+
+	it('formatNextDueLabel shows minutes under one hour', () => {
+		const now = new Date('2026-06-23T12:00:00');
+		const in30m = new Date(now.getTime() + 30 * 60_000);
+		expect(formatNextDueLabel(in30m, now)).toBe('Mục tiếp theo sau ~30 phút');
 	});
 });

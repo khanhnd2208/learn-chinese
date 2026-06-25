@@ -3,13 +3,17 @@
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
 import { rate } from '@/lib/chinese/hanziUtils';
-import { errorTypeLabel } from '@/lib/chinese/errorMapping';
 import {
+	aggregateDailySeries,
 	buildForecast,
+	buildUpcomingSchedule,
 	computeMaturePct,
 	computeStateDistribution,
 	computeStreak,
+	countDueWordsForMetrics,
 	countOverdueChannels,
+	findNextDueAt,
+	formatNextDueLabel,
 	localDayKey,
 	startOfLocalDay,
 	type ProgressForMetrics,
@@ -69,7 +73,10 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 		prisma.cnWordSet.count({ where: { userId } }),
 		prisma.cnWordProgress.findMany({ where: { userId }, include: { word: true } }),
 		prisma.cnAnswerLog.findMany({
-			where: { userId },
+			where: {
+				userId,
+				source: { in: ['review', 'mark_known'] },
+			},
 			orderBy: { createdAt: 'desc' },
 			take: 500,
 		}),
@@ -79,7 +86,7 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 				createdAt: { gte: historySince },
 				source: { in: ['review', 'mark_known'] },
 			},
-			select: { createdAt: true },
+			select: { createdAt: true, correct: true },
 		}),
 	]);
 	const srsProgress = progress.filter((p) => activeIds.has(p.wordId));
@@ -89,7 +96,16 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 	const progressMetrics = srsProgress.map(progressToMetrics);
 	const overdueCount = countOverdueChannels(progressMetrics, todayStart, wordsWithFillExamples);
 	const forecast = buildForecast(progressMetrics, now, 7, wordsWithFillExamples);
-	const dueToday = forecast[0]?.dueCount ?? 0;
+	const dueChannelsToday = forecast[0]?.dueCount ?? 0;
+	const dueWordsToday = countDueWordsForMetrics(progressMetrics, now, wordsWithFillExamples);
+	const upcomingSchedule = buildUpcomingSchedule(progressMetrics, now, wordsWithFillExamples);
+	const nextDueAt = dueChannelsToday === 0
+		? findNextDueAt(progressMetrics, now, wordsWithFillExamples)
+		: null;
+	const nextDueLabel = formatNextDueLabel(nextDueAt, now);
+	const todayKey = localDayKey(now);
+	const reviewedToday = reviewDayLogs.filter((l) => localDayKey(l.createdAt) === todayKey).length;
+	const dailySeries = aggregateDailySeries(reviewDayLogs);
 	const stateDistribution = computeStateDistribution(progressMetrics);
 	const maturePct = computeMaturePct(progressMetrics);
 
@@ -136,34 +152,23 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 		.slice(0, 10)
 		.map((p) => ({ wordId: p.wordId, simplified: p.word.simplified, state: p.state }));
 
-	const suggestions: string[] = [];
-	if (listeningRate < 60 && listeningRate > 0) {
-		suggestions.push('Luyện nghe 5 phút/ngày — bạn đang yếu ở kênh nghe.');
-	}
-	if (sentenceRate < 60 && sentenceRate > 0) {
-		suggestions.push('Làm thêm bài điền câu và mẫu câu với các từ đã học.');
-	}
-	if (dueToday > 0) {
-		suggestions.push(`Hôm nay có ${dueToday} mục ôn (từ × kênh) — bấm "Ôn hôm nay".`);
-	}
-	if (topErrors.length) {
-		suggestions.push(`Lỗi phổ biến: ${errorTypeLabel(topErrors[0].errorType)}.`);
-	}
-	if (!suggestions.length) {
-		suggestions.push('Tiếp tục học bộ từ mới sau mỗi buổi học trên lớp.');
-	}
-
 	return {
 		setCount,
 		wordsLearned,
 		wordsMastered,
 		weakCount,
-		dueToday,
+		dueWordsToday,
+		dueChannelsToday,
 		overdueCount,
 		forecast,
+		upcomingSchedule,
+		nextDueAt: nextDueAt?.toISOString() ?? null,
+		nextDueLabel,
+		reviewedToday,
 		stateDistribution,
 		maturePct,
 		streak,
+		dailySeries,
 		overallRate,
 		listeningRate,
 		pinyinRate,
@@ -171,6 +176,5 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 		meaningRate,
 		topErrors,
 		weakWords,
-		suggestions,
 	};
 }

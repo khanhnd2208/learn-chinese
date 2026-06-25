@@ -136,6 +136,53 @@ describe('previewUserWorkbook — tu_vung format', () => {
 		]);
 		const preview = await previewUserWorkbook(file);
 		expect(preview.errors.some((e) => e.includes('5 ví dụ'))).toBe(true);
+		expect(preview.errors.some((e) => e.includes('chi tiết bên dưới'))).toBe(true);
+	});
+
+	it('surfaces badExampleWarnings with per-cell reasons', async () => {
+		const file = tuVungFile([
+			{
+				bo_tu: 'Bài 1',
+				simplified: '老师',
+				pinyin: 'lǎoshī',
+				meaning_vi: 'giáo viên',
+				vi_du_1: '他是。|tā shì.|Anh ấy là __.',
+				vi_du_2: '他是。|tā shì.|Anh ấy là __.',
+				vi_du_3: '他是。|tā shì.|Anh ấy là __.',
+				vi_du_4: '他是。|tā shì.|Anh ấy là __.',
+				vi_du_5: '他是。|tā shì.|Anh ấy là __.',
+			},
+		]);
+		const preview = await previewUserWorkbook(file);
+		expect(preview.badExampleWarnings?.length).toBe(5);
+		expect(preview.badExampleWarnings?.[0]?.reason).toContain('Markdown');
+		expect(preview.badExampleWarnings?.[0]?.simplified).toBe('老师');
+	});
+
+	it('warns when examples were auto-repaired', async () => {
+		const examples = buildFiveFillExampleCells({
+			simplified: '好',
+			pinyin: 'hǎo',
+			meaningVi: 'tốt',
+			hanViet: 'hảo',
+			partOfSpeech: 'tính từ',
+			ghiChu: '',
+		});
+		const repairedRow: Record<string, unknown> = {
+			bo_tu: 'Bài 1',
+			simplified: '好',
+			pinyin: 'hǎo',
+			meaning_vi: 'tốt',
+		};
+		for (let i = 0; i < VI_DU_COLUMN_KEYS.length; i++) {
+			repairedRow[VI_DU_COLUMN_KEYS[i]] = examples[i];
+		}
+		// Replace vi_du_1 with unblanked sentence that still contains target word
+		repairedRow.vi_du_1 = '我很好。|wǒ hěn hǎo.|Tôi rất __.';
+
+		const preview = await previewUserWorkbook(tuVungFile([repairedRow]));
+		expect(preview.errors).toHaveLength(0);
+		expect(preview.warnings.some((w) => w.includes('tự thêm dấu trống'))).toBe(true);
 	});
 
 	it('rejects missing required fields', async () => {

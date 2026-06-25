@@ -11,6 +11,7 @@ import {
 	VI_DU_COLUMN_KEYS,
 	type ParsedFillExample,
 } from '@/lib/chinese/parseFillExample';
+import { parsePastedTuVung } from '@/lib/chinese/aiImportPrompt';
 import type { CnErrorType, CnQuestionType, CnWordProgressState } from '@/types/chinese';
 
 type Row = Record<string, unknown>;
@@ -333,6 +334,7 @@ async function previewTuVungWorkbook(
 	let validWords = 0;
 	let examplesTotal = 0;
 	let examplesAuto = 0;
+	let examplesRepaired = 0;
 	let wordsWithExamples = 0;
 	const badExampleWarnings: BadExampleWarning[] = [];
 
@@ -382,12 +384,13 @@ async function previewTuVungWorkbook(
 			}
 			if (row.examples.length < MIN_FILL_EXAMPLES_PER_WORD) {
 				errors.push(
-					`tu_vung dòng ${row.rowNumber} (${row.simplified}): cần đúng ${MIN_FILL_EXAMPLES_PER_WORD} ví dụ hợp lệ (vi_du_1…vi_du_5), hiện có ${row.examples.length}`,
+					`tu_vung dòng ${row.rowNumber} (${row.simplified}): cần đúng ${MIN_FILL_EXAMPLES_PER_WORD} ví dụ hợp lệ (vi_du_1…vi_du_5), hiện có ${row.examples.length} — xem chi tiết bên dưới`,
 				);
 				rowValid = false;
 			} else {
 				examplesTotal += row.examples.length;
 				examplesAuto += row.examples.length;
+				examplesRepaired += row.examples.filter((ex) => ex.repaired).length;
 				wordsWithExamples++;
 			}
 		}
@@ -419,6 +422,12 @@ async function previewTuVungWorkbook(
 		for (const name of duplicateSetNames) {
 			warnings.push(`Bộ "${name}" đã tồn tại — import sẽ tạo bộ mới với hậu tố (import N).`);
 		}
+	}
+
+	if (examplesRepaired > 0) {
+		warnings.push(
+			`Đã tự thêm dấu trống cho ${examplesRepaired} câu — kiểm tra lại trước khi import`,
+		);
 	}
 
 	return {
@@ -562,7 +571,7 @@ export async function previewUserWorkbook(file: File, userId?: string): Promise<
 	return previewUserWorkbookBuffer(buffer, userId);
 }
 
-async function previewUserWorkbookBuffer(buffer: Buffer, userId?: string): Promise<UserWorkbookPreview> {
+export async function previewUserWorkbookBuffer(buffer: Buffer, userId?: string): Promise<UserWorkbookPreview> {
 	const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
 
 	if (isTuVungFormat(workbook)) {
@@ -888,5 +897,35 @@ export async function importUserWorkbook(
 ): Promise<UserWorkbookPreview> {
 	const buffer = Buffer.from(await file.arrayBuffer());
 	const { preview } = await importUserWorkbookBuffer(userId, buffer, { restoreProgress });
+	return preview;
+}
+
+function buildTuVungWorkbookBuffer(rows: Record<string, string>[]): Buffer {
+	const wb = XLSX.utils.book_new();
+	XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'tu_vung');
+	return workbookBuffer(wb);
+}
+
+export async function previewPastedTuVung(
+	text: string,
+	setName: string,
+	userId?: string,
+): Promise<UserWorkbookPreview> {
+	const rows = parsePastedTuVung(text, setName);
+	const buffer = buildTuVungWorkbookBuffer(rows);
+	return previewUserWorkbookBuffer(buffer, userId);
+}
+
+export async function importPastedTuVung(
+	userId: string,
+	text: string,
+	setName: string,
+): Promise<UserWorkbookPreview> {
+	const rows = parsePastedTuVung(text, setName);
+	const buffer = buildTuVungWorkbookBuffer(rows);
+	const { preview } = await importUserWorkbookBuffer(userId, buffer, {
+		preserveSetTitle: true,
+		setDescription: '',
+	});
 	return preview;
 }
