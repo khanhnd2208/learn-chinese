@@ -63,7 +63,28 @@ export interface PracticeSessionMode {
 	targetChannel?: SkillChannel;
 	/** Fixed SRS interval for all channels — practice only, ignores per-word progress. */
 	fixedIntervalIdx?: number;
+	/** Practice format bucket — mixed uses SRS progress; mcq/fill use fixed type pools per channel. */
+	practiceFormat?: 'mixed' | 'mcq' | 'fill';
 }
+
+/** MCQ question types per SRS channel (practice) */
+export const PRACTICE_MCQ_TYPES_BY_CHANNEL: Record<SkillChannel, CnQuestionType[]> = {
+	meaning: ['hanzi_to_meaning', 'meaning_to_hanzi'],
+	listening: ['audio_to_meaning', 'audio_to_hanzi'],
+	pinyin: ['pinyin_to_hanzi', 'hanzi_to_pinyin'],
+	sentence: ['fill_sentence'],
+};
+
+/** Typed / fill-in question types per SRS channel (practice) */
+export const PRACTICE_FILL_TYPES_BY_CHANNEL: Record<SkillChannel, CnQuestionType[]> = {
+	meaning: ['meaning_to_hanzi_typed'],
+	listening: ['audio_to_hanzi_typed'],
+	pinyin: ['hanzi_to_pinyin_typed'],
+	sentence: ['fill_sentence_typed'],
+};
+
+export const PRACTICE_MCQ_TYPES = Object.values(PRACTICE_MCQ_TYPES_BY_CHANNEL).flat();
+export const PRACTICE_FILL_TYPES = Object.values(PRACTICE_FILL_TYPES_BY_CHANNEL).flat();
 
 /** URL `mode` → session options. Level modes fix SRS difficulty; mix uses each word's progress. */
 export function resolvePracticeSessionMode(mode: string): PracticeSessionMode {
@@ -71,7 +92,15 @@ export function resolvePracticeSessionMode(mode: string): PracticeSessionMode {
 	switch (normalized) {
 		case 'mixed':
 		case 'smart_mixed':
-			return { group: 'smart_mixed' };
+			return { group: 'smart_mixed', practiceFormat: 'mixed' };
+		case 'mcq':
+		case 'mcqs':
+		case 'practice_mcq':
+			return { group: 'smart_mixed', practiceFormat: 'mcq' };
+		case 'fill':
+		case 'dien_tu':
+		case 'practice_fill':
+			return { group: 'smart_mixed', practiceFormat: 'fill' };
 		case 'level_mcq1':
 		case 'lv0':
 		case 'srs_mcq1':

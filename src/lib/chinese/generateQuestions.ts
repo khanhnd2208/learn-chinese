@@ -27,6 +27,8 @@ export interface GenerateSessionOptions {
 	sessionContext?: SessionContext;
 	/** Practice-only: force all channels to this SRS interval (ignores progress). */
 	fixedIntervalIdx?: number;
+	/** Practice-only: MCQ or fill-in type pools rotated across 4 channels. */
+	practiceFormat?: 'mixed' | 'mcq' | 'fill';
 }
 
 export function mergeWordPools(
@@ -383,6 +385,43 @@ function generateSingleChannelPracticeSession(
 	return spreadShuffle(questions).slice(0, count);
 }
 
+/** Rotate 4 channels using a fixed MCQ or fill-in type pool per channel. */
+function generateBalancedFormatPracticeSession(
+	words: CnWordCardDTO[],
+	count: number,
+	progressMap: Map<string, CnWordProgressDTO | null>,
+	poolWords: CnWordCardDTO[],
+	typesByChannel: Record<SkillChannel, CnQuestionType[]>,
+): CnPracticeQuestionDTO[] {
+	const questions: CnPracticeQuestionDTO[] = [];
+	let channelRound = 0;
+	let wordRound = 0;
+	const maxAttempts = count * Math.max(1, words.length) * ALL_SKILL_CHANNELS.length * 3;
+
+	for (let attempt = 0; attempt < maxAttempts && questions.length < count; attempt++) {
+		const word = words[wordRound % words.length];
+		const channel = ALL_SKILL_CHANNELS[channelRound % ALL_SKILL_CHANNELS.length];
+		const progress = progressMap.get(word.id) ?? null;
+		const typeCandidates = typesByChannel[channel];
+
+		for (const type of typeCandidates) {
+			if (!wordSupportsQuestionType(word, type)) continue;
+			const q = generateQuestionForWord(word, poolWords, type, questions.length);
+			if (q) {
+				questions.push(enrichQuestionWithProgress(q, progress));
+				break;
+			}
+		}
+
+		channelRound++;
+		if (channelRound % ALL_SKILL_CHANNELS.length === 0) {
+			wordRound++;
+		}
+	}
+
+	return spreadShuffle(questions).slice(0, count);
+}
+
 export function generatePracticeSession(
 	words: CnWordCardDTO[],
 	count = 20,
@@ -400,10 +439,41 @@ export function generatePracticeSession(
 	const poolWords = mergeWordPools(words, options.distractorPool);
 
 	if (
+		options.practiceFormat === 'mcq'
+		&& sessionContext === 'practice'
+		&& !options.types?.length
+		&& !options.targetChannel
+	) {
+		return generateBalancedFormatPracticeSession(
+			words,
+			count,
+			progressMap,
+			poolWords,
+			PRACTICE_MCQ_TYPES_BY_CHANNEL,
+		);
+	}
+
+	if (
+		options.practiceFormat === 'fill'
+		&& sessionContext === 'practice'
+		&& !options.types?.length
+		&& !options.targetChannel
+	) {
+		return generateBalancedFormatPracticeSession(
+			words,
+			count,
+			progressMap,
+			poolWords,
+			PRACTICE_FILL_TYPES_BY_CHANNEL,
+		);
+	}
+
+	if (
 		group === 'smart_mixed'
 		&& sessionContext === 'practice'
 		&& !options.types?.length
 		&& !options.targetChannel
+		&& (options.practiceFormat === 'mixed' || options.practiceFormat === undefined)
 	) {
 		return generateBalancedChannelPracticeSession(
 			words,
@@ -484,4 +554,62 @@ export function generateReviewQuestion(
 
 	const q = generateQuestionForWord(word, allWords, type, idx);
 	return q ? enrichQuestionWithProgress(q, progress) : null;
+}
+
+const INFERNO_MCQ_BY_CHANNEL: Record<SkillChannel, CnQuestionType[]> = {
+	meaning: ['hanzi_to_meaning', 'meaning_to_hanzi'],
+	listening: ['audio_to_meaning', 'audio_to_hanzi'],
+	pinyin: ['pinyin_to_hanzi', 'hanzi_to_pinyin'],
+	sentence: ['fill_sentence'],
+};
+
+const INFERNO_FILL_BY_CHANNEL: Record<SkillChannel, CnQuestionType[]> = {
+	meaning: ['meaning_to_hanzi_typed'],
+	listening: ['audio_to_hanzi_typed'],
+	pinyin: ['hanzi_to_pinyin_typed'],
+	sentence: ['fill_sentence_typed'],
+};
+
+export interface InfernoWordChannel {
+	wordId: string;
+	channel: SkillChannel;
+}
+
+function pickInfernoQuestionType(
+	channel: SkillChannel,
+	rng: () => number,
+): CnQuestionType[] {
+	const useFill = rng() < 0.7;
+	return useFill ? INFERNO_FILL_BY_CHANNEL[channel] : INFERNO_MCQ_BY_CHANNEL[channel];
+}
+
+/** Generate one Địa Ngục question — high difficulty, ignores SRS stage unlock */
+export function generateInfernoQuestion(
+	word: CnWordCardDTO,
+	allWords: CnWordCardDTO[],
+	channel: SkillChannel,
+	progress: CnWordProgressDTO | null,
+	idx: number,
+	rng: () => number = Math.random,
+): CnPracticeQuestionDTO | null {
+	const primaryTypes = pickInfernoQuestionType(channel, rng);
+	const fallbackTypes = pickInfernoQuestionType(channel, () => (rng() < 0.7 ? 0.2 : 0.8));
+	const typeCandidates = [...primaryTypes, ...fallbackTypes];
+
+	for (const type of typeCandidates) {
+		if (!wordSupportsQuestionType(word, type)) continue;
+		const q = generateQuestionForWord(word, allWords, type, idx);
+		if (q) return enrichQuestionWithProgress(q, progress);
+	}
+
+	for (const ch of ALL_SKILL_CHANNELS) {
+		if (ch === channel) continue;
+		for (const type of [...INFERNO_FILL_BY_CHANNEL[ch], ...INFERNO_MCQ_BY_CHANNEL[ch]]) {
+			if (!wordSupportsQuestionType(word, type)) continue;
+			const q = generateQuestionForWord(word, allWords, type, idx);
+			if (q) return enrichQuestionWithProgress(q, progress);
+		}
+	}
+
+	return null;
 }

@@ -5,12 +5,14 @@ import {
 	getSrsActiveWordIds,
 	previewRemoveWordFromSet,
 	purgeSrsProgressForSet,
+	resolveSrsPoolWordIds,
 } from '@/services/chinese/cnSrsEnrollmentService';
 
 vi.mock('@/lib/prisma', () => ({
 	prisma: {
 		cnWordSetItem: {
 			findMany: vi.fn(),
+			update: vi.fn(),
 		},
 		cnWordSet: {
 			findFirst: vi.fn(),
@@ -18,6 +20,10 @@ vi.mock('@/lib/prisma', () => ({
 		},
 		cnWordProgress: {
 			deleteMany: vi.fn(),
+			findMany: vi.fn(),
+		},
+		cnWord: {
+			findMany: vi.fn(),
 		},
 	},
 }));
@@ -25,15 +31,21 @@ vi.mock('@/lib/prisma', () => ({
 import { prisma } from '@/lib/prisma';
 
 const mockFindMany = vi.mocked(prisma.cnWordSetItem.findMany);
+const mockItemUpdate = vi.mocked(prisma.cnWordSetItem.update);
 const mockSetFindFirst = vi.mocked(prisma.cnWordSet.findFirst);
 const mockSetUpdate = vi.mocked(prisma.cnWordSet.update);
 const mockProgressDeleteMany = vi.mocked(prisma.cnWordProgress.deleteMany);
+const mockProgressFindMany = vi.mocked(prisma.cnWordProgress.findMany);
+const mockWordFindMany = vi.mocked(prisma.cnWord.findMany);
 
 beforeEach(() => {
 	mockFindMany.mockReset();
+	mockItemUpdate.mockReset();
 	mockSetFindFirst.mockReset();
 	mockSetUpdate.mockReset();
 	mockProgressDeleteMany.mockReset();
+	mockProgressFindMany.mockReset();
+	mockWordFindMany.mockReset();
 });
 
 describe('getSrsActiveWordIds', () => {
@@ -45,6 +57,30 @@ describe('getSrsActiveWordIds', () => {
 		] as never);
 		const ids = await getSrsActiveWordIds('user-1');
 		expect(ids).toEqual(new Set(['w1', 'w2']));
+	});
+});
+
+describe('resolveSrsPoolWordIds', () => {
+	it('heals null wordId items and includes legacy progress words', async () => {
+		mockFindMany.mockResolvedValueOnce([
+			{ id: 'i1', wordId: 'w1', rawTerm: '学习' },
+			{ id: 'i2', wordId: null, rawTerm: '你好' },
+		] as never);
+		mockWordFindMany
+			.mockResolvedValueOnce([{ id: 'w2', simplified: '你好' }] as never)
+			.mockResolvedValueOnce([{ id: 'w2', simplified: '你好' }] as never);
+		mockProgressFindMany.mockResolvedValueOnce([
+			{ wordId: 'w3', word: { simplified: '学习' } },
+		] as never);
+		mockItemUpdate.mockResolvedValue({} as never);
+
+		const ids = await resolveSrsPoolWordIds('user-1');
+
+		expect(ids).toEqual(new Set(['w1', 'w2', 'w3']));
+		expect(mockItemUpdate).toHaveBeenCalledWith({
+			where: { id: 'i2' },
+			data: { wordId: 'w2' },
+		});
 	});
 });
 

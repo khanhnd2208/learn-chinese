@@ -66,7 +66,7 @@ export const AI_IMPORT_OUTPUT_SPEC = [
 	'Đúng 1 chỗ [BLANK] trong câu Hán, 1 chỗ [BLANK] trong pinyin, 1 chỗ [BLANK] trong câu nghĩa Việt.',
 	'',
 	'Ví dụ 1 dòng (các cột phân tách TAB, không hiển thị \\t trong output thật):',
-	'老师\tlǎoshī\tgiáo viên\tlão sư\tdanh từ\t\t他是[BLANK]。|tā shì [BLANK].|Anh ấy là [BLANK].\t...',
+	'老师\tlǎoshī\tgiáo viên\tlão sư\tdanh từ\t\t他在学校每天教学生，他是[BLANK]。|tā zài xuéxiào měitiān jiāo xuésheng, tā shì [BLANK].|Anh ấy dạy học sinh mỗi ngày, anh ấy là [BLANK].\t...',
 	'',
 	'Trước khi output, kiểm tra TỪNG ô vi_du_N:',
 	'  [ ] Câu Hán có đúng 1 [BLANK] không?',

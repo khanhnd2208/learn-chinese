@@ -22,7 +22,7 @@ import {
 	type DailyActivityRow,
 	type ProgressForMetrics,
 } from '@/lib/chinese/reviewMetrics';
-import { getSrsActiveWordIds } from '@/services/chinese/cnSrsEnrollmentService';
+import { resolveSrsPoolWordIds } from '@/services/chinese/cnSrsEnrollmentService';
 import { countDueToday, loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
 import type { CnErrorType, CnReviewStatsDTO, CnReviewStatusDTO } from '@/types/chinese';
 
@@ -115,7 +115,7 @@ export async function getReviewStatus(userId: string): Promise<CnReviewStatusDTO
 	const now = new Date();
 	const [dueTotal, activeWordIds] = await Promise.all([
 		countDueToday(userId),
-		getSrsActiveWordIds(userId),
+		resolveSrsPoolWordIds(userId),
 	]);
 	const activeIds = [...activeWordIds];
 	const { metrics: progressMetrics, wordsWithFillExamples } = await loadProgressMetrics(userId, activeIds);
@@ -151,7 +151,7 @@ export async function getReviewStats(userId: string): Promise<CnReviewStatsDTO> 
 
 	const [dueTotal, activeWordIds, todayLogs, weekLogs, historyLogs] = await Promise.all([
 		countDueToday(userId),
-		getSrsActiveWordIds(userId),
+		resolveSrsPoolWordIds(userId),
 		prisma.cnAnswerLog.findMany({
 			where: {
 				userId,

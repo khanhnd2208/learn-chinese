@@ -86,7 +86,7 @@ describe('practiceTaxonomy (11 core types, 4 channels)', () => {
 	it('resolvePracticeSessionMode maps channel modes', () => {
 		expect(resolvePracticeSessionMode('meaning')).toEqual({ group: 'core_vocab', targetChannel: 'meaning' });
 		expect(resolvePracticeSessionMode('pinyin')).toEqual({ group: 'core_vocab', targetChannel: 'pinyin' });
-		expect(resolvePracticeSessionMode('smart_mixed')).toEqual({ group: 'smart_mixed' });
+		expect(resolvePracticeSessionMode('smart_mixed')).toEqual({ group: 'smart_mixed', practiceFormat: 'mixed' });
 	});
 
 	it('resolvePracticeSessionMode maps fixed SRS level modes', () => {

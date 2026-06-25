@@ -164,17 +164,29 @@ export function buildCoverageReport(results: CnLookupResultDTO[]): CnCoverageRep
 	};
 }
 
-export async function getWordCard(wordId: string, userId?: string): Promise<CnWordCardDTO | null> {
-	const word = await prisma.cnWord.findUnique({
-		where: { id: wordId, status: 'published' },
-		include: {
-			examples: true,
-			patterns: true,
-			chars: { include: { hanzi: true }, orderBy: { position: 'asc' } },
-		},
-	});
-	if (!word) return null;
+const wordCardInclude = {
+	examples: true,
+	patterns: true,
+	chars: { include: { hanzi: true }, orderBy: { position: 'asc' as const } },
+} as const;
 
+async function buildWordCardDTO(
+	word: CnWord & {
+		examples: Array<{
+			id: string;
+			hanzi: string;
+			pinyin: string;
+			meaningVi: string;
+			meaningViTemplate: string;
+			targetWordStart: number | null;
+			targetWordEnd: number | null;
+			naturalnessStatus: string;
+		}>;
+		patterns: CnSentencePattern[];
+		chars: Array<{ position: number; hanzi: CnHanzi; hanziId: string }>;
+	},
+	userId?: string,
+): Promise<CnWordCardDTO> {
 	const charIds = word.chars.map((c) => c.hanziId);
 	const [related, progressRow] = await Promise.all([
 		charIds.length
@@ -189,7 +201,7 @@ export async function getWordCard(wordId: string, userId?: string): Promise<CnWo
 			: Promise.resolve([]),
 		userId
 			? prisma.cnWordProgress.findUnique({
-					where: { userId_wordId: { userId, wordId } },
+					where: { userId_wordId: { userId, wordId: word.id } },
 				})
 			: Promise.resolve(null),
 	]);
@@ -227,6 +239,43 @@ export async function getWordCard(wordId: string, userId?: string): Promise<CnWo
 		progress,
 		channelMastery,
 	};
+}
+
+/** Load word cards for SRS pool — includes draft words in the user's SRS-active sets */
+export async function getWordCardsForSrsPool(
+	userId: string,
+	wordIds: string[],
+): Promise<Map<string, CnWordCardDTO>> {
+	const map = new Map<string, CnWordCardDTO>();
+	const uniqueIds = [...new Set(wordIds)];
+	if (!uniqueIds.length) return map;
+
+	const published = await Promise.all(uniqueIds.map((id) => getWordCard(id, userId)));
+	const missing: string[] = [];
+	for (let i = 0; i < uniqueIds.length; i++) {
+		if (published[i]) map.set(uniqueIds[i], published[i]!);
+		else missing.push(uniqueIds[i]);
+	}
+	if (!missing.length) return map;
+
+	const words = await prisma.cnWord.findMany({
+		where: { id: { in: missing } },
+		include: wordCardInclude,
+	});
+
+	for (const word of words) {
+		map.set(word.id, await buildWordCardDTO(word, userId));
+	}
+	return map;
+}
+
+export async function getWordCard(wordId: string, userId?: string): Promise<CnWordCardDTO | null> {
+	const word = await prisma.cnWord.findUnique({
+		where: { id: wordId, status: 'published' },
+		include: wordCardInclude,
+	});
+	if (!word) return null;
+	return buildWordCardDTO(word, userId);
 }
 
 export async function getHanziAnalysis(term: string): Promise<CnHanziAnalysisDTO> {
