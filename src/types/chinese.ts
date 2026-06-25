@@ -345,6 +345,42 @@ export interface CnDashboardDTO {
 	weakWords: Array<{ wordId: string; simplified: string; state: CnWordProgressState }>;
 }
 
+export interface CnInfernoMasteryDeltaDTO {
+	wordId: string;
+	delta: number;
+	newScore: number;
+}
+
+export interface CnInfernoScoreBucketDTO {
+	label: string;
+	count: number;
+}
+
+export interface CnInfernoWordRankDTO {
+	wordId: string;
+	simplified: string;
+	meaningVi: string;
+	masteryScore: number;
+}
+
+export interface CnInfernoStatsDTO {
+	totalEnrolled: number;
+	masteredCount: number;
+	avgMasteryScore: number;
+	totalMasteryPoints: number;
+	totalAnswered: number;
+	overallAccuracy: number;
+	mcqAccuracy: number;
+	mcqTotal: number;
+	fillAccuracy: number;
+	fillTotal: number;
+	scoreDistribution: CnInfernoScoreBucketDTO[];
+	topMastered: CnInfernoWordRankDTO[];
+	stuckAtZero: CnInfernoWordRankDTO[];
+	wordsWithProgress: number;
+	insights: string[];
+}
+
 export interface CreateCnWordSetInput {
 	title: string;
 	description?: string;

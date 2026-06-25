@@ -120,6 +120,10 @@ export default async function ChineseHomePage() {
 								Ôn {dueToday} mục
 							</Link>
 						) : null}
+						<Link href="/inferno" className="btn-secondary border-warning/40 bg-warning/5 text-warning hover:bg-warning/10">
+							<MaterialIcon name="local_fire_department" size={16} filled />
+							Địa Ngục
+						</Link>
 						<Link href="/sets" className="btn-secondary">
 							<MaterialIcon name="library_books" size={16} />
 							Quản lý bộ từ

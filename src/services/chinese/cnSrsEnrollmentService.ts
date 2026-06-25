@@ -2,8 +2,9 @@
    cnSrsEnrollmentService.ts — Per-set SRS activation and word enrollment
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
+import { normalizeTerm } from '@/lib/chinese/hanziUtils';
 
-/** Word IDs from items in all SRS-active sets for this user */
+/** Word IDs from items in all SRS-active sets for this user (no self-heal) */
 export async function getSrsActiveWordIds(userId: string): Promise<Set<string>> {
 	const items = await prisma.cnWordSetItem.findMany({
 		where: {
@@ -13,6 +14,83 @@ export async function getSrsActiveWordIds(userId: string): Promise<Set<string>> 
 		select: { wordId: true },
 	});
 	return new Set(items.map((i) => i.wordId!));
+}
+
+/**
+ * SRS pool for practice/review/inferno — heals stale set items and includes
+ * legacy CnWordProgress rows whose word matches a rawTerm in an SRS-active set.
+ */
+export async function resolveSrsPoolWordIds(userId: string): Promise<Set<string>> {
+	const activeItems = await prisma.cnWordSetItem.findMany({
+		where: { set: { userId, srsActive: true } },
+		select: { id: true, wordId: true, rawTerm: true },
+	});
+
+	const ids = new Set<string>();
+	const unresolved: Array<{ id: string; rawTerm: string }> = [];
+
+	for (const item of activeItems) {
+		if (item.wordId) ids.add(item.wordId);
+		else unresolved.push({ id: item.id, rawTerm: item.rawTerm });
+	}
+
+	if (unresolved.length) {
+		const normalizedTerms = [...new Set(unresolved.map((u) => normalizeTerm(u.rawTerm)).filter(Boolean))];
+		const publishedWords = normalizedTerms.length
+			? await prisma.cnWord.findMany({
+				where: { simplified: { in: normalizedTerms }, status: 'published' },
+				select: { id: true, simplified: true },
+			})
+			: [];
+		const bySimplified = new Map(publishedWords.map((w) => [w.simplified, w.id]));
+
+		for (const item of unresolved) {
+			const wordId = bySimplified.get(normalizeTerm(item.rawTerm));
+			if (!wordId) continue;
+			ids.add(wordId);
+			await prisma.cnWordSetItem.update({
+				where: { id: item.id },
+				data: { wordId },
+			});
+		}
+	}
+
+	const rawTerms = [...new Set(
+		activeItems.map((i) => normalizeTerm(i.rawTerm)).filter(Boolean),
+	)];
+	if (!rawTerms.length) return ids;
+
+	const [progressRows, wordsBySimplified] = await Promise.all([
+		prisma.cnWordProgress.findMany({
+			where: { userId },
+			select: { wordId: true, word: { select: { simplified: true } } },
+		}),
+		prisma.cnWord.findMany({
+			where: { simplified: { in: rawTerms } },
+			select: { id: true, simplified: true },
+		}),
+	]);
+
+	const termSet = new Set(rawTerms);
+	for (const row of progressRows) {
+		if (termSet.has(row.word.simplified)) ids.add(row.wordId);
+	}
+
+	for (const word of wordsBySimplified) {
+		if (!termSet.has(word.simplified)) continue;
+		ids.add(word.id);
+		const staleItems = activeItems.filter(
+			(i) => !i.wordId && normalizeTerm(i.rawTerm) === word.simplified,
+		);
+		for (const item of staleItems) {
+			await prisma.cnWordSetItem.update({
+				where: { id: item.id },
+				data: { wordId: word.id },
+			});
+		}
+	}
+
+	return ids;
 }
 
 /** Resolved word IDs in a specific set */
@@ -58,13 +136,14 @@ export async function enrollWordsInSrs(userId: string, wordIds: string[]): Promi
 
 /** Self-heal: upsert CnWordProgress for SRS-active words missing enrollment */
 export async function ensureEnrollmentForActiveWords(userId: string, activeWordIds: string[]): Promise<void> {
-	if (!activeWordIds.length) return;
+	const poolIds = activeWordIds.length ? activeWordIds : [...await resolveSrsPoolWordIds(userId)];
+	if (!poolIds.length) return;
 	const existing = await prisma.cnWordProgress.findMany({
-		where: { userId, wordId: { in: activeWordIds } },
+		where: { userId, wordId: { in: poolIds } },
 		select: { wordId: true },
 	});
 	const enrolled = new Set(existing.map((r) => r.wordId));
-	const missing = activeWordIds.filter((id) => !enrolled.has(id));
+	const missing = poolIds.filter((id) => !enrolled.has(id));
 	if (missing.length) await enrollWordsInSrs(userId, missing);
 }
 

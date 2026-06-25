@@ -59,6 +59,7 @@ enum CnAnswerSource {
   review
   mark_known
   integrated
+  inferno
 }
 
 enum CnHanziAiContentStatus {
@@ -208,8 +209,9 @@ model CnWord {
   examples     CnExample[]
   patterns     CnSentencePattern[]
   setItems     CnWordSetItem[]
-  progress     CnWordProgress[]
-  answerLogs   CnAnswerLog[]
+  progress        CnWordProgress[]
+  answerLogs      CnAnswerLog[]
+  infernoProgress CnInfernoProgress[]
   @@index([status])
   @@index([hskLevel])
 }
@@ -355,6 +357,22 @@ model CnAnswerLog {
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, wordId])
   @@index([userId, errorType])
+}
+
+model CnInfernoProgress {
+  id             String    @id @default(cuid())
+  userId         String
+  wordId         String
+  masteryScore   Int       @default(0)
+  correctMcq     Int       @default(0)
+  correctFill    Int       @default(0)
+  wrongCount     Int       @default(0)
+  lastAnsweredAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  word           CnWord    @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  @@unique([userId, wordId])
+  @@index([userId])
 }
 
 model CnHanziAiAnalysis {

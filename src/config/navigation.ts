@@ -10,6 +10,7 @@ export const MAIN_NAV: NavLink[] = [
 	{ href: '/sets', label: 'Bộ từ', icon: 'library_books', shortLabel: 'Sets' },
 	{ href: '/hanzi-lab', label: 'Hanzi Lab', icon: 'science', shortLabel: 'Lab' },
 	{ href: '/review', label: 'Ôn tập', icon: 'history', shortLabel: 'Review' },
+	{ href: '/inferno', label: 'Địa Ngục', icon: 'local_fire_department', shortLabel: 'Inferno' },
 	{ href: '/dashboard', label: 'Tiến bộ', icon: 'trending_up', shortLabel: 'Progress' },
 ];
 

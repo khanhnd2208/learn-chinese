@@ -18,7 +18,7 @@ import {
 import { reconcileSubmitItems } from '@/lib/chinese/answerGrading';
 import { buildDueCandidateWhere } from '@/lib/chinese/cnSrsDueQuery';
 import { isCoreQuestionType, questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
-import { ensureEnrollmentForActiveWords, getSrsActiveWordIds } from '@/services/chinese/cnSrsEnrollmentService';
+import { ensureEnrollmentForActiveWords, resolveSrsPoolWordIds } from '@/services/chinese/cnSrsEnrollmentService';
 import { errorSeverity, inferErrorType } from '@/lib/chinese/errorMapping';
 import { rate } from '@/lib/chinese/hanziUtils';
 import {
@@ -356,7 +356,7 @@ export async function fetchProgressDueCandidates(
 
 export async function getDueChannels(userId: string, limit = 50): Promise<DueChannelEntry[]> {
 	const now = new Date();
-	const activeIds = await getSrsActiveWordIds(userId);
+	const activeIds = await resolveSrsPoolWordIds(userId);
 	if (!activeIds.size) return [];
 
 	await ensureEnrollmentForActiveWords(userId, [...activeIds]);
@@ -432,7 +432,7 @@ export async function submitReviewResults(
 	const wordIds = [...new Set(items.map((i) => i.wordId))];
 	await validateSubmitWordIds(wordIds);
 
-	const activeIds = await getSrsActiveWordIds(userId);
+	const activeIds = await resolveSrsPoolWordIds(userId);
 	const notEnrolled = wordIds.filter((id) => !activeIds.has(id));
 	if (notEnrolled.length) {
 		throw new AppError('Một hoặc nhiều từ chưa được đưa vào SRS', 400);
@@ -704,7 +704,7 @@ export function progressToDTO(p: CnWordProgress): CnWordProgressDTO {
 }
 
 export async function countDueChannels(userId: string): Promise<number> {
-	const activeIds = await getSrsActiveWordIds(userId);
+	const activeIds = await resolveSrsPoolWordIds(userId);
 	if (!activeIds.size) return 0;
 	const wordIdList = [...activeIds];
 	await ensureEnrollmentForActiveWords(userId, wordIdList);

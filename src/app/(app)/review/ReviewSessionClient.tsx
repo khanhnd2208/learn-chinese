@@ -12,8 +12,7 @@ import { questionChannel } from '@/lib/chinese/coreQuestionTypes';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
 import type { CnPracticeQuestionDTO } from '@/types/chinese';
 
-type Phase = 'goal' | 'loading' | 'review' | 'summary' | 'empty';
-type SessionGoal = 10 | 20 | null;
+type Phase = 'loading' | 'review' | 'summary' | 'empty';
 
 function wordChannelKey(wordId: string, questionType: CnPracticeQuestionDTO['type']): string {
 	return `${wordId}:${questionChannel(questionType)}`;
@@ -53,8 +52,7 @@ export default function ReviewSessionClient() {
 		endpoint: '/api/review/submit',
 	});
 
-	const [phase, setPhase] = useState<Phase>('goal');
-	const [sessionGoal, setSessionGoal] = useState<SessionGoal>(null);
+	const [phase, setPhase] = useState<Phase>('loading');
 	const [dueToday, setDueToday] = useState(0);
 	const [dueRemaining, setDueRemaining] = useState(0);
 	const [skippedUnpublished, setSkippedUnpublished] = useState(0);
@@ -71,8 +69,6 @@ export default function ReviewSessionClient() {
 	const prefetchingRef = useRef(false);
 	const batchSizeRef = useRef(0);
 	const reviewedCountRef = useRef(0);
-	const sessionGoalRef = useRef<SessionGoal>(null);
-	const goalReachedRef = useRef(false);
 
 	const trackQuestions = useCallback((batch: CnPracticeQuestionDTO[]) => {
 		for (const q of batch) {
@@ -84,7 +80,6 @@ export default function ReviewSessionClient() {
 	const loadInitial = useCallback(async () => {
 		seenIdsRef.current = new Set();
 		seenWordChannelsRef.current = new Set();
-		goalReachedRef.current = false;
 		setReviewedCount(0);
 		reviewedCountRef.current = 0;
 		batchSizeRef.current = 0;
@@ -110,30 +105,17 @@ export default function ReviewSessionClient() {
 		setPhase('review');
 	}, [resetSession, trackQuestions]);
 
-	// Mount: stay on goal picker until user chooses session length
 	useEffect(() => {
-		sessionGoalRef.current = sessionGoal;
-	}, [sessionGoal]);
-
-	const startSession = useCallback((goal: SessionGoal) => {
-		setSessionGoal(goal);
-		sessionGoalRef.current = goal;
-		void loadInitial().catch(() => setPhase('empty'));
+		const timer = setTimeout(() => {
+			void loadInitial().catch(() => setPhase('empty'));
+		}, 0);
+		return () => clearTimeout(timer);
 	}, [loadInitial]);
 
 	const showSummary = useCallback((reason: 'exit' | 'complete') => {
 		setSummaryReason(reason);
 		setPhase('summary');
 	}, []);
-
-	const completeSessionIfGoalReached = useCallback(async () => {
-		const goal = sessionGoalRef.current;
-		if (goal === null || reviewedCountRef.current < goal || goalReachedRef.current) return false;
-		goalReachedRef.current = true;
-		await flushAndWait();
-		showSummary('complete');
-		return true;
-	}, [flushAndWait, showSummary]);
 
 	const appendQuestions = useCallback((newQuestions: CnPracticeQuestionDTO[], dueCount: number) => {
 		if (!newQuestions.length) return false;
@@ -148,9 +130,7 @@ export default function ReviewSessionClient() {
 	}, [trackQuestions]);
 
 	const prefetchMore = useCallback(async () => {
-		if (prefetchingRef.current || goalReachedRef.current) return;
-		const goal = sessionGoalRef.current;
-		if (goal !== null && reviewedCountRef.current >= goal) return;
+		if (prefetchingRef.current) return;
 		prefetchingRef.current = true;
 		setIsFetchingMore(true);
 		try {
@@ -173,18 +153,12 @@ export default function ReviewSessionClient() {
 		const next = reviewedCountRef.current;
 		setReviewedCount(next);
 		setDueRemaining((d) => Math.max(0, d - 1));
-		const goal = sessionGoalRef.current;
-		if (goal !== null && next >= goal) {
-			void completeSessionIfGoalReached();
-			return;
-		}
 		if (next >= batchSizeRef.current - 2) {
 			void prefetchMore();
 		}
-	}, [enqueue, prefetchMore, completeSessionIfGoalReached]);
+	}, [enqueue, prefetchMore]);
 
 	const handleComplete = useCallback(async () => {
-		if (await completeSessionIfGoalReached()) return;
 		await flushAndWait();
 		try {
 			const data = await fetchReviewBatch(
@@ -203,7 +177,7 @@ export default function ReviewSessionClient() {
 			// fall through
 		}
 		showSummary('complete');
-	}, [flushAndWait, showSummary, completeSessionIfGoalReached, trackQuestions]);
+	}, [flushAndWait, showSummary, trackQuestions]);
 
 	const handleExit = useCallback(async () => {
 		if (isExiting) return;
@@ -248,43 +222,6 @@ export default function ReviewSessionClient() {
 			}}
 		/>
 	);
-
-	if (phase === 'goal') {
-		return (
-			<>
-				<div className="mx-auto max-w-2xl px-4 py-8">
-					<div className="mb-4 flex justify-end">{managerButton}</div>
-					<div className="card-paper w-full p-8 text-center">
-						<MaterialIcon name="school" className="mx-auto text-accent" size={48} />
-						<h1 className="mt-4 text-xl font-extrabold text-foreground">Bắt đầu ôn SRS</h1>
-						<p className="mt-2 text-sm text-foreground-secondary">
-							Chọn số câu bạn muốn ôn trong phiên này.
-						</p>
-						<div className="mt-6 flex flex-wrap justify-center gap-3">
-							{([10, 20] as const).map((goal) => (
-								<button
-									key={goal}
-									type="button"
-									onClick={() => startSession(goal)}
-									className="btn-primary min-w-[88px]"
-								>
-									{goal} câu
-								</button>
-							))}
-							<button
-								type="button"
-								onClick={() => startSession(null)}
-								className="btn-secondary"
-							>
-								Ôn hết
-							</button>
-						</div>
-					</div>
-				</div>
-				{managerModal}
-			</>
-		);
-	}
 
 	if (phase === 'loading') {
 		return (
@@ -372,9 +309,7 @@ export default function ReviewSessionClient() {
 					? 'Tiến độ đã được lưu — quay lại bất cứ lúc nào.'
 					: undefined}
 				onPrimaryAction={() => {
-					setSessionGoal(null);
-					sessionGoalRef.current = null;
-					setPhase('goal');
+					void loadInitial();
 				}}
 				primaryLabel="Ôn tiếp"
 				/>

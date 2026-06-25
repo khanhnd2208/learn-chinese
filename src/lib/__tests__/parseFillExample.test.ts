@@ -80,6 +80,31 @@ describe('parseFillExampleCell', () => {
 		expect(result.reason).toContain('không viết cả từ lẫn [BLANK]');
 	});
 
+	it('rejects 是 when target recurs inside 不是 (high-frequency char leak)', () => {
+		const result = parseFillExampleCell(
+			'他不是医生，他的工作[BLANK]老师。|tā bú shì yīshēng, tā de gōngzuò [BLANK] lǎoshī.|Anh ấy không phải bác sĩ, công việc [BLANK] giáo viên.',
+			'是',
+			'là',
+		);
+		expect(result.ok).toBe(false);
+		if (result.ok) return;
+		expect(result.reason).toContain('是');
+		expect(result.reason).toContain('không viết cả từ lẫn [BLANK]');
+	});
+
+	it('accepts 是 when target appears only at blank', () => {
+		const result = parseFillExampleCell(
+			'苹果[BLANK]一种水果，很多人喜欢吃。|píngguǒ [BLANK] yì zhǒng shuǐguǒ, hěn duō rén xǐhuan chī.|Táo [BLANK] một loại trái cây, nhiều người thích ăn.',
+			'是',
+			'là',
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.example.hanzi).toBe('苹果是一种水果，很多人喜欢吃。');
+		expect(result.example.targetWordStart).toBe(2);
+		expect(result.example.targetWordEnd).toBe(3);
+	});
+
 	it('requires exactly one blank in Chinese and Vietnamese', () => {
 		expect(parseFillExampleCell('他是老师。|tā shì.|Anh là.', '老师', 'giáo viên').ok).toBe(false);
 		expect(parseFillExampleCell('他是__ __。|tā shì.|Anh __ __.', '老师', 'giáo viên').ok).toBe(false);

@@ -19,7 +19,7 @@ import {
 	type ProgressForMetrics,
 } from '@/lib/chinese/reviewMetrics';
 import { loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
-import { ensureEnrollmentForActiveWords, getSrsActiveWordIds } from '@/services/chinese/cnSrsEnrollmentService';
+import { ensureEnrollmentForActiveWords, resolveSrsPoolWordIds } from '@/services/chinese/cnSrsEnrollmentService';
 import type { CnDashboardDTO } from '@/types/chinese';
 
 const HISTORY_DAYS = 90;
@@ -65,7 +65,7 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 	const todayStart = startOfLocalDay(now);
 	const historySince = new Date(now.getTime() - HISTORY_DAYS * 86_400_000);
 
-	const activeWordIds = await getSrsActiveWordIds(userId);
+	const activeWordIds = await resolveSrsPoolWordIds(userId);
 	await ensureEnrollmentForActiveWords(userId, [...activeWordIds]);
 	const activeIds = new Set(activeWordIds);
 

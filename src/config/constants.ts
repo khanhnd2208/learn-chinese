@@ -35,7 +35,16 @@ export const CN_DEFAULT_PRACTICE_COUNT = 20;
 export const CN_DEFAULT_REVIEW_COUNT = 25;
 /** Questions fetched per review batch (infinite queue) */
 export const CN_REVIEW_PREFETCH_SIZE = 5;
+export const CN_INFERNO_PREFETCH_SIZE = 5;
 export const CN_MAX_CHANNELS_PER_WORD_REVIEW = 3;
+
+/** Địa Ngục mode — per-word mastery scoring */
+export const INFERNO_MCQ_CORRECT = 30;
+export const INFERNO_FILL_CORRECT = 70;
+export const INFERNO_WRONG_FLAT = 30;
+export const INFERNO_WRONG_PCT = 0.25;
+export const INFERNO_MASTERY_THRESHOLD = 300;
+export const INFERNO_MIN_ENROLLED = 50;
 export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 export const CN_CHANNEL_WEAK_THRESHOLD = 60;
 
