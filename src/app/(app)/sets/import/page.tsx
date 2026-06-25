@@ -17,8 +17,8 @@ export default async function SetImportPage() {
 					<MaterialIcon name="arrow_back" size={16} />
 					Bộ từ
 				</Link>
-				<span className="label-caps mt-4 block tracking-widest">Thêm bộ từ</span>
-				<h1 className="mt-2 text-3xl font-black text-foreground">Import bộ từ</h1>
+				<span className="label-caps mt-4 block tracking-widest">Import từ</span>
+				<h1 className="mt-2 text-3xl font-black text-foreground">Import từ</h1>
 				<p className="mt-2 max-w-2xl text-sm text-foreground-secondary">
 					Tải file Excel theo mẫu hệ thống, hoặc dùng <strong>AI Smart Import</strong>: copy prompt có sẵn sang Gen AI bên ngoài, rồi dán kết quả TSV trở lại app — không cần tự làm file Excel.
 				</p>

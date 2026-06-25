@@ -21,10 +21,10 @@ export default function SessionSummaryCard({
 	title = 'Đã lưu tiến độ',
 	subtitle,
 	primaryHref = '/review',
-	primaryLabel = 'Ôn tiếp',
+	primaryLabel = 'Luyện tiếp',
 	onPrimaryAction,
 	secondaryLinks = [
-		{ href: '/review/stats', label: 'Xem tiến độ', icon: 'query_stats' },
+		{ href: '/dashboard', label: 'Báo cáo học tập', icon: 'query_stats' },
 		{ href: '/', label: 'Trang chủ', icon: 'home' },
 	],
 }: Props) {

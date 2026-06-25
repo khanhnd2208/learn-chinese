@@ -10,6 +10,7 @@ import SessionSummaryCard from '@/components/chinese/SessionSummaryCard';
 import {
 	CN_INFERNO_PREFETCH_SIZE,
 	INFERNO_FILL_CORRECT,
+	INFERNO_MCQ_CORRECT,
 	INFERNO_MIN_ENROLLED,
 	INFERNO_WRONG_FLAT,
 	INFERNO_WRONG_PCT,
@@ -202,7 +203,7 @@ export default function InfernoSessionClient() {
 		try {
 			await flushAndWait();
 			if (reviewedCountRef.current > 0) showSummary('exit');
-			else router.push('/inferno/stats');
+			else router.push('/dashboard?tab=inferno');
 		} catch {
 			setIsExiting(false);
 		}
@@ -215,7 +216,7 @@ export default function InfernoSessionClient() {
 
 	const statsLink = (
 		<Link
-			href="/inferno/stats"
+			href="/dashboard?tab=inferno"
 			className="inline-flex items-center gap-1 rounded-lg border border-warning/40 bg-warning/10 px-2.5 py-1 text-xs font-bold text-warning transition-colors hover:bg-warning/20"
 		>
 			<MaterialIcon name="query_stats" size={14} />
@@ -316,7 +317,7 @@ export default function InfernoSessionClient() {
 				onPrimaryAction={() => { void loadInitial(); }}
 				primaryLabel="Luyện tiếp"
 				secondaryLinks={[
-					{ href: '/inferno/stats', label: 'Xem thống kê', icon: 'query_stats' },
+					{ href: '/dashboard?tab=inferno', label: 'Báo cáo học tập', icon: 'query_stats' },
 					{ href: '/', label: 'Trang chủ', icon: 'home' },
 				]}
 			/>

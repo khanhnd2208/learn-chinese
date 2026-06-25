@@ -39,7 +39,7 @@ export default function SetSrsStatusBanner({ srsActive, variant = 'study' }: Pro
 				<span>
 					Bật <strong className="text-foreground">Ôn SRS</strong> bên dưới để đưa từ vào{' '}
 					<Link href="/review" className="font-bold text-accent hover:underline">/review</Link>.
-					Luyện tập giúp học tự do; lịch ôn SRS chỉ thay đổi ở mục Ôn tập.
+					Luyện tập giúp học tự do; lịch ôn SRS chỉ thay đổi ở mục Luyện SRS.
 				</span>
 			</p>
 		</div>

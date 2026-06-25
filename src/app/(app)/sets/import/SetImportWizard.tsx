@@ -226,6 +226,7 @@ export default function SetImportWizard() {
 										</>
 									) : undefined
 								}
+								errorReportContext={file ? `Excel Import · Tệp: ${file.name}` : 'Excel Import'}
 							/>
 
 							<label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-surface px-4 py-3">

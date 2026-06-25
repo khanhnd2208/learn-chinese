@@ -28,13 +28,9 @@ export default async function ChineseSetsPage() {
 					<h1 className="mt-2 text-3xl font-black text-foreground">Danh sách bộ từ</h1>
 				</div>
 				<div className="hidden flex-wrap gap-2 md:flex">
-					<Link href="/sets/import" className="btn-secondary">
+					<Link href="/sets/import" className="btn-primary">
 						<MaterialIcon name="upload_file" size={16} />
-						Thêm bộ từ
-					</Link>
-					<Link href="/sets/create" className="btn-primary">
-						<MaterialIcon name="add" size={16} />
-						Tạo mới
+						Import từ
 					</Link>
 				</div>
 			</section>
@@ -43,7 +39,7 @@ export default async function ChineseSetsPage() {
 				<p>
 					<strong className="text-foreground">Luyện tập</strong> giúp bạn học tự do trong từng bộ.
 					<strong className="text-foreground"> Lịch ôn SRS</strong> chỉ thay đổi khi bạn học ở mục{' '}
-					<Link href="/review" className="font-bold text-accent hover:underline">Ôn tập</Link>.
+					<Link href="/review" className="font-bold text-accent hover:underline">Luyện SRS</Link>.
 					Bật <strong className="text-foreground">Ôn SRS</strong> trên từng bộ để đưa từ vào hàng đợi.
 				</p>
 			</div>
@@ -51,7 +47,7 @@ export default async function ChineseSetsPage() {
 			{sets.length === 0 ? (
 				<div className="text-sm text-muted">
 					<p>Chưa có bộ từ nào.</p>
-					<p className="mt-1 md:hidden">Tạo bộ từ trên máy tính sau buổi học.</p>
+					<p className="mt-1 md:hidden">Import từ sau buổi học để bắt đầu.</p>
 				</div>
 			) : (
 				<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">

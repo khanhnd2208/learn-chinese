@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 
@@ -31,6 +31,53 @@ export interface ImportPreview {
 		sentence: string;
 		reason: string;
 	}[];
+}
+
+/** Plain-text report for clipboard when import preview has blocking errors */
+export function formatImportErrorReport(
+	preview: ImportPreview,
+	context?: string,
+): string {
+	const lines: string[] = ['Báo cáo lỗi import'];
+
+	if (context?.trim()) {
+		lines.push(context.trim());
+	}
+
+	if (preview.errors.length > 0) {
+		lines.push('', `=== Lỗi (${preview.errors.length}) ===`);
+		for (const err of preview.errors) {
+			lines.push(`• ${err}`);
+		}
+	}
+
+	const badExamples = preview.badExampleWarnings ?? [];
+	if (badExamples.length > 0) {
+		lines.push('', `=== Chi tiết lỗi câu ví dụ (${badExamples.length}) ===`);
+		const groups = badExamples.reduce<
+			Record<string, NonNullable<ImportPreview['badExampleWarnings']>>
+		>((acc, item) => {
+			const key = `${item.rowNumber}::${item.simplified}`;
+			const list = acc[key] ?? [];
+			list.push(item);
+			acc[key] = list;
+			return acc;
+		}, {});
+
+		for (const items of Object.values(groups)) {
+			const first = items[0];
+			if (!first) continue;
+			lines.push('', `Dòng ${first.rowNumber} (${first.simplified})`);
+			for (const item of items) {
+				lines.push(`  vi_du_${item.exampleIndex}: ${item.reason}`);
+				if (item.sentence) {
+					lines.push(`    Nội dung: ${item.sentence}`);
+				}
+			}
+		}
+	}
+
+	return lines.join('\n');
 }
 
 export const EXCEL_STEPS: { id: ImportWizardStep; label: string }[] = [
@@ -130,23 +177,44 @@ export function StepTracker({
 export function ImportReviewPanel({
 	preview,
 	sourceLabel,
+	errorReportContext,
+	embedded = false,
 }: {
 	preview: ImportPreview;
 	sourceLabel?: ReactNode;
+	errorReportContext?: string;
+	/** Compact layout for AI import split-pane sidebar */
+	embedded?: boolean;
 }) {
+	const [copyOk, setCopyOk] = useState(false);
 	const hasErrors = preview.errors.length > 0;
+	const hasBadExamples = (preview.badExampleWarnings?.length ?? 0) > 0;
+	const hasCopyableErrors = hasErrors || hasBadExamples;
 	const hasWarnings = preview.warnings.length > 0;
 	const reviewStatus = hasErrors ? 'error' : hasWarnings ? 'warning' : 'ok';
 
+	const handleCopyErrorReport = async () => {
+		try {
+			await navigator.clipboard.writeText(formatImportErrorReport(preview, errorReportContext));
+			setCopyOk(true);
+			setTimeout(() => setCopyOk(false), 2000);
+		} catch {
+			// clipboard denied — silent; user can select text manually
+		}
+	};
+
 	return (
-		<div className="space-y-6">
-			{sourceLabel && (
+		<div className={embedded ? 'flex h-full min-h-0 flex-col' : 'space-y-6'}>
+			{sourceLabel && !embedded && (
 				<p className="text-center text-sm text-muted">
 					{sourceLabel}
 				</p>
 			)}
 
-			<div className="card-paper p-6">
+			<div className={`card-paper flex min-h-0 flex-1 flex-col p-4 sm:p-6 ${embedded ? 'h-full' : ''}`}>
+				{embedded && sourceLabel && (
+					<p className="mb-3 text-xs text-muted">{sourceLabel}</p>
+				)}
 				<h3 className="text-lg font-extrabold text-foreground">Kết quả kiểm tra</h3>
 				<div className="mt-4">
 					<PreviewSummary preview={preview} />
@@ -181,15 +249,45 @@ export function ImportReviewPanel({
 					)}
 				</div>
 
+				<div className={embedded ? 'mt-4 min-h-0 flex-1 overflow-y-auto' : ''}>
+
 				{preview.errors.length > 0 && (
-					<ul className="mt-4 space-y-2">
-						{preview.errors.map((err) => (
-							<li key={err} className="flex gap-2 text-sm text-accent">
-								<MaterialIcon name="cancel" size={18} className="mt-0.5 shrink-0" />
-								{err}
-							</li>
-						))}
-					</ul>
+					<div className={`space-y-3 ${embedded ? '' : 'mt-4'}`}>
+						<div className="flex flex-wrap items-center justify-between gap-2">
+							<p className="text-sm font-bold text-foreground">Danh sách lỗi</p>
+							{hasCopyableErrors && (
+								<button
+									type="button"
+									onClick={() => void handleCopyErrorReport()}
+									className="btn-secondary text-xs"
+								>
+									<MaterialIcon name="content_copy" size={14} />
+									{copyOk ? 'Đã copy!' : 'Copy mô tả lỗi chi tiết'}
+								</button>
+							)}
+						</div>
+						<ul className="space-y-2">
+							{preview.errors.map((err) => (
+								<li key={err} className="flex gap-2 text-sm text-accent">
+									<MaterialIcon name="cancel" size={18} className="mt-0.5 shrink-0" />
+									{err}
+								</li>
+							))}
+						</ul>
+					</div>
+				)}
+
+				{!hasErrors && hasBadExamples && (
+					<div className="mt-4 flex justify-end">
+						<button
+							type="button"
+							onClick={() => void handleCopyErrorReport()}
+							className="btn-secondary text-xs"
+						>
+							<MaterialIcon name="content_copy" size={14} />
+							{copyOk ? 'Đã copy!' : 'Copy mô tả lỗi chi tiết'}
+						</button>
+					</div>
 				)}
 
 				{(preview.badExampleWarnings?.length ?? 0) > 0 && (
@@ -246,6 +344,8 @@ export function ImportReviewPanel({
 						))}
 					</ul>
 				)}
+
+				</div>
 			</div>
 		</div>
 	);
