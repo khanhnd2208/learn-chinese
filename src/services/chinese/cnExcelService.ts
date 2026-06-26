@@ -908,7 +908,7 @@ function buildTuVungWorkbookBuffer(rows: Record<string, string>[]): Buffer {
 
 export async function previewPastedTuVung(
 	text: string,
-	setName: string,
+	setName?: string,
 	userId?: string,
 ): Promise<UserWorkbookPreview> {
 	const rows = parsePastedTuVung(text, setName);
@@ -919,7 +919,7 @@ export async function previewPastedTuVung(
 export async function importPastedTuVung(
 	userId: string,
 	text: string,
-	setName: string,
+	setName?: string,
 ): Promise<UserWorkbookPreview> {
 	const rows = parsePastedTuVung(text, setName);
 	const buffer = buildTuVungWorkbookBuffer(rows);

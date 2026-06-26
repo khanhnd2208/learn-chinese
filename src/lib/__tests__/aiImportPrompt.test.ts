@@ -3,8 +3,11 @@ import { AppError } from '@/lib/appError';
 import {
 	AI_IMPORT_GUIDE_TEXT,
 	AI_IMPORT_OUTPUT_SPEC,
+	AI_IMPORT_OUTPUT_SPEC_MULTI,
 	AI_IMPORT_TSV_COLUMNS,
+	AI_IMPORT_TSV_COLUMNS_MULTI,
 	buildAiSmartImportPrompt,
+	buildAiSmartImportPromptMulti,
 	parsePastedTuVung,
 } from '@/lib/chinese/aiImportPrompt';
 
@@ -15,16 +18,24 @@ function sampleTsvRow(simplified = '老师', pinyin = 'lǎoshī', meaning = 'gi�
 	return [simplified, pinyin, meaning, 'lão sư', 'danh từ', '', ...Array(5).fill(EXAMPLE_CELL)].join('\t');
 }
 
+function sampleMultiTsvRow(
+	boTu: string,
+	simplified = '老师',
+	pinyin = 'lǎoshī',
+	meaning = 'giáo viên',
+): string {
+	return [boTu, ...sampleTsvRow(simplified, pinyin, meaning).split('\t')].join('\t');
+}
+
 describe('buildAiSmartImportPrompt', () => {
 	it('includes guide, raw list, and output spec', () => {
 		const prompt = buildAiSmartImportPrompt({
-			setName: 'HSK1 Bài 1',
 			rawList: '老师 | giáo viên',
 		});
 		expect(prompt).toContain(AI_IMPORT_GUIDE_TEXT);
 		expect(prompt).toContain(AI_IMPORT_OUTPUT_SPEC);
 		expect(prompt).toContain('老师 | giáo viên');
-		expect(prompt).toContain('HSK1 Bài 1');
+		expect(prompt).toContain('App sẽ tự gán tên bộ từ khi import');
 		expect(prompt).toContain('PHẦN 1');
 		expect(prompt).toContain('PHẦN 2');
 		expect(prompt).toContain('PHẦN 3');
@@ -32,7 +43,6 @@ describe('buildAiSmartImportPrompt', () => {
 
 	it('requires code fence and [BLANK] token in output spec', () => {
 		const prompt = buildAiSmartImportPrompt({
-			setName: 'Test',
 			rawList: '好 | tốt',
 		});
 		expect(prompt).toContain('```tsv');
@@ -42,7 +52,6 @@ describe('buildAiSmartImportPrompt', () => {
 
 	it('warns against duplicate target word and misaligned blanks', () => {
 		const prompt = buildAiSmartImportPrompt({
-			setName: 'Test',
 			rawList: '吗 | không',
 		});
 		expect(prompt).toContain('LỖI HAY GẶP');
@@ -51,10 +60,38 @@ describe('buildAiSmartImportPrompt', () => {
 		expect(prompt).toContain('Từ mục tiêu có xuất hiện NGOÀI [BLANK]');
 		expect(prompt).toContain('Vị trí [BLANK] ở Hán / pinyin / Việt có trùng nhau');
 	});
+
+	it('enforces strict 5-example and TSV column rules in output spec', () => {
+		expect(AI_IMPORT_OUTPUT_SPEC).toContain('RÀNG BUỘC CỨNG');
+		expect(AI_IMPORT_OUTPUT_SPEC).toContain('QUY TẮC ĐẾM CÂU VÍ DỤ');
+		expect(AI_IMPORT_OUTPUT_SPEC).toContain('QUY TẮC SỐ CỘT TSV');
+		expect(AI_IMPORT_OUTPUT_SPEC).toContain('vi_du_1, vi_du_2, vi_du_3, vi_du_4, vi_du_5 (đủ cả 5)');
+		expect(AI_IMPORT_OUTPUT_SPEC).toContain('TUYỆT ĐỐI KHÔNG dùng `...`');
+		expect(AI_IMPORT_OUTPUT_SPEC).toContain('Checklist cuối');
+		expect(AI_IMPORT_OUTPUT_SPEC).toContain('同学们都叫他[BLANK]');
+		expect(AI_IMPORT_OUTPUT_SPEC).not.toMatch(/\t\.\.\.['"]?\s*$/m);
+		expect(AI_IMPORT_OUTPUT_SPEC).not.toContain('vi_du_1 … vi_du_5');
+	});
+});
+
+describe('buildAiSmartImportPromptMulti', () => {
+	it('includes multi-set guide, raw list, and output spec with bo_tu', () => {
+		const prompt = buildAiSmartImportPromptMulti({
+			rawList: '[HSK1 Bài 3]\n老师 | giáo viên',
+		});
+		expect(prompt).toContain(AI_IMPORT_GUIDE_TEXT);
+		expect(prompt).toContain(AI_IMPORT_OUTPUT_SPEC_MULTI);
+		expect(prompt).toContain('NHIỀU BỘ TỪ');
+		expect(prompt).toContain('[Tên bộ từ]');
+		expect(prompt).toContain('[HSK1 Bài 3]');
+		expect(prompt).toContain(AI_IMPORT_TSV_COLUMNS_MULTI.join('\t'));
+		expect(AI_IMPORT_OUTPUT_SPEC_MULTI).toContain('RÀNG BUỘC CỨNG');
+		expect(AI_IMPORT_OUTPUT_SPEC_MULTI).toContain('Mỗi dòng PHẢI có cột bo_tu');
+	});
 });
 
 describe('parsePastedTuVung', () => {
-	it('parses TSV with header and overwrites bo_tu', () => {
+	it('parses TSV with header and assigns setName when no bo_tu column', () => {
 		const header = AI_IMPORT_TSV_COLUMNS.join('\t');
 		const text = `${header}\n${sampleTsvRow()}`;
 		const rows = parsePastedTuVung(text, 'Bộ test');
@@ -64,6 +101,34 @@ describe('parsePastedTuVung', () => {
 		expect(rows[0].pinyin).toBe('lǎoshī');
 		expect(rows[0].meaning_vi).toBe('giáo viên');
 		expect(rows[0].vi_du_1).toBe(EXAMPLE_CELL);
+	});
+
+	it('parses TSV with bo_tu column without overriding setName fallback', () => {
+		const header = AI_IMPORT_TSV_COLUMNS_MULTI.join('\t');
+		const text = `${header}\n${sampleMultiTsvRow('HSK1 Bài 3')}\n${sampleMultiTsvRow('HSK1 Bài 4', '谢谢', 'xièxie', 'cảm ơn')}`;
+		const rows = parsePastedTuVung(text);
+		expect(rows).toHaveLength(2);
+		expect(rows[0].bo_tu).toBe('HSK1 Bài 3');
+		expect(rows[1].bo_tu).toBe('HSK1 Bài 4');
+		expect(rows[1].simplified).toBe('谢谢');
+	});
+
+	it('prefers bo_tu from TSV over setName when both provided', () => {
+		const header = AI_IMPORT_TSV_COLUMNS_MULTI.join('\t');
+		const text = `${header}\n${sampleMultiTsvRow('HSK1 Bài 3')}`;
+		const rows = parsePastedTuVung(text, 'Bộ khác');
+		expect(rows[0].bo_tu).toBe('HSK1 Bài 3');
+	});
+
+	it('throws when bo_tu missing and setName not provided', () => {
+		const header = AI_IMPORT_TSV_COLUMNS.join('\t');
+		expect(() => parsePastedTuVung(`${header}\n${sampleTsvRow()}`)).toThrow(/Tên bộ từ/);
+	});
+
+	it('throws when bo_tu column present but row value empty', () => {
+		const header = AI_IMPORT_TSV_COLUMNS_MULTI.join('\t');
+		const row = ['', ...sampleTsvRow().split('\t')].join('\t');
+		expect(() => parsePastedTuVung(`${header}\n${row}`)).toThrow(/bo_tu/);
 	});
 
 	it('parses legacy __ cells from pasted TSV', () => {

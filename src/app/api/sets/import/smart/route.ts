@@ -4,7 +4,7 @@ import { importPastedTuVung, previewPastedTuVung } from '@/services/chinese/cnEx
 
 const bodySchema = z.object({
 	action: z.enum(['preview', 'publish']),
-	setName: z.string().min(1, 'Tên bộ từ không được để trống'),
+	setName: z.string().optional(),
 	text: z.string().min(1, 'Chưa có dữ liệu để import'),
 });
 

@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
-import { buildAiSmartImportPrompt } from '@/lib/chinese/aiImportPrompt';
+import { buildAiSmartImportPrompt, buildAiSmartImportPromptMulti } from '@/lib/chinese/aiImportPrompt';
 import {
 	AI_STEPS,
 	ImportDonePanel,
@@ -13,8 +13,19 @@ import {
 	StepTracker,
 } from '@/app/(app)/sets/import/SetImportShared';
 
+type AiImportSetMode = 'single' | 'multi';
+
+const MULTI_RAW_PLACEHOLDER = `[HSK1 Bài 3]
+老师 | giáo viên
+你好 | xin chào
+
+[HSK1 Bài 4]
+谢谢 | cảm ơn
+再见 | tạm biệt`;
+
 export default function AiSmartImportPanel() {
 	const router = useRouter();
+	const [mode, setMode] = useState<AiImportSetMode>('single');
 	const [step, setStep] = useState<ImportWizardStep>('select');
 	const [setName, setSetName] = useState('');
 	const [rawList, setRawList] = useState('');
@@ -25,34 +36,66 @@ export default function AiSmartImportPanel() {
 	const [error, setError] = useState<string | null>(null);
 	const [copyOk, setCopyOk] = useState(false);
 
-	const prompt = useMemo(
-		() => buildAiSmartImportPrompt({ setName, rawList }),
-		[setName, rawList],
-	);
+	const prompt = useMemo(() => {
+		if (mode === 'multi') {
+			return buildAiSmartImportPromptMulti({ rawList });
+		}
+		return buildAiSmartImportPrompt({ rawList });
+	}, [mode, rawList]);
 
-	const canBuildPrompt = setName.trim().length > 0 && rawList.trim().length > 0;
-	const canPreview = canBuildPrompt && pastedText.trim().length > 0;
+	const canBuildPrompt = rawList.trim().length > 0;
+	const canPreview =
+		mode === 'multi'
+			? canBuildPrompt && pastedText.trim().length > 0
+			: canBuildPrompt && pastedText.trim().length > 0 && setName.trim().length > 0;
 	const hasErrors = (preview?.errors.length ?? 0) > 0;
-	const errorReportContext = `AI Smart Import · Bộ: ${setName.trim()}`;
-	const reviewSourceLabel = (
-		<>
-			Bộ: <span className="font-bold text-foreground">{setName.trim()}</span>
-			{' · '}AI Smart Import
-		</>
-	);
+	const errorReportContext =
+		mode === 'multi'
+			? 'AI Smart Import · Nhiều bộ từ'
+			: `AI Smart Import · Bộ: ${setName.trim()}`;
+	const reviewSourceLabel =
+		mode === 'multi' ? (
+			<>AI Smart Import · Nhiều bộ từ</>
+		) : (
+			<>
+				Bộ: <span className="font-bold text-foreground">{setName.trim()}</span>
+				{' · '}AI Smart Import
+			</>
+		);
+
+	const switchMode = (nextMode: AiImportSetMode) => {
+		if (nextMode === mode) return;
+		setMode(nextMode);
+		setStep('select');
+		setSetName('');
+		setRawList('');
+		setPastedText('');
+		setPreview(null);
+		setResult(null);
+		setError(null);
+		setCopyOk(false);
+	};
 
 	const submit = useCallback(async (action: 'preview' | 'publish') => {
 		setLoading(true);
 		setError(null);
 		try {
+			const body: {
+				action: 'preview' | 'publish';
+				text: string;
+				setName?: string;
+			} = {
+				action,
+				text: pastedText,
+			};
+			if (mode === 'single') {
+				body.setName = setName.trim();
+			}
+
 			const res = await fetch('/api/sets/import/smart', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					action,
-					setName: setName.trim(),
-					text: pastedText,
-				}),
+				body: JSON.stringify(body),
 			});
 			const json = await res.json() as {
 				ok: boolean;
@@ -76,7 +119,7 @@ export default function AiSmartImportPanel() {
 		} finally {
 			setLoading(false);
 		}
-	}, [setName, pastedText, router]);
+	}, [mode, setName, pastedText, router]);
 
 	const handleCopyPrompt = async () => {
 		try {
@@ -102,6 +145,35 @@ export default function AiSmartImportPanel() {
 
 	return (
 		<div>
+			<div className="mb-6 flex justify-center">
+				<div className="inline-flex rounded-lg border border-border bg-surface p-1">
+					<button
+						type="button"
+						onClick={() => switchMode('single')}
+						className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-bold transition-colors ${
+							mode === 'single'
+								? 'bg-accent text-accent-foreground'
+								: 'text-muted hover:text-foreground'
+						}`}
+					>
+						<MaterialIcon name="library_books" size={18} />
+						Một bộ từ
+					</button>
+					<button
+						type="button"
+						onClick={() => switchMode('multi')}
+						className={`flex items-center gap-2 rounded-md px-4 py-2 text-sm font-bold transition-colors ${
+							mode === 'multi'
+								? 'bg-accent text-accent-foreground'
+								: 'text-muted hover:text-foreground'
+						}`}
+					>
+						<MaterialIcon name="collections_bookmark" size={18} />
+						Nhiều bộ từ
+					</button>
+				</div>
+			</div>
+
 			<StepTracker currentStep={step} steps={AI_STEPS} />
 
 			{step === 'select' && (
@@ -112,32 +184,27 @@ export default function AiSmartImportPanel() {
 							<h3 className="text-sm font-extrabold text-foreground">Chuẩn bị dữ liệu thô</h3>
 						</div>
 						<div>
-							<label htmlFor="ai-set-name" className="label-caps mb-1 block text-muted">
-								Tên bộ từ
-							</label>
-							<input
-								id="ai-set-name"
-								type="text"
-								value={setName}
-								onChange={(e) => setSetName(e.target.value)}
-								placeholder="VD: HSK1 - Bài 3"
-								className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
-							/>
-						</div>
-						<div>
+							{mode === 'multi' && (
+								<p className="mb-4 text-xs text-foreground-secondary">
+									Mỗi bộ từ dùng dòng <strong>[Tên bộ từ]</strong> làm tiêu đề. AI sẽ xuất cột{' '}
+									<strong>bo_tu</strong> trong TSV.
+								</p>
+							)}
 							<label htmlFor="ai-raw-list" className="label-caps mb-1 block text-muted">
-								Danh sách từ (mỗi dòng 1 từ)
+								{mode === 'multi' ? 'Danh sách từ theo bộ' : 'Danh sách từ (mỗi dòng 1 từ)'}
 							</label>
 							<p className="mb-2 text-xs text-foreground-secondary">
 								Tối thiểu cần <strong>chữ Hán (simplified)</strong> và <strong>nghĩa tiếng Việt</strong>.
-								Thứ tự cột tự do — AI bên ngoài sẽ tự hiểu.
+								{mode === 'multi'
+									? ' Nhóm từ theo nhãn [Tên bộ từ] — thứ tự cột tự do.'
+									: ' Thứ tự cột tự do — AI bên ngoài sẽ tự hiểu.'}
 							</p>
 							<textarea
 								id="ai-raw-list"
 								value={rawList}
 								onChange={(e) => setRawList(e.target.value)}
-								rows={6}
-								placeholder={'老师 | giáo viên\n你好 | xin chào\n谢谢'}
+								rows={mode === 'multi' ? 8 : 6}
+								placeholder={mode === 'multi' ? MULTI_RAW_PLACEHOLDER : '老师 | giáo viên\n你好 | xin chào\n谢谢'}
 								className="w-full rounded-lg border border-border bg-surface px-3 py-2 font-mono text-sm text-foreground"
 							/>
 						</div>
@@ -163,7 +230,9 @@ export default function AiSmartImportPanel() {
 							Dán prompt vào ChatGPT, Claude, Gemini… Sau khi copy, app chuyển sang bước Kiểm tra để bạn dán output TSV.
 						</p>
 						<pre className="max-h-64 overflow-auto rounded-lg border border-border bg-surface-container p-3 text-xs whitespace-pre-wrap text-foreground-secondary">
-							{canBuildPrompt ? prompt : 'Nhập tên bộ và danh sách từ ở trên để sinh prompt…'}
+							{canBuildPrompt
+								? prompt
+								: 'Nhập danh sách từ ở trên để sinh prompt…'}
 						</pre>
 					</section>
 
@@ -189,7 +258,10 @@ export default function AiSmartImportPanel() {
 							<div>
 								<h3 className="text-sm font-extrabold text-foreground">Dán AI Output (TSV)</h3>
 								<p className="mt-1 text-xs text-foreground-secondary">
-									Dán toàn bộ output từ Gen AI (có dòng header). App gán bộ &quot;{setName.trim() || '…'}&quot;.
+									Dán toàn bộ output từ Gen AI (có dòng header).
+									{mode === 'multi' && (
+										<> App đọc cột <strong>bo_tu</strong> để tạo nhiều bộ từ.</>
+									)}
 									{hasErrors && (
 										<span className="mt-1 block font-medium text-accent">
 											Sửa lỗi bên Gen AI, copy đè lên ô này rồi ấn Kiểm tra lại.
@@ -197,6 +269,24 @@ export default function AiSmartImportPanel() {
 									)}
 								</p>
 							</div>
+							{mode === 'single' && (
+								<div>
+									<label htmlFor="ai-set-name-review" className="label-caps mb-1 block text-muted">
+										Tên bộ từ
+									</label>
+									<input
+										id="ai-set-name-review"
+										type="text"
+										value={setName}
+										onChange={(e) => setSetName(e.target.value)}
+										placeholder="VD: HSK1 - Bài 3"
+										className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground"
+									/>
+									<p className="mt-1 text-xs text-foreground-secondary">
+										Dùng để đặt tên bộ từ khi import — không ảnh hưởng đến nội dung AI sinh.
+									</p>
+								</div>
+							)}
 							<textarea
 								value={pastedText}
 								onChange={(e) => setPastedText(e.target.value)}
@@ -208,6 +298,11 @@ export default function AiSmartImportPanel() {
 								type="button"
 								onClick={() => void submit('preview')}
 								disabled={!canPreview || loading}
+								title={
+									mode === 'single' && !setName.trim()
+										? 'Nhập tên bộ từ trước khi kiểm tra'
+										: undefined
+								}
 								className="btn-primary w-full justify-center disabled:opacity-50 sm:w-auto"
 							>
 								<MaterialIcon name={preview ? 'refresh' : 'fact_check'} size={16} />
@@ -232,8 +327,10 @@ export default function AiSmartImportPanel() {
 									<MaterialIcon name="content_paste" className="text-muted" size={40} />
 									<p className="text-sm font-bold text-foreground">Chờ output từ Gen AI</p>
 									<p className="max-w-xs text-xs text-muted">
-										Dán TSV vào ô bên trái rồi ấn <strong>Kiểm tra dữ liệu</strong>.
-										Nếu có lỗi, bạn sẽ thấy chi tiết ở đây và có thể copy để sửa với AI.
+										{mode === 'single'
+											? <>Nhập tên bộ, dán TSV rồi ấn <strong>Kiểm tra dữ liệu</strong>.</>
+											: <>Dán TSV vào ô bên trái rồi ấn <strong>Kiểm tra dữ liệu</strong>.</>}
+										{' '}Nếu có lỗi, bạn sẽ thấy chi tiết ở đây và có thể copy để sửa với AI.
 									</p>
 								</div>
 							)}
@@ -261,7 +358,7 @@ export default function AiSmartImportPanel() {
 								disabled={loading}
 								className="btn-primary disabled:opacity-50"
 							>
-								{loading ? 'Đang import…' : 'Import bộ từ'}
+								{loading ? 'Đang import…' : mode === 'multi' ? 'Import các bộ từ' : 'Import bộ từ'}
 							</button>
 						)}
 					</div>
