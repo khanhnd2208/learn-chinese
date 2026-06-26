@@ -9,7 +9,7 @@ export const TU_VUNG_IMPORT_GUIDE_LINES: string[][] = [
 	['Sheet tu_vung — 12 cột:'],
 	['bo_tu | simplified | pinyin | meaning_vi | han_viet | part_of_speech | ghi_chu | vi_du_1 | vi_du_2 | vi_du_3 | vi_du_4 | vi_du_5'],
 	[''],
-	['Cột bắt buộc: bo_tu, simplified, pinyin, meaning_vi, vi_du_1 … vi_du_5 (đủ 5 ví dụ hợp lệ)'],
+	['Cột bắt buộc: bo_tu, simplified, pinyin, meaning_vi, vi_du_1 … vi_du_5 (đủ 5 ví dụ hợp lệ — KHÔNG bỏ trống, KHÔNG dùng dấu ...)'],
 	['Cột tùy chọn: han_viet, part_of_speech, ghi_chu'],
 	[''],
 	['Định dạng mỗi ô vi_du_N (3 phần, phân tách bằng dấu |):'],
@@ -85,6 +85,7 @@ export const TU_VUNG_IMPORT_GUIDE_LINES: string[][] = [
 	['- Mỗi dòng = 1 từ'],
 	['- Cùng bo_tu → cùng bộ từ'],
 	['- Mỗi từ PHẢI có đủ 5 ví dụ hợp lệ — thiếu sẽ bị từ chối import'],
+	['- Điền lần lượt vi_du_1 đến vi_du_5 — mỗi ô 1 câu khác nhau, không gộp, không để trống'],
 	[''],
 	['🎯 TIÊU CHUẨN "ĐỦ GỢI Ý" (CONTEXT CLUE) — BẮT BUỘC:'],
 	[
