@@ -14,6 +14,7 @@ import { countDueChannelsForProgressList, fetchProgressDueCandidates, loadWordId
 import { normalizeTerm, uniqueTerms } from '@/lib/chinese/hanziUtils';
 import type {
 	CnCoverageReportDTO,
+	CnSharedWordSetDTO,
 	CnWordSetDTO,
 	CnWordSetListItemDTO,
 	CreateCnWordSetInput,
@@ -61,6 +62,7 @@ function setToListItem(
 		description: set.description,
 		source: set.source,
 		srsActive: set.srsActive,
+		shared: set.shared,
 		itemCount: set.items.length,
 		dueCount: stats.dueCount,
 		weakCount: stats.weakCount,
@@ -113,6 +115,7 @@ export async function getUserSet(userId: string, setId: string): Promise<CnWordS
 		description: set.description,
 		source: set.source,
 		srsActive: set.srsActive,
+		shared: set.shared,
 		itemCount: set.items.length,
 		dueCount: stats.dueCount,
 		weakCount: stats.weakCount,
@@ -380,6 +383,65 @@ export async function duplicateUserSet(userId: string, setId: string): Promise<C
 			description: source.description,
 			source: source.source,
 			srsActive: false,
+			items: {
+				create: source.items.map((item) => ({
+					rawTerm: item.rawTerm,
+					wordId: item.wordId,
+				})),
+			},
+		},
+	});
+
+	return getUserSet(userId, copy.id);
+}
+
+export async function listSharedSets(): Promise<CnSharedWordSetDTO[]> {
+	const sets = await prisma.cnWordSet.findMany({
+		where: { shared: true },
+		include: { items: true },
+		orderBy: { updatedAt: 'desc' },
+	});
+
+	return sets.map((set) => ({
+		id: set.id,
+		title: set.title,
+		description: set.description,
+		itemCount: set.items.length,
+		updatedAt: set.updatedAt.toISOString(),
+	}));
+}
+
+export async function setSharedStatus(
+	userId: string,
+	setId: string,
+	shared: boolean,
+): Promise<CnWordSetDTO | null> {
+	const existing = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
+	if (!existing) return null;
+
+	await prisma.cnWordSet.update({
+		where: { id: setId },
+		data: { shared },
+	});
+
+	return getUserSet(userId, setId);
+}
+
+export async function duplicateSharedSet(userId: string, sourceSetId: string): Promise<CnWordSetDTO | null> {
+	const source = await prisma.cnWordSet.findFirst({
+		where: { id: sourceSetId, shared: true },
+		include: { items: true },
+	});
+	if (!source) return null;
+
+	const copy = await prisma.cnWordSet.create({
+		data: {
+			userId,
+			title: `${source.title} (từ thư viện)`,
+			description: source.description,
+			source: source.source,
+			srsActive: false,
+			shared: false,
 			items: {
 				create: source.items.map((item) => ({
 					rawTerm: item.rawTerm,

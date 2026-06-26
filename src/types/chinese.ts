@@ -171,12 +171,21 @@ export interface CnWordSetItemDTO {
 	progressState: CnWordProgressState | null;
 }
 
+export interface CnSharedWordSetDTO {
+	id: string;
+	title: string;
+	description: string;
+	itemCount: number;
+	updatedAt: string;
+}
+
 export interface CnWordSetDTO {
 	id: string;
 	title: string;
 	description: string;
 	source: CnWordSetSource;
 	srsActive: boolean;
+	shared: boolean;
 	itemCount: number;
 	dueCount: number;
 	weakCount: number;
@@ -191,6 +200,7 @@ export interface CnWordSetListItemDTO {
 	description: string;
 	source: CnWordSetSource;
 	srsActive: boolean;
+	shared: boolean;
 	itemCount: number;
 	dueCount: number;
 	weakCount: number;

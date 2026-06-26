@@ -23,7 +23,7 @@ export default auth((req) => {
 		}
 	}
 
-	const protectedPaths = ['/', '/sets', '/hanzi-lab', '/review', '/dashboard', '/practice', '/words'];
+	const protectedPaths = ['/', '/sets', '/shared-sets', '/hanzi-lab', '/review', '/dashboard', '/practice', '/words'];
 	const isProtected = protectedPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 	if (isProtected && !req.auth?.user && pathname !== '/login') {
 		return NextResponse.redirect(new URL('/login', req.url));
