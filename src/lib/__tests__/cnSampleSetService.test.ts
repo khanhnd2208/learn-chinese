@@ -18,7 +18,7 @@ vi.mock('@/services/chinese/cnSrsEnrollmentService', () => ({
 }));
 
 vi.mock('@/lib/chinese/userSetSampleWorkbook', () => ({
-	buildUserSetSampleWorkbook: vi.fn(() => Buffer.from('sample-xlsx')),
+	buildUserSetSampleWorkbook: vi.fn(async () => Buffer.from('sample-xlsx')),
 }));
 
 import { prisma } from '@/lib/prisma';
@@ -37,7 +37,7 @@ beforeEach(() => {
 	mockImport.mockReset();
 	mockActivate.mockReset();
 	mockBuildWorkbook.mockReset();
-	mockBuildWorkbook.mockReturnValue(Buffer.from('sample-xlsx'));
+	mockBuildWorkbook.mockResolvedValue(Buffer.from('sample-xlsx'));
 });
 
 describe('ensureGlobalSampleSets', () => {

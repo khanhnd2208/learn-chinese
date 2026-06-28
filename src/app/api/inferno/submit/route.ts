@@ -1,5 +1,5 @@
 import { withAuth, apiSuccess, apiError } from '@/lib/apiUtils';
-import { validatePracticeSubmitItems } from '@/lib/apiValidation';
+import { validateJsonContentLength, validatePracticeSubmitItems } from '@/lib/apiValidation';
 import {
 	RATE_LIMIT_SUBMIT_PER_MIN,
 	RATE_LIMIT_WINDOW_MS,
@@ -9,6 +9,9 @@ import { submitInfernoResults } from '@/services/chinese/cnInfernoService';
 import { summarizeSession } from '@/services/chinese/cnPracticeService';
 
 export const POST = withAuth(async (request, user) => {
+	const contentLengthError = validateJsonContentLength(request.headers);
+	if (contentLengthError) return apiError(contentLengthError, 400);
+
 	const limit = checkRateLimit(rateLimitKey(user.id, 'inferno/submit'), {
 		limit: RATE_LIMIT_SUBMIT_PER_MIN,
 		windowMs: RATE_LIMIT_WINDOW_MS,

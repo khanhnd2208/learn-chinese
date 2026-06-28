@@ -1,12 +1,12 @@
 /* ════════════════════════════════════════════════════════════════════════
    buildSampleWorkbook.ts — Build tu_vung Excel workbooks from sample data
    ════════════════════════════════════════════════════════════════════════ */
-import * as XLSX from 'xlsx';
 import {
 	getHsk1SampleSet,
 	type Hsk1SampleSet,
 	type Hsk1SampleWord,
 } from '@/lib/chinese/hsk1SampleSets';
+import { buildExcelWorkbookBuffer } from '@/lib/excelWorkbook';
 import { buildFiveFillExampleCells } from '@/lib/chinese/sampleFillExamples';
 import { VI_DU_COLUMN_KEYS } from '@/lib/chinese/parseFillExample';
 import { TU_VUNG_IMPORT_GUIDE_LINES } from '@/lib/chinese/tuVungImportGuide';
@@ -36,27 +36,19 @@ function tuVungRows(set: Hsk1SampleSet, words?: Hsk1SampleWord[]): Record<string
 	});
 }
 
-function buildWorkbook(rows: Record<string, string>[]): Buffer {
-	const wb = XLSX.utils.book_new();
-	XLSX.utils.book_append_sheet(
-		wb,
-		XLSX.utils.aoa_to_sheet(TU_VUNG_IMPORT_GUIDE_LINES),
-		'huong_dan',
-	);
-	XLSX.utils.book_append_sheet(
-		wb,
-		XLSX.utils.json_to_sheet(rows),
-		'tu_vung',
-	);
-	return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+function buildWorkbook(rows: Record<string, string>[]): Promise<Buffer> {
+	return buildExcelWorkbookBuffer([
+		{ name: 'huong_dan', arrays: TU_VUNG_IMPORT_GUIDE_LINES },
+		{ name: 'tu_vung', rows },
+	]);
 }
 
-export function buildSampleWorkbookFromSet(set: Hsk1SampleSet): Buffer {
+export function buildSampleWorkbookFromSet(set: Hsk1SampleSet): Promise<Buffer> {
 	return buildWorkbook(tuVungRows(set));
 }
 
 /** Compact 5-row template for import UI download (format reference only). */
-export function buildDownloadSampleWorkbook(): Buffer {
+export function buildDownloadSampleWorkbook(): Promise<Buffer> {
 	const set = getHsk1SampleSet('bai1');
 	const bySimplified = new Map(set.words.map((w) => [w.simplified, w]));
 	const words = DOWNLOAD_SAMPLE_SIMPLIFIED.map((s) => bySimplified.get(s)).filter(

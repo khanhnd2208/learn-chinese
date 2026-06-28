@@ -1,6 +1,7 @@
 /* ════════════════════════════════════════════════════════════════════════
    cnReviewStatsService.ts — SRS progress & session stats
    ════════════════════════════════════════════════════════════════════════ */
+import { cache } from 'react';
 import { prisma } from '@/lib/prisma';
 import { groupLogsIntoSessions } from '@/lib/chinese/groupAnswerSessions';
 import { rate } from '@/lib/chinese/hanziUtils';
@@ -287,3 +288,6 @@ export async function getReviewStats(userId: string): Promise<CnReviewStatsDTO> 
 		recentSessions,
 	};
 }
+
+/** Deduped per-request review status for layout + page composition */
+export const getCachedReviewStatus = cache((userId: string) => getReviewStatus(userId));

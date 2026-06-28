@@ -1,15 +1,19 @@
-import { withAuth, apiSuccess } from '@/lib/apiUtils';
+import { withAuth, apiSuccess, apiError } from '@/lib/apiUtils';
+import { parseBoundedIntParam, parseDelimitedListParam } from '@/lib/apiValidation';
 import { buildInfernoSession } from '@/services/chinese/cnInfernoService';
-import { CN_INFERNO_PREFETCH_SIZE } from '@/config/constants';
+import { CN_INFERNO_PREFETCH_SIZE, CN_MAX_INFERNO_FETCH_LIMIT } from '@/config/constants';
 
 export const GET = withAuth(async (request, user) => {
-	const limit = Number(request.nextUrl.searchParams.get('limit') ?? CN_INFERNO_PREFETCH_SIZE);
-	const recentRaw = request.nextUrl.searchParams.get('recentWordIds') ?? '';
-	const recentWordIds = recentRaw
-		.split(',')
-		.map((id) => id.trim())
-		.filter(Boolean)
-		.slice(0, 20);
+	const limit = parseBoundedIntParam(request.nextUrl.searchParams.get('limit'), {
+		defaultValue: CN_INFERNO_PREFETCH_SIZE,
+		min: 1,
+		max: CN_MAX_INFERNO_FETCH_LIMIT,
+	});
+	if (limit === null) return apiError(`limit phải là số nguyên 1–${CN_MAX_INFERNO_FETCH_LIMIT}`, 400);
+	const recentWordIds = parseDelimitedListParam(request.nextUrl.searchParams.get('recentWordIds'), {
+		maxItems: 20,
+	});
+	if (!recentWordIds) return apiError('recentWordIds tối đa 20 mục', 400);
 
 	const result = await buildInfernoSession(user.id, limit, recentWordIds);
 	return apiSuccess({

@@ -259,6 +259,7 @@ model CnExample {
   sense               CnWordSense? @relation(fields: [senseId], references: [id], onDelete: SetNull)
   @@index([wordId])
   @@index([senseId])
+  @@index([wordId, naturalnessStatus])
 }
 
 model CnSentencePattern {
@@ -282,6 +283,8 @@ model CnWordSet {
   updatedAt   DateTime        @updatedAt
   items       CnWordSetItem[]
   @@index([userId, updatedAt(sort: Desc)])
+  @@index([userId, srsActive])
+  @@index([shared])
 }
 
 model CnWordSetItem {
@@ -358,6 +361,7 @@ model CnAnswerLog {
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, wordId])
   @@index([userId, errorType])
+  @@index([userId, source, createdAt])
 }
 
 model CnInfernoProgress {

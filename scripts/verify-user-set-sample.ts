@@ -1,8 +1,8 @@
-import * as XLSX from 'xlsx';
 import {
 	buildUserSetSampleWorkbook,
 	listUserSetSamples,
 } from '@/lib/chinese/userSetSampleWorkbook';
+import { arraysFromExcelSheet, readExcelWorkbook, rowsFromExcelSheet } from '@/lib/excelWorkbook';
 import { VI_DU_COLUMN_KEYS } from '@/lib/chinese/parseFillExample';
 
 const REQUIRED_COLUMNS = [
@@ -16,13 +16,13 @@ const REQUIRED_COLUMNS = [
 	...VI_DU_COLUMN_KEYS,
 ];
 
-function main() {
+async function main() {
 	const samples = listUserSetSamples();
 	let failed = false;
 
 	for (const meta of samples) {
-		const buffer = buildUserSetSampleWorkbook(meta.id);
-		const wb = XLSX.read(buffer, { type: 'buffer' });
+		const buffer = await buildUserSetSampleWorkbook(meta.id);
+		const wb = await readExcelWorkbook(buffer);
 
 		console.log(`Sample workbook OK: ${meta.id}`);
 		console.log(`  file: assets/sample/${meta.filename}`);
@@ -30,15 +30,15 @@ function main() {
 		console.log(`  title: ${meta.title}`);
 		console.log(`  terms: ${meta.terms.length}`);
 		console.log(`  first/last: ${meta.terms[0]} … ${meta.terms.at(-1)}`);
-		console.log(`  sheets: ${wb.SheetNames.join(', ')}`);
+		console.log(`  sheets: ${wb.sheetNames.join(', ')}`);
 
-		const guide = XLSX.utils.sheet_to_json<string[]>(wb.Sheets.huong_dan, { header: 1 });
+		const guide = arraysFromExcelSheet(wb, 'huong_dan');
 		if (!guide.some((row) => String(row[0]).includes('CÂU VÍ DỤ'))) {
 			console.error(`FAIL [${meta.id}]: huong_dan missing fill-example guidance`);
 			failed = true;
 		}
 
-		const rows = XLSX.utils.sheet_to_json<Record<string, string>>(wb.Sheets.tu_vung);
+		const rows = rowsFromExcelSheet(wb, 'tu_vung') as Record<string, string>[];
 		if (rows.length < 18 || rows.length > 22) {
 			console.error(`FAIL [${meta.id}]: expected ~20 rows, got ${rows.length}`);
 			failed = true;
@@ -63,4 +63,7 @@ function main() {
 	console.log(`\nAll ${samples.length} sample workbooks verified.`);
 }
 
-main();
+main().catch((error) => {
+	console.error(error);
+	process.exit(1);
+});

@@ -1,44 +1,43 @@
-import * as XLSX from 'xlsx';
 import { buildUserSetSampleWorkbook, getUserSetSampleMeta } from '@/lib/chinese/userSetSampleWorkbook';
+import { buildExcelWorkbookBuffer, readExcelWorkbook, rowsFromExcelSheet } from '@/lib/excelWorkbook';
 import { importUserWorkbook, previewUserWorkbook } from '@/services/chinese/cnExcelService';
 
 const userId = process.argv[2] ?? 'debug-user';
 const wordCount = Number(process.argv[3] ?? 31);
 
-const wb = XLSX.read(buildUserSetSampleWorkbook(), { type: 'buffer' });
-const rows = XLSX.utils.sheet_to_json<Record<string, string>>(wb.Sheets.tu_vung);
 const sampleTitle = getUserSetSampleMeta().title;
-const expanded: Record<string, string | number>[] = [];
-let n = 0;
-while (expanded.length < wordCount) {
-	for (const r of rows) {
-		if (expanded.length >= wordCount) break;
-		expanded.push({
-			...r,
-			simplified: `${r.simplified}${n}`,
-			bo_tu: sampleTitle,
-			vi_du_1: `我是${r.simplified}${n}。`,
-			vi_du_1_pinyin: 'Wǒ shì xuésheng.',
-			vi_du_1_nghia: 'Tôi là học sinh.',
-			vi_du_2: `他也是${r.simplified}${n}。`,
-			vi_du_2_pinyin: 'Tā yě shì xuésheng.',
-			vi_du_2_nghia: 'Anh ấy cũng là học sinh.',
-			vi_du_3: `我们都是${r.simplified}${n}。`,
-			vi_du_3_pinyin: 'Wǒmen dōu shì xuésheng.',
-			vi_du_3_nghia: 'Chúng tôi đều là học sinh.',
-		});
-	}
-	n++;
-}
-
-const out = XLSX.utils.book_new();
-XLSX.utils.book_append_sheet(out, XLSX.utils.json_to_sheet(expanded), 'tu_vung');
-const buf = XLSX.write(out, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
-const file = new File([new Uint8Array(buf)], 'debug-import.xlsx', {
-	type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-});
 
 async function main() {
+	const wb = await readExcelWorkbook(await buildUserSetSampleWorkbook());
+	const rows = rowsFromExcelSheet(wb, 'tu_vung') as Record<string, string>[];
+	const expanded: Record<string, string | number>[] = [];
+	let n = 0;
+	while (expanded.length < wordCount) {
+		for (const r of rows) {
+			if (expanded.length >= wordCount) break;
+			expanded.push({
+				...r,
+				simplified: `${r.simplified}${n}`,
+				bo_tu: sampleTitle,
+				vi_du_1: `我是${r.simplified}${n}。`,
+				vi_du_1_pinyin: 'Wǒ shì xuésheng.',
+				vi_du_1_nghia: 'Tôi là học sinh.',
+				vi_du_2: `他也是${r.simplified}${n}。`,
+				vi_du_2_pinyin: 'Tā yě shì xuésheng.',
+				vi_du_2_nghia: 'Anh ấy cũng là học sinh.',
+				vi_du_3: `我们都是${r.simplified}${n}。`,
+				vi_du_3_pinyin: 'Wǒmen dōu shì xuésheng.',
+				vi_du_3_nghia: 'Chúng tôi đều là học sinh.',
+			});
+		}
+		n++;
+	}
+
+	const buf = await buildExcelWorkbookBuffer([{ name: 'tu_vung', rows: expanded }]);
+	const file = new File([new Uint8Array(buf)], 'debug-import.xlsx', {
+		type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+	});
+
 	let targetUserId = userId;
 	if (targetUserId === 'debug-user') {
 		const { prisma } = await import('@/lib/prisma');

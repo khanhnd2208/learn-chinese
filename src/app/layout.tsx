@@ -18,6 +18,9 @@ const hanzi = Noto_Sans_SC({
 });
 
 export const viewport: Viewport = {
+	width: 'device-width',
+	initialScale: 1,
+	viewportFit: 'cover',
 	themeColor: '#9e0027',
 };
 
@@ -25,9 +28,16 @@ export const metadata: Metadata = {
 	metadataBase: new URL(process.env.NEXTAUTH_URL ?? 'http://localhost:3001'),
 	title: 'Học Hán Ngữ — Vocabulary Mastery',
 	description: 'Học từ vựng Hán ngữ thông minh cho người Việt',
+	applicationName: 'Học Hán Ngữ',
+	appleWebApp: {
+		capable: true,
+		title: 'Hán Ngữ',
+		statusBarStyle: 'default',
+	},
+	manifest: '/manifest.webmanifest',
 	icons: {
 		icon: '/app-icon.png',
-		apple: '/app-icon.png',
+		apple: '/app-icon-192.png',
 	},
 };
 

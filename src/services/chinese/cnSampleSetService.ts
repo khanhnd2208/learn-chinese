@@ -26,7 +26,7 @@ export async function ensureGlobalSampleSets(userId: string): Promise<void> {
 			continue;
 		}
 
-		const buffer = buildUserSetSampleWorkbook(sample.id);
+		const buffer = await buildUserSetSampleWorkbook(sample.id);
 		const { preview, createdSetIds } = await importUserWorkbookBuffer(userId, buffer, {
 			setDescription: GLOBAL_SAMPLE_SET_DESCRIPTION,
 			preserveSetTitle: true,

@@ -10,7 +10,7 @@ import {
 } from '@/lib/chinese/generateQuestions';
 import { CN_DEFAULT_PRACTICE_COUNT, CN_DEFAULT_REVIEW_COUNT, CN_MAX_CHANNELS_PER_WORD_REVIEW } from '@/config/constants';
 import { wordSupportsFillSentence } from '@/lib/chinese/verifiedExample';
-import { getWordCard, getUserDistractorPool } from '@/services/chinese/cnContentService';
+import { getWordCardsByIds, getUserDistractorPool } from '@/services/chinese/cnContentService';
 import { getReviewSession, progressToDTO } from '@/services/chinese/cnSrsService';
 import type {
 	CnPracticeQuestionDTO,
@@ -33,17 +33,15 @@ export async function getWordsForSet(userId: string, setId: string): Promise<Set
 	if (!set) return { words: [], progressMap: new Map() };
 
 	const wordIds = set.items.map((i) => i.wordId).filter((id): id is string => !!id);
-	const [cards, progressRows] = await Promise.all([
-		Promise.all(wordIds.map((id) => getWordCard(id, userId))),
-		prisma.cnWordProgress.findMany({ where: { userId, wordId: { in: wordIds } } }),
-	]);
+	const cardMap = await getWordCardsByIds(wordIds, userId);
 
 	const progressMap = new Map<string, CnWordProgressDTO | null>();
-	for (const id of wordIds) progressMap.set(id, null);
-	for (const p of progressRows) progressMap.set(p.wordId, progressToDTO(p));
+	for (const id of wordIds) progressMap.set(id, cardMap.get(id)?.progress ?? null);
 
 	return {
-		words: cards.filter((c): c is NonNullable<typeof c> => !!c),
+		words: wordIds
+			.map((id) => cardMap.get(id))
+			.filter((c): c is CnWordCardDTO => !!c),
 		progressMap,
 	};
 }
@@ -125,11 +123,10 @@ export async function buildReviewQuestions(
 	const dueChannels = await getReviewSession(userId, limit * CN_MAX_CHANNELS_PER_WORD_REVIEW);
 	const excludeWordChannelSet = new Set(excludeWordChannels);
 	const dueWordIds = [...new Set(dueChannels.map((d) => d.progress.wordId))];
-	const [cards, globalPool] = await Promise.all([
-		Promise.all(dueWordIds.map((id) => getWordCard(id, userId))),
+	const [cardMap, globalPool] = await Promise.all([
+		getWordCardsByIds(dueWordIds, userId),
 		getUserDistractorPool(userId),
 	]);
-	const cardMap = new Map(cards.filter((c): c is NonNullable<typeof c> => !!c).map((c) => [c.id, c]));
 	const skippedUnpublished = dueWordIds.filter((id) => !cardMap.has(id)).length;
 	const distractorPool = mergeWordPools([...cardMap.values()], globalPool);
 

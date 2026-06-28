@@ -2,6 +2,11 @@
    apiValidation.ts — Shared API input validation
    ════════════════════════════════════════════════════════════════════════ */
 import {
+	CN_MAX_BULK_ITEM_IDS,
+	CN_MAX_EXCLUDE_IDS,
+	CN_MAX_JSON_BODY_BYTES,
+	CN_MAX_PRACTICE_COUNT,
+	CN_MAX_SMART_IMPORT_TEXT_CHARS,
 	CN_MAX_SUBMIT_ITEMS,
 	MAX_CN_TERMS_PER_SET,
 	MAX_IMPORT_FILE_BYTES,
@@ -42,6 +47,58 @@ export function validateSetTerms(terms: unknown): terms is string[] {
 	return terms.every((t) => typeof t === 'string' && t.trim().length > 0);
 }
 
+export function parseBoundedIntParam(
+	value: string | null,
+	options: { defaultValue: number; min: number; max: number },
+): number | null {
+	if (value === null || value.trim() === '') return options.defaultValue;
+	const parsed = Number(value);
+	if (!Number.isInteger(parsed) || parsed < options.min || parsed > options.max) {
+		return null;
+	}
+	return parsed;
+}
+
+export function parseDelimitedListParam(
+	value: string | null,
+	options: { maxItems?: number; maxItemLength?: number } = {},
+): string[] | null {
+	const maxItems = options.maxItems ?? CN_MAX_EXCLUDE_IDS;
+	const maxItemLength = options.maxItemLength ?? 120;
+	if (!value) return [];
+	const items = value
+		.split(',')
+		.map((id) => id.trim())
+		.filter(Boolean);
+	if (items.length > maxItems) return null;
+	if (items.some((item) => item.length > maxItemLength)) return null;
+	return items;
+}
+
+export function validateBulkItemIds(value: unknown): value is string[] {
+	if (!Array.isArray(value) || value.length === 0 || value.length > CN_MAX_BULK_ITEM_IDS) {
+		return false;
+	}
+	return value.every((item) => typeof item === 'string' && item.trim().length > 0 && item.length <= 120);
+}
+
+export function validateSmartImportText(text: string): string | null {
+	if (text.length > CN_MAX_SMART_IMPORT_TEXT_CHARS) {
+		return `Dữ liệu quá dài (tối đa ${CN_MAX_SMART_IMPORT_TEXT_CHARS.toLocaleString('vi-VN')} ký tự)`;
+	}
+	return null;
+}
+
+export function validateJsonContentLength(headers: Headers): string | null {
+	const raw = headers.get('content-length');
+	if (!raw) return null;
+	const size = Number(raw);
+	if (Number.isFinite(size) && size > CN_MAX_JSON_BODY_BYTES) {
+		return `JSON body quá lớn (tối đa ${Math.round(CN_MAX_JSON_BODY_BYTES / 1024)}KB)`;
+	}
+	return null;
+}
+
 export function validateImportFile(file: File): string | null {
 	if (file.size > MAX_IMPORT_FILE_BYTES) {
 		return `File quá lớn (tối đa ${MAX_IMPORT_FILE_BYTES / 1024 / 1024}MB)`;
@@ -53,4 +110,11 @@ export function validateImportFile(file: File): string | null {
 	return null;
 }
 
-export { MAX_CN_TERMS_PER_SET, MAX_IMPORT_ROWS };
+export {
+	CN_MAX_BULK_ITEM_IDS,
+	CN_MAX_EXCLUDE_IDS,
+	CN_MAX_PRACTICE_COUNT,
+	CN_MAX_SMART_IMPORT_TEXT_CHARS,
+	MAX_CN_TERMS_PER_SET,
+	MAX_IMPORT_ROWS,
+};

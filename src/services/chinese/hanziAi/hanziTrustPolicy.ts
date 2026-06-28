@@ -348,7 +348,8 @@ export function applyPedagogyPolicy(
 	};
 }
 
-export function resultRequiresPedagogyReview(result: HanziAnalysisResult, _knownFacts: HanziKnownFacts): boolean {
+export function resultRequiresPedagogyReview(result: HanziAnalysisResult, knownFacts: HanziKnownFacts): boolean {
+	void knownFacts;
 	return resultRequiresTrustReview(result);
 }
 

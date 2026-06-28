@@ -23,7 +23,7 @@ import type {
 	CnWordCardDTO,
 	CnWordDTO,
 } from '@/types/chinese';
-import type { CnHanzi, CnSentencePattern, CnWord } from '@prisma/client';
+import type { CnHanzi, CnSentencePattern, CnWord, CnWordProgress } from '@prisma/client';
 
 function hanziToDTO(h: CnHanzi): CnHanziDTO {
 	return {
@@ -170,42 +170,28 @@ const wordCardInclude = {
 	chars: { include: { hanzi: true }, orderBy: { position: 'asc' as const } },
 } as const;
 
-async function buildWordCardDTO(
-	word: CnWord & {
-		examples: Array<{
-			id: string;
-			hanzi: string;
-			pinyin: string;
-			meaningVi: string;
-			meaningViTemplate: string;
-			targetWordStart: number | null;
-			targetWordEnd: number | null;
-			naturalnessStatus: string;
-		}>;
-		patterns: CnSentencePattern[];
-		chars: Array<{ position: number; hanzi: CnHanzi; hanziId: string }>;
-	},
-	userId?: string,
-): Promise<CnWordCardDTO> {
-	const charIds = word.chars.map((c) => c.hanziId);
-	const [related, progressRow] = await Promise.all([
-		charIds.length
-			? prisma.cnWord.findMany({
-					where: {
-						status: 'published',
-						id: { not: word.id },
-						chars: { some: { hanziId: { in: charIds } } },
-					},
-					take: 6,
-				})
-			: Promise.resolve([]),
-		userId
-			? prisma.cnWordProgress.findUnique({
-					where: { userId_wordId: { userId, wordId: word.id } },
-				})
-			: Promise.resolve(null),
-	]);
+type WordWithCardInclude = CnWord & {
+	examples: Array<{
+		id: string;
+		hanzi: string;
+		pinyin: string;
+		meaningVi: string;
+		meaningViTemplate: string;
+		targetWordStart: number | null;
+		targetWordEnd: number | null;
+		naturalnessStatus: string;
+	}>;
+	patterns: CnSentencePattern[];
+	chars: Array<{ position: number; hanzi: CnHanzi; hanziId: string }>;
+};
 
+type RelatedWordRow = CnWord & { chars: Array<{ hanziId: string }> };
+
+function wordCardDTOFromWord(
+	word: WordWithCardInclude,
+	related: CnWord[],
+	progressRow: CnWordProgress | null,
+): CnWordCardDTO {
 	const progress = progressRow ? progressToDTO(progressRow) : null;
 	const channelMastery: CnChannelMasteryDTO[] | undefined = progress
 		? ([
@@ -241,41 +227,92 @@ async function buildWordCardDTO(
 	};
 }
 
+function pickRelatedWords(
+	word: WordWithCardInclude,
+	relatedPool: RelatedWordRow[],
+	limit = 6,
+): CnWord[] {
+	const charIds = new Set(word.chars.map((c) => c.hanziId));
+	return relatedPool
+		.filter((w) => w.id !== word.id && w.chars.some((c) => charIds.has(c.hanziId)))
+		.slice(0, limit);
+}
+
+async function loadRelatedWordsPool(wordIds: string[]): Promise<RelatedWordRow[]> {
+	const wordChars = await prisma.cnWordChar.findMany({
+		where: { wordId: { in: wordIds } },
+		select: { hanziId: true },
+	});
+	const charIds = [...new Set(wordChars.map((c) => c.hanziId))];
+	if (!charIds.length) return [];
+
+	return prisma.cnWord.findMany({
+		where: {
+			status: 'published',
+			chars: { some: { hanziId: { in: charIds } } },
+		},
+		include: { chars: { select: { hanziId: true } } },
+	});
+}
+
+/** Batch-load word cards — O(1) query groups instead of per-word getWordCard */
+export async function getWordCardsByIds(
+	wordIds: string[],
+	userId?: string,
+	options?: { includeDraft?: boolean },
+): Promise<Map<string, CnWordCardDTO>> {
+	const uniqueIds = [...new Set(wordIds)];
+	const map = new Map<string, CnWordCardDTO>();
+	if (!uniqueIds.length) return map;
+
+	const published = await prisma.cnWord.findMany({
+		where: { id: { in: uniqueIds }, status: 'published' },
+		include: wordCardInclude,
+	});
+	const publishedIds = new Set(published.map((w) => w.id));
+	const missingIds = options?.includeDraft
+		? uniqueIds.filter((id) => !publishedIds.has(id))
+		: [];
+	const draftWords = missingIds.length
+		? await prisma.cnWord.findMany({
+			where: { id: { in: missingIds } },
+			include: wordCardInclude,
+		})
+		: [];
+
+	const allWords: WordWithCardInclude[] = [...published, ...draftWords];
+	if (!allWords.length) return map;
+
+	const allWordIds = allWords.map((w) => w.id);
+	const [relatedPool, progressRows] = await Promise.all([
+		loadRelatedWordsPool(allWordIds),
+		userId
+			? prisma.cnWordProgress.findMany({
+				where: { userId, wordId: { in: allWordIds } },
+			})
+			: Promise.resolve([]),
+	]);
+	const progressByWordId = new Map(progressRows.map((p) => [p.wordId, p]));
+
+	for (const word of allWords) {
+		const related = pickRelatedWords(word, relatedPool);
+		const progressRow = progressByWordId.get(word.id) ?? null;
+		map.set(word.id, wordCardDTOFromWord(word, related, progressRow));
+	}
+	return map;
+}
+
 /** Load word cards for SRS pool — includes draft words in the user's SRS-active sets */
 export async function getWordCardsForSrsPool(
 	userId: string,
 	wordIds: string[],
 ): Promise<Map<string, CnWordCardDTO>> {
-	const map = new Map<string, CnWordCardDTO>();
-	const uniqueIds = [...new Set(wordIds)];
-	if (!uniqueIds.length) return map;
-
-	const published = await Promise.all(uniqueIds.map((id) => getWordCard(id, userId)));
-	const missing: string[] = [];
-	for (let i = 0; i < uniqueIds.length; i++) {
-		if (published[i]) map.set(uniqueIds[i], published[i]!);
-		else missing.push(uniqueIds[i]);
-	}
-	if (!missing.length) return map;
-
-	const words = await prisma.cnWord.findMany({
-		where: { id: { in: missing } },
-		include: wordCardInclude,
-	});
-
-	for (const word of words) {
-		map.set(word.id, await buildWordCardDTO(word, userId));
-	}
-	return map;
+	return getWordCardsByIds(wordIds, userId, { includeDraft: true });
 }
 
 export async function getWordCard(wordId: string, userId?: string): Promise<CnWordCardDTO | null> {
-	const word = await prisma.cnWord.findUnique({
-		where: { id: wordId, status: 'published' },
-		include: wordCardInclude,
-	});
-	if (!word) return null;
-	return buildWordCardDTO(word, userId);
+	const map = await getWordCardsByIds([wordId], userId);
+	return map.get(wordId) ?? null;
 }
 
 export async function getHanziAnalysis(term: string): Promise<CnHanziAnalysisDTO> {
@@ -421,6 +458,9 @@ export async function getUserDistractorPool(userId: string, minCount = 12): Prom
 		wordIds = [...new Set([...wordIds, ...extra.map((e) => e.id)])];
 	}
 
-	const cards = await Promise.all(wordIds.slice(0, 60).map((id) => getWordCard(id)));
-	return cards.filter((c): c is CnWordCardDTO => !!c);
+	const poolIds = wordIds.slice(0, 60);
+	const cardMap = await getWordCardsByIds(poolIds);
+	return poolIds
+		.map((id) => cardMap.get(id))
+		.filter((c): c is CnWordCardDTO => !!c);
 }

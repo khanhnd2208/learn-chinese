@@ -16,19 +16,27 @@ import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis as unknown as { _prisma?: PrismaClient };
 
+function intEnv(name: string, fallback: number, min: number, max: number): number {
+	const value = Number(process.env[name]);
+	if (!Number.isInteger(value)) return fallback;
+	return Math.min(Math.max(value, min), max);
+}
+
 function createPrismaClient(): PrismaClient {
 	const connectionString = process.env.DATABASE_URL;
+	const poolMax = intEnv('PG_POOL_MAX', process.env.NODE_ENV === 'production' ? 5 : 10, 1, 50);
+	const idleTimeoutMillis = intEnv('PG_IDLE_TIMEOUT_MS', 30_000, 1_000, 300_000);
 	const pool = new Pool(
 		connectionString
-			? { connectionString, max: 10, idleTimeoutMillis: 30_000 }
+			? { connectionString, max: poolMax, idleTimeoutMillis }
 			: {
 					host: process.env.PG_HOST ?? 'localhost',
 					port: Number(process.env.PG_PORT ?? 5432),
 					user: process.env.PG_USER ?? 'postgres',
 					password: process.env.PG_PASSWORD ?? '',
 					database: process.env.PG_DATABASE ?? 'learn_chinese',
-					max: 10,
-					idleTimeoutMillis: 30_000,
+					max: poolMax,
+					idleTimeoutMillis,
 			  },
 	);
 	const adapter = new PrismaPg(pool);

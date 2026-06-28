@@ -28,6 +28,7 @@ export async function resolveSrsPoolWordIds(userId: string): Promise<Set<string>
 
 	const ids = new Set<string>();
 	const unresolved: Array<{ id: string; rawTerm: string }> = [];
+	const healUpdates: Array<{ itemId: string; wordId: string }> = [];
 
 	for (const item of activeItems) {
 		if (item.wordId) ids.add(item.wordId);
@@ -48,21 +49,27 @@ export async function resolveSrsPoolWordIds(userId: string): Promise<Set<string>
 			const wordId = bySimplified.get(normalizeTerm(item.rawTerm));
 			if (!wordId) continue;
 			ids.add(wordId);
-			await prisma.cnWordSetItem.update({
-				where: { id: item.id },
-				data: { wordId },
-			});
+			healUpdates.push({ itemId: item.id, wordId });
 		}
 	}
 
 	const rawTerms = [...new Set(
 		activeItems.map((i) => normalizeTerm(i.rawTerm)).filter(Boolean),
 	)];
-	if (!rawTerms.length) return ids;
+	if (!rawTerms.length) {
+		if (healUpdates.length) {
+			await prisma.$transaction(
+				healUpdates.map(({ itemId, wordId }) =>
+					prisma.cnWordSetItem.update({ where: { id: itemId }, data: { wordId } }),
+				),
+			);
+		}
+		return ids;
+	}
 
 	const [progressRows, wordsBySimplified] = await Promise.all([
 		prisma.cnWordProgress.findMany({
-			where: { userId },
+			where: { userId, word: { simplified: { in: rawTerms } } },
 			select: { wordId: true, word: { select: { simplified: true } } },
 		}),
 		prisma.cnWord.findMany({
@@ -83,11 +90,16 @@ export async function resolveSrsPoolWordIds(userId: string): Promise<Set<string>
 			(i) => !i.wordId && normalizeTerm(i.rawTerm) === word.simplified,
 		);
 		for (const item of staleItems) {
-			await prisma.cnWordSetItem.update({
-				where: { id: item.id },
-				data: { wordId: word.id },
-			});
+			healUpdates.push({ itemId: item.id, wordId: word.id });
 		}
+	}
+
+	if (healUpdates.length) {
+		await prisma.$transaction(
+			healUpdates.map(({ itemId, wordId }) =>
+				prisma.cnWordSetItem.update({ where: { id: itemId }, data: { wordId } }),
+			),
+		);
 	}
 
 	return ids;
@@ -125,13 +137,10 @@ export async function enrollWordsInSrs(userId: string, wordIds: string[]): Promi
 	const unique = [...new Set(wordIds)];
 	if (!unique.length) return;
 	const now = new Date();
-	for (const wordId of unique) {
-		await prisma.cnWordProgress.upsert({
-			where: { userId_wordId: { userId, wordId } },
-			create: { userId, wordId, state: 'new', dueAt: now },
-			update: {},
-		});
-	}
+	await prisma.cnWordProgress.createMany({
+		data: unique.map((wordId) => ({ userId, wordId, state: 'new' as const, dueAt: now })),
+		skipDuplicates: true,
+	});
 }
 
 /** Self-heal: upsert CnWordProgress for SRS-active words missing enrollment */
@@ -239,7 +248,12 @@ export async function onWordRemovedFromActiveSet(
 	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
 	if (!set?.srsActive) return 0;
 
-	const activeIds = await getSrsActiveWordIds(userId);
-	if (activeIds.has(wordId)) return 0;
+	const stillInActiveSet = await prisma.cnWordSetItem.count({
+		where: {
+			wordId,
+			set: { userId, srsActive: true },
+		},
+	});
+	if (stillInActiveSet > 0) return 0;
 	return purgeSrsForWordIds(userId, [wordId]);
 }

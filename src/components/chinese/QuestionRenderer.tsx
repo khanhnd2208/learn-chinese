@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
+import AnswerRevealCard from '@/components/chinese/AnswerRevealCard';
+import SentencePromptCard from '@/components/chinese/SentencePromptCard';
 import SpeakButton from '@/components/chinese/SpeakButton';
 import StickingPointCard from '@/components/chinese/StickingPointCard';
 import { questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
@@ -135,11 +137,40 @@ export default function QuestionRenderer({
 	const [sessionHeavyLapses, setSessionHeavyLapses] = useState<Record<string, number>>({});
 	const { speak, supported } = useSpeech();
 	const autoPlayedRef = useRef<string | null>(null);
+	const typedInputRef = useRef<HTMLInputElement>(null);
 	const resultsRef = useRef(results);
+	const pendingAdvanceRef = useRef(false);
+	const ignoreOneAdvanceKeyRef = useRef(false);
+	const advanceKeyGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 	useEffect(() => {
 		resultsRef.current = results;
 	}, [results]);
+
+	const clearAdvanceKeyGuard = useCallback(() => {
+		ignoreOneAdvanceKeyRef.current = false;
+		if (advanceKeyGuardTimerRef.current) {
+			clearTimeout(advanceKeyGuardTimerRef.current);
+			advanceKeyGuardTimerRef.current = null;
+		}
+	}, []);
+
+	const armAdvanceKeyGuard = useCallback(() => {
+		clearAdvanceKeyGuard();
+		ignoreOneAdvanceKeyRef.current = true;
+		advanceKeyGuardTimerRef.current = setTimeout(() => {
+			ignoreOneAdvanceKeyRef.current = false;
+			advanceKeyGuardTimerRef.current = null;
+		}, 250);
+	}, [clearAdvanceKeyGuard]);
+
+	const consumeAdvanceKeyIfArmed = useCallback((): boolean => {
+		if (!ignoreOneAdvanceKeyRef.current) return false;
+		clearAdvanceKeyGuard();
+		return true;
+	}, [clearAdvanceKeyGuard]);
+
+	useEffect(() => () => clearAdvanceKeyGuard(), [clearAdvanceKeyGuard]);
 
 	const q = questions[idx];
 	const audioOnly = q ? isAudioQuestion(q.type) : false;
@@ -148,6 +179,8 @@ export default function QuestionRenderer({
 	const hasHint = q ? questionHasHint(q) : false;
 
 	const advance = useCallback((nextResults: QuestionAnswerResult[]) => {
+		pendingAdvanceRef.current = false;
+		clearAdvanceKeyGuard();
 		setFeedback(null);
 		setSelected(null);
 		setTypedAnswer('');
@@ -160,7 +193,7 @@ export default function QuestionRenderer({
 			}
 			return currentIdx + 1;
 		});
-	}, [questions.length, onComplete]);
+	}, [questions.length, onComplete, clearAdvanceKeyGuard]);
 
 	useEffect(() => {
 		if (!q?.audioText || !supported || !audioOnly) return;
@@ -176,14 +209,25 @@ export default function QuestionRenderer({
 		if (!pendingAdvance) return;
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (e.key !== 'Enter' && e.key !== ' ') return;
+			if (e.isComposing) return;
+			if (consumeAdvanceKeyIfArmed()) {
+				e.preventDefault();
+				return;
+			}
 			const active = document.activeElement;
-			if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) return;
+			if (active instanceof HTMLInputElement && !active.disabled) return;
+			if (active instanceof HTMLTextAreaElement && !active.disabled) return;
 			e.preventDefault();
 			advance(resultsRef.current);
 		};
 		window.addEventListener('keydown', handleKeyDown);
 		return () => window.removeEventListener('keydown', handleKeyDown);
-	}, [pendingAdvance, advance]);
+	}, [pendingAdvance, advance, consumeAdvanceKeyIfArmed]);
+
+	useEffect(() => {
+		if (feedback || !typedOnly) return;
+		typedInputRef.current?.focus();
+	}, [idx, feedback, typedOnly]);
 
 	if (!q) return null;
 
@@ -198,10 +242,10 @@ export default function QuestionRenderer({
 	};
 
 	const submitAnswer = (answer: string) => {
+		if (pendingAdvanceRef.current) return;
+
 		const correct = gradeCurrentAnswer(answer);
-		const feedbackText = correct
-			? 'Đúng!'
-			: `Sai — đáp án: ${q.correctAnswer}`;
+		const feedbackText = correct ? 'Đúng!' : 'Sai';
 
 		const item: QuestionAnswerResult = {
 			wordId: q.wordId,
@@ -221,6 +265,7 @@ export default function QuestionRenderer({
 			}));
 		}
 
+		pendingAdvanceRef.current = true;
 		setPendingAdvance(true);
 	};
 
@@ -242,6 +287,14 @@ export default function QuestionRenderer({
 
 	const resolvedExitLabel = exitLabel ?? (incremental ? 'Dừng' : 'Thoát');
 	const isReviewSession = !!sessionProgress;
+
+	const feedbackPaddingClass = feedback
+		? isFeedbackWrong && isFillSentenceQuestion(q.type)
+			? 'pb-52'
+			: isFeedbackWrong
+				? 'pb-48'
+				: 'pb-44'
+		: '';
 
 	return (
 		<div className="flex w-full max-w-2xl flex-col">
@@ -316,13 +369,13 @@ export default function QuestionRenderer({
 				</div>
 			)}
 
-			<div className={`flex flex-1 flex-col ${feedback ? 'pb-44' : ''}`}>
+			<div className={`flex flex-1 flex-col ${feedbackPaddingClass}`}>
 				<div className="mb-6 text-center">
 					<p className="animate-fade-slide-up mb-4 text-lg font-extrabold text-foreground-secondary opacity-0">
 						{q.prompt}
 					</p>
 					<div className="animate-fade-slide-up opacity-0" style={{ animationDelay: '0.1s' }}>
-						<QuestionHeroCard question={q} audioOnly={audioOnly} />
+						<QuestionHeroCard key={q.id} question={q} audioOnly={audioOnly} />
 					</div>
 					{hasHint && (
 						<button
@@ -404,13 +457,19 @@ export default function QuestionRenderer({
 				) : typedOnly ? (
 					<div className="mx-auto w-full max-w-md animate-fade-slide-up opacity-0">
 						<input
+							ref={typedInputRef}
 							type="text"
 							value={typedAnswer}
 							onChange={(e) => setTypedAnswer(e.target.value)}
 							onKeyDown={(e) => {
-								if (e.key === 'Enter' && typedAnswer.trim() && !waiting && !feedback) {
-									submitAnswer(typedAnswer);
-								}
+								if (e.key === 'Process' || e.nativeEvent.isComposing) return;
+								if (e.key !== 'Enter') return;
+								if (!typedAnswer.trim() || pendingAdvanceRef.current || feedback) return;
+								e.preventDefault();
+								e.stopPropagation();
+								armAdvanceKeyGuard();
+								submitAnswer(typedAnswer);
+								typedInputRef.current?.blur();
 							}}
 							disabled={waiting || !!feedback}
 							placeholder={
@@ -428,7 +487,7 @@ export default function QuestionRenderer({
 								feedback && gradeCurrentAnswer(typedAnswer)
 									? 'border-success bg-success/10'
 									: feedback
-										? 'border-accent bg-accent-subtle'
+										? 'border-error bg-error/10'
 										: 'border-border bg-surface'
 							}`}
 							autoFocus
@@ -442,6 +501,11 @@ export default function QuestionRenderer({
 							>
 								Kiểm tra
 							</button>
+						)}
+						{feedback && pendingAdvance && (
+							<p className="mt-2 hidden text-center text-xs text-muted sm:block">
+								Nhấn Enter để tiếp tục
+							</p>
 						)}
 					</div>
 				) : null}
@@ -471,7 +535,7 @@ export default function QuestionRenderer({
 							{isFeedbackCorrect && (
 								<div className="absolute bottom-0 left-0 top-0 w-1.5 bg-success" />
 							)}
-							<div className="max-h-[32vh] overflow-y-auto">
+							<div className={`max-h-[32vh] overflow-y-auto ${isFeedbackWrong ? 'sm:max-h-[40vh]' : ''}`}>
 								<div className="flex items-center gap-2 pl-2">
 									<MaterialIcon
 										name={isFeedbackCorrect ? 'task_alt' : 'cancel'}
@@ -483,21 +547,7 @@ export default function QuestionRenderer({
 										{isFeedbackCorrect ? 'Đúng!' : 'Chưa đúng'}
 									</span>
 								</div>
-								{isFeedbackWrong && (
-									<p className="mt-1 pl-2 text-sm font-bold text-accent">{feedback}</p>
-								)}
-								{isFillSentenceQuestion(q.type) && q.sentenceTemplate && (
-									<div className="mt-2 space-y-1 pl-2 text-sm">
-										<p className="hanzi-lg font-bold text-foreground">
-											{q.sentenceTemplate.replace(/____|__/g, q.correctAnswer)}
-										</p>
-										{q.sentenceMeaningVi && q.meaningVi && (
-											<p className="text-muted">
-												{q.sentenceMeaningVi.replace(/__/g, q.meaningVi.split(/[;；]/)[0]?.trim() ?? q.meaningVi)}
-											</p>
-										)}
-									</div>
-								)}
+								{isFeedbackWrong && <AnswerRevealCard question={q} />}
 								{isFeedbackWrong && (q.mnemonicVi || q.usageNoteVi) && (
 									<p className="mt-2 pl-2 text-sm italic text-foreground-secondary">
 										{q.mnemonicVi ? (
@@ -601,14 +651,11 @@ function QuestionHeroCard({ question: q, audioOnly }: { question: CnPracticeQues
 
 	if (isFillSentenceQuestion(q.type) && q.sentenceTemplate) {
 		return (
-			<div className="card-paper animate-float mx-auto min-h-[160px] w-full max-w-md p-8 text-center">
-				<p className="label-caps text-muted">Câu ví dụ</p>
-				<p className="hanzi-lg mt-3 text-2xl font-bold leading-relaxed text-foreground">{q.sentenceTemplate}</p>
-				{q.sentenceMeaningVi && (
-					<p className="mt-3 text-sm leading-relaxed text-muted">{q.sentenceMeaningVi}</p>
-				)}
-				{q.pinyin && <p className="mt-2 text-sm font-medium text-accent">{q.pinyin}</p>}
-			</div>
+			<SentencePromptCard
+				sentenceTemplate={q.sentenceTemplate}
+				sentenceMeaningVi={q.sentenceMeaningVi}
+				pinyin={q.pinyin}
+			/>
 		);
 	}
 

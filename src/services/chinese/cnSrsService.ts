@@ -150,7 +150,6 @@ export function isChannelDue(
 	p: CnWordProgress,
 	channel: SkillChannel,
 	now: Date,
-	_dto?: CnWordProgressDTO | null,
 ): boolean {
 	const total = p[CHANNEL_FIELDS[channel].total] as number;
 	if (total === 0) return true;
@@ -274,7 +273,7 @@ function collectDueChannelsForProgress(
 		if (ch === 'sentence' && wordsWithFillExamples && !wordsWithFillExamples.has(p.wordId)) {
 			return false;
 		}
-		return isChannelDue(p, ch, now, dto);
+		return isChannelDue(p, ch, now);
 	});
 
 	if (!dueChannels.length) return [];
@@ -306,12 +305,11 @@ export function countDueChannelsForProgressList(
 ): number {
 	let count = 0;
 	for (const p of progressList) {
-		const dto = progressToDTO(p);
 		for (const ch of ALL_SKILL_CHANNELS) {
 			if (ch === 'sentence' && wordsWithFillExamples && !wordsWithFillExamples.has(p.wordId)) {
 				continue;
 			}
-			if (isChannelDue(p, ch, now, dto)) count++;
+			if (isChannelDue(p, ch, now)) count++;
 		}
 	}
 	return count;

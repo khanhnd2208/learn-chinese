@@ -6,7 +6,7 @@ import {
 } from '@/lib/chinese/buildSampleWorkbook';
 
 export const GET = withAuth(async () => {
-	const buffer = buildDownloadSampleWorkbook();
+	const buffer = await buildDownloadSampleWorkbook();
 	return new NextResponse(new Uint8Array(buffer), {
 		headers: {
 			'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',

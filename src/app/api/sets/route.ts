@@ -1,5 +1,5 @@
 import { withAuth, apiSuccess, apiError } from '@/lib/apiUtils';
-import { validateSetTerms } from '@/lib/apiValidation';
+import { validateJsonContentLength, validateSetTerms } from '@/lib/apiValidation';
 import {
 	createUserSet,
 	createSetFromHsk,
@@ -13,6 +13,9 @@ export const GET = withAuth(async (_req, user) => {
 });
 
 export const POST = withAuth(async (request, user) => {
+	const contentLengthError = validateJsonContentLength(request.headers);
+	if (contentLengthError) return apiError(contentLengthError, 400);
+
 	const body = await request.json() as CreateCnWordSetInput & { hskLevel?: number };
 	if (body.hskLevel) {
 		const result = await createSetFromHsk(

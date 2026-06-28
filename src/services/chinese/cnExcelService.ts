@@ -1,7 +1,14 @@
-import * as XLSX from 'xlsx';
 import { prisma } from '@/lib/prisma';
 import { AppError } from '@/lib/appError';
 import { MAX_CN_TERMS_PER_SET, MAX_IMPORT_ROWS } from '@/config/constants';
+import {
+	buildExcelWorkbookBuffer,
+	excelSerialNumberToDate,
+	hasExcelSheet,
+	readExcelWorkbook,
+	rowsFromExcelSheet,
+	type ExcelWorkbookData,
+} from '@/lib/excelWorkbook';
 import { normalizeTerm } from '@/lib/chinese/hanziUtils';
 import { enrollWordsInSrs } from '@/services/chinese/cnSrsEnrollmentService';
 import { CORE_QUESTION_TYPE_SET } from '@/lib/chinese/coreQuestionTypes';
@@ -48,22 +55,14 @@ function asDate(value: unknown): Date | null {
 	if (!value) return null;
 	if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
 	if (typeof value === 'number') {
-		const parsed = XLSX.SSF.parse_date_code(value);
-		if (!parsed) return null;
-		return new Date(Date.UTC(parsed.y, parsed.m - 1, parsed.d, parsed.H, parsed.M, Math.floor(parsed.S)));
+		return excelSerialNumberToDate(value);
 	}
 	const date = new Date(String(value));
 	return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function rowsFromSheet(workbook: XLSX.WorkBook, sheetName: string): Row[] {
-	const sheet = workbook.Sheets[sheetName];
-	if (!sheet) return [];
-	return XLSX.utils.sheet_to_json<Row>(sheet, { defval: '', raw: false });
-}
-
-function workbookBuffer(workbook: XLSX.WorkBook): Buffer {
-	return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+function rowsFromSheet(workbook: ExcelWorkbookData, sheetName: string): Row[] {
+	return rowsFromExcelSheet(workbook, sheetName);
 }
 
 function sanitizeSheetRows(rows: Row[], maxRows = MAX_IMPORT_ROWS): Row[] {
@@ -74,8 +73,8 @@ function sanitizeSheetRows(rows: Row[], maxRows = MAX_IMPORT_ROWS): Row[] {
 	return nonEmpty;
 }
 
-function isTuVungFormat(workbook: XLSX.WorkBook): boolean {
-	return workbook.SheetNames.includes('tu_vung');
+function isTuVungFormat(workbook: ExcelWorkbookData): boolean {
+	return hasExcelSheet(workbook, 'tu_vung');
 }
 
 export interface BadExampleWarning {
@@ -185,8 +184,10 @@ export async function buildContentExportWorkbook(): Promise<Buffer> {
 		}),
 	]);
 
-	const wb = XLSX.utils.book_new();
-	XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(words.map((w) => ({
+	return buildExcelWorkbookBuffer([
+		{
+			name: 'words',
+			rows: words.map((w) => ({
 		simplified: w.simplified,
 		pinyin: w.pinyin,
 		han_viet: w.hanViet,
@@ -209,8 +210,11 @@ export async function buildContentExportWorkbook(): Promise<Buffer> {
 			: '',
 		chars: w.chars.map((c) => c.hanzi.char).join('|'),
 		status: w.status,
-	}))), 'words');
-	XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hanzi.map((h) => ({
+	})),
+		},
+		{
+			name: 'hanzi',
+			rows: hanzi.map((h) => ({
 		char: h.char,
 		pinyin: h.pinyin,
 		han_viet: h.hanViet,
@@ -220,12 +224,16 @@ export async function buildContentExportWorkbook(): Promise<Buffer> {
 		mnemonic_vi: h.mnemonicVi,
 		similar_group: h.similarGroup?.key ?? '',
 		status: h.status,
-	}))), 'hanzi');
-	XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(groups.map((g) => ({
+	})),
+		},
+		{
+			name: 'similar_groups',
+			rows: groups.map((g) => ({
 		key: g.key,
 		note: g.note,
-	}))), 'similar_groups');
-	return workbookBuffer(wb);
+	})),
+		},
+	]);
 }
 
 export async function buildUserDataExportWorkbook(userId: string): Promise<Buffer> {
@@ -248,21 +256,29 @@ export async function buildUserDataExportWorkbook(userId: string): Promise<Buffe
 		}),
 	]);
 
-	const wb = XLSX.utils.book_new();
-	XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sets.map((set) => ({
+	return buildExcelWorkbookBuffer([
+		{
+			name: 'sets',
+			rows: sets.map((set) => ({
 		set_key: set.id,
 		title: set.title,
 		description: set.description,
 		source: set.source,
-	}))), 'sets');
-	XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sets.flatMap((set) =>
-		set.items.map((item) => ({
+	})),
+		},
+		{
+			name: 'set_items',
+			rows: sets.flatMap((set) =>
+				set.items.map((item) => ({
 			set_key: set.id,
 			raw_term: item.rawTerm,
 			word_simplified: item.word?.simplified ?? '',
 		})),
-	)), 'set_items');
-	XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(progress.map((p) => ({
+			),
+		},
+		{
+			name: 'progress',
+			rows: progress.map((p) => ({
 		word_simplified: p.word.simplified,
 		state: p.state,
 		due_at: p.dueAt.toISOString(),
@@ -284,15 +300,19 @@ export async function buildUserDataExportWorkbook(userId: string): Promise<Buffe
 		pinyin_interval_idx: p.pinyinIntervalIdx,
 		sentence_due_at: p.sentenceDueAt?.toISOString() ?? '',
 		sentence_interval_idx: p.sentenceIntervalIdx,
-	}))), 'progress');
-	XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(logs.map((log) => ({
+	})),
+		},
+		{
+			name: 'answer_logs',
+			rows: logs.map((log) => ({
 		word_simplified: log.word.simplified,
 		question_type: log.questionType,
 		error_type: log.errorType ?? '',
 		correct: log.correct,
 		created_at: log.createdAt.toISOString(),
-	}))), 'answer_logs');
-	return workbookBuffer(wb);
+	})),
+		},
+	]);
 }
 
 export interface UserWorkbookPreview {
@@ -317,7 +337,7 @@ export interface UserWorkbookPreview {
 }
 
 async function previewTuVungWorkbook(
-	workbook: XLSX.WorkBook,
+	workbook: ExcelWorkbookData,
 	userId?: string,
 ): Promise<UserWorkbookPreview> {
 	const errors: string[] = [];
@@ -452,7 +472,7 @@ async function previewTuVungWorkbook(
 	};
 }
 
-async function previewLegacyWorkbook(workbook: XLSX.WorkBook): Promise<UserWorkbookPreview> {
+async function previewLegacyWorkbook(workbook: ExcelWorkbookData): Promise<UserWorkbookPreview> {
 	const errors: string[] = [];
 	const warnings: string[] = [];
 	const sets = sanitizeSheetRows(rowsFromSheet(workbook, 'sets'));
@@ -572,12 +592,12 @@ export async function previewUserWorkbook(file: File, userId?: string): Promise<
 }
 
 export async function previewUserWorkbookBuffer(buffer: Buffer, userId?: string): Promise<UserWorkbookPreview> {
-	const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+	const workbook = await readExcelWorkbook(buffer);
 
 	if (isTuVungFormat(workbook)) {
 		return previewTuVungWorkbook(workbook, userId);
 	}
-	if (workbook.SheetNames.includes('sets')) {
+	if (hasExcelSheet(workbook, 'sets')) {
 		return previewLegacyWorkbook(workbook);
 	}
 
@@ -596,7 +616,7 @@ export async function previewUserWorkbookBuffer(buffer: Buffer, userId?: string)
 
 async function importTuVungWorkbook(
 	userId: string,
-	workbook: XLSX.WorkBook,
+	workbook: ExcelWorkbookData,
 	preview: UserWorkbookPreview,
 	options: ImportTuVungOptions = {},
 ): Promise<{ preview: UserWorkbookPreview; createdSetIds: string[] }> {
@@ -722,13 +742,13 @@ export async function importUserWorkbookBuffer(
 		return { preview, createdSetIds: [] };
 	}
 
-	const workbook = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+	const workbook = await readExcelWorkbook(buffer);
 	const { restoreProgress = false, ...tuVungOptions } = options;
 
 	if (isTuVungFormat(workbook)) {
 		return importTuVungWorkbook(userId, workbook, preview, tuVungOptions);
 	}
-	if (workbook.SheetNames.includes('sets')) {
+	if (hasExcelSheet(workbook, 'sets')) {
 		const legacyPreview = await importLegacyWorkbook(userId, workbook, restoreProgress, preview);
 		return { preview: legacyPreview, createdSetIds: [] };
 	}
@@ -738,7 +758,7 @@ export async function importUserWorkbookBuffer(
 
 async function importLegacyWorkbook(
 	userId: string,
-	workbook: XLSX.WorkBook,
+	workbook: ExcelWorkbookData,
 	restoreProgress: boolean,
 	preview: UserWorkbookPreview,
 ): Promise<UserWorkbookPreview> {
@@ -900,10 +920,8 @@ export async function importUserWorkbook(
 	return preview;
 }
 
-function buildTuVungWorkbookBuffer(rows: Record<string, string>[]): Buffer {
-	const wb = XLSX.utils.book_new();
-	XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'tu_vung');
-	return workbookBuffer(wb);
+function buildTuVungWorkbookBuffer(rows: Record<string, string>[]): Promise<Buffer> {
+	return buildExcelWorkbookBuffer([{ name: 'tu_vung', rows }]);
 }
 
 export async function previewPastedTuVung(
@@ -912,7 +930,7 @@ export async function previewPastedTuVung(
 	userId?: string,
 ): Promise<UserWorkbookPreview> {
 	const rows = parsePastedTuVung(text, setName);
-	const buffer = buildTuVungWorkbookBuffer(rows);
+	const buffer = await buildTuVungWorkbookBuffer(rows);
 	return previewUserWorkbookBuffer(buffer, userId);
 }
 
@@ -922,7 +940,7 @@ export async function importPastedTuVung(
 	setName?: string,
 ): Promise<UserWorkbookPreview> {
 	const rows = parsePastedTuVung(text, setName);
-	const buffer = buildTuVungWorkbookBuffer(rows);
+	const buffer = await buildTuVungWorkbookBuffer(rows);
 	const { preview } = await importUserWorkbookBuffer(userId, buffer, {
 		preserveSetTitle: true,
 		setDescription: '',

@@ -1,6 +1,13 @@
 export const MAX_CN_TERMS_PER_SET = 200;
 export const MAX_HANZI_LAB_TERMS = 15;
 export const CN_MAX_SUBMIT_ITEMS = 200;
+export const CN_MAX_BULK_ITEM_IDS = 200;
+export const CN_MAX_PRACTICE_COUNT = 50;
+export const CN_MAX_REVIEW_FETCH_LIMIT = 20;
+export const CN_MAX_INFERNO_FETCH_LIMIT = 20;
+export const CN_MAX_EXCLUDE_IDS = 200;
+export const CN_MAX_SMART_IMPORT_TEXT_CHARS = 100_000;
+export const CN_MAX_JSON_BODY_BYTES = 256 * 1024;
 export const MAX_IMPORT_FILE_BYTES = 2 * 1024 * 1024; // 2MB
 export const MAX_IMPORT_ROWS = 500;
 

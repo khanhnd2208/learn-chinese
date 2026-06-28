@@ -2,9 +2,9 @@
    parseChineseFile.ts — Parse CSV/XLSX for Chinese content import
    ════════════════════════════════════════════════════════════════════════ */
 import { parse } from 'csv-parse/sync';
-import * as XLSX from 'xlsx';
 import { MAX_IMPORT_ROWS } from '@/config/constants';
 import { AppError } from '@/lib/appError';
+import { readExcelWorkbook, rowsFromExcelSheet } from '@/lib/excelWorkbook';
 
 export interface CnImportWordRow {
 	simplified: string;
@@ -123,11 +123,10 @@ async function rowsFromFile(file: File, type: 'words' | 'hanzi'): Promise<Record
 	}
 
 	if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-		const wb = XLSX.read(buffer, { type: 'buffer' });
+		const wb = await readExcelWorkbook(buffer);
 		const preferredSheet = type === 'hanzi' ? 'hanzi' : 'words';
-		const sheetName = wb.SheetNames.includes(preferredSheet) ? preferredSheet : wb.SheetNames[0];
-		const sheet = wb.Sheets[sheetName];
-		return XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: '' });
+		const sheetName = wb.sheetNames.includes(preferredSheet) ? preferredSheet : wb.sheetNames[0];
+		return rowsFromExcelSheet(wb, sheetName) as Record<string, string>[];
 	}
 
 	throw new AppError('Unsupported file type. Use CSV or XLSX.', 400);

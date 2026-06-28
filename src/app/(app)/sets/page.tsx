@@ -4,6 +4,7 @@ import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
 import SetCardActions from '@/app/(app)/sets/SetCardActions';
 import SetSrsToggle from '@/app/(app)/sets/SetSrsToggle';
+import SetSharePanel from '@/app/(app)/sets/SetSharePanel';
 import PracticeModePicker from '@/components/chinese/PracticeModePicker';
 import { auth } from '@/lib/auth';
 import {
@@ -19,6 +20,7 @@ export default async function ChineseSetsPage() {
 	if (!session?.user) redirect('/login');
 
 	const sets = await listUserSets(session.user.id);
+	const isAdmin = session.user.role === 'admin';
 
 	return (
 		<div className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-8">
@@ -34,6 +36,20 @@ export default async function ChineseSetsPage() {
 					</Link>
 				</div>
 			</section>
+
+			{isAdmin && (
+				<div className="card-paper space-y-3 border-l-4 border-l-accent p-4 text-sm text-foreground-secondary">
+					<p className="flex items-start gap-2 font-bold text-foreground">
+						<MaterialIcon name="admin_panel_settings" size={18} className="mt-0.5 shrink-0 text-accent" />
+						Hướng dẫn chia sẻ bộ từ (Admin)
+					</p>
+					<ol className="list-decimal space-y-1 pl-5">
+						<li>Mở bộ từ bạn muốn chia sẻ (bấm <strong className="text-foreground">Xem từ</strong>).</li>
+						<li>Ở đầu trang chi tiết, bấm <strong className="text-foreground">Chia sẻ lên thư viện</strong>.</li>
+						<li>Người dùng sẽ thấy bộ từ tại sidebar → <Link href="/shared-sets" className="font-bold text-accent hover:underline">Chia sẻ bộ từ</Link>.</li>
+					</ol>
+				</div>
+			)}
 
 			<div className="card-paper border-l-4 border-l-accent p-4 text-sm text-foreground-secondary">
 				<p>
@@ -59,9 +75,16 @@ export default async function ChineseSetsPage() {
 							<div key={set.id} className="card-paper group relative flex flex-col gap-2 overflow-hidden p-4">
 								<div className="flex items-start justify-between gap-2">
 									<Link href={`/sets/${set.id}`} className="flex-1">
-										<h3 className="text-lg font-extrabold text-foreground transition-colors group-hover:text-accent">
-											{set.title}
-										</h3>
+										<div className="flex flex-wrap items-center gap-2">
+											<h3 className="text-lg font-extrabold text-foreground transition-colors group-hover:text-accent">
+												{set.title}
+											</h3>
+											{isAdmin && set.shared && (
+												<span className="label-caps rounded-full bg-success/15 px-2 py-0.5 !text-[10px] text-success">
+													Đang chia sẻ
+												</span>
+											)}
+										</div>
 									</Link>
 									<div className="hidden md:block">
 										<SetCardActions set={set} />
@@ -69,6 +92,16 @@ export default async function ChineseSetsPage() {
 								</div>
 								<div className="flex flex-1 flex-col gap-2">
 									<p className="text-sm text-muted">{set.description || 'Không có mô tả'}</p>
+									{isAdmin && (
+										<SetSharePanel
+											key={`${set.id}-${set.shared}`}
+											setId={set.id}
+											title={set.title}
+											itemCount={set.itemCount}
+											shared={set.shared}
+											variant="card"
+										/>
+									)}
 									<SetSrsToggle setId={set.id} srsActive={set.srsActive} title={set.title} compact />
 									<div className="mt-auto pt-2">
 										<div className="mb-1 flex justify-between text-sm text-foreground-secondary">
