@@ -20,11 +20,8 @@ npx tsx scripts/purge-legacy-demo-sets.ts
 echo "==> Verifying import sample workbook..."
 npx tsx scripts/verify-user-set-sample.ts
 
-echo "==> Running tests..."
-npm test
-
-echo "==> Building production..."
-npm run build
+echo "==> Running production quality gate..."
+npm run quality:prod
 
 echo "==> Deploy complete. Start with: npm start (port 3001)"
 echo "    Or PM2 fork (required for Hanzi AI rate limits):"

@@ -182,13 +182,16 @@ function channelIntervalIdx(progress: CnWordProgressDTO | null, channel: SkillCh
 
 /** All three channels are always active in the minimal SRS model */
 export function isChannelUnlocked(
-	_progress: CnWordProgressDTO | null,
-	_channel: SkillChannel,
+	progress: CnWordProgressDTO | null,
+	channel: SkillChannel,
 ): boolean {
+	void progress;
+	void channel;
 	return true;
 }
 
-export function getUnlockedGroups(_progress: CnWordProgressDTO | null): PracticeGroup[] {
+export function getUnlockedGroups(progress: CnWordProgressDTO | null): PracticeGroup[] {
+	void progress;
 	return ['core_vocab', 'listening', 'sentence'];
 }
 

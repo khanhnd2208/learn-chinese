@@ -5,7 +5,7 @@ module.exports = {
 			name: 'learn-chinese',
 			script: 'npm',
 			args: 'start',
-			cwd: __dirname + '/..',
+			cwd: __dirname,
 			instances: 1,
 			exec_mode: 'fork',
 			env: { NODE_ENV: 'production', PORT: 3001 },

@@ -1,8 +1,16 @@
 import { describe, it, expect } from 'vitest';
 import {
+	CN_MAX_BULK_ITEM_IDS,
+	CN_MAX_EXCLUDE_IDS,
+	CN_MAX_SMART_IMPORT_TEXT_CHARS,
+	parseBoundedIntParam,
+	parseDelimitedListParam,
+	validateBulkItemIds,
+	validateJsonContentLength,
 	validatePracticeSubmitItems,
 	validateSetTerms,
 	validateImportFile,
+	validateSmartImportText,
 } from '@/lib/apiValidation';
 
 describe('apiValidation', () => {
@@ -44,5 +52,34 @@ describe('apiValidation', () => {
 		expect(validateImportFile(smallCsv)).toBeNull();
 		expect(validateImportFile(bigCsv)).toMatch(/quá lớn/i);
 		expect(validateImportFile(badExt)).toMatch(/CSV hoặc XLSX/i);
+	});
+
+	it('parses bounded integer query params', () => {
+		expect(parseBoundedIntParam(null, { defaultValue: 5, min: 1, max: 20 })).toBe(5);
+		expect(parseBoundedIntParam('10', { defaultValue: 5, min: 1, max: 20 })).toBe(10);
+		expect(parseBoundedIntParam('0', { defaultValue: 5, min: 1, max: 20 })).toBeNull();
+		expect(parseBoundedIntParam('21', { defaultValue: 5, min: 1, max: 20 })).toBeNull();
+		expect(parseBoundedIntParam('1.5', { defaultValue: 5, min: 1, max: 20 })).toBeNull();
+	});
+
+	it('bounds delimited query lists', () => {
+		expect(parseDelimitedListParam('a,b, c')).toEqual(['a', 'b', 'c']);
+		expect(parseDelimitedListParam(null)).toEqual([]);
+		expect(parseDelimitedListParam(Array.from({ length: CN_MAX_EXCLUDE_IDS + 1 }, (_, i) => `x${i}`).join(','))).toBeNull();
+		expect(parseDelimitedListParam('x'.repeat(121))).toBeNull();
+	});
+
+	it('validates bulk item ids', () => {
+		expect(validateBulkItemIds(['a', 'b'])).toBe(true);
+		expect(validateBulkItemIds([])).toBe(false);
+		expect(validateBulkItemIds([''])).toBe(false);
+		expect(validateBulkItemIds(Array.from({ length: CN_MAX_BULK_ITEM_IDS + 1 }, (_, i) => `id-${i}`))).toBe(false);
+	});
+
+	it('validates JSON request size and smart import text length', () => {
+		expect(validateJsonContentLength(new Headers({ 'content-length': '1024' }))).toBeNull();
+		expect(validateJsonContentLength(new Headers({ 'content-length': String(300 * 1024) }))).toMatch(/JSON body quá lớn/);
+		expect(validateSmartImportText('你好\tni hao')).toBeNull();
+		expect(validateSmartImportText('x'.repeat(CN_MAX_SMART_IMPORT_TEXT_CHARS + 1))).toMatch(/Dữ liệu quá dài/);
 	});
 });

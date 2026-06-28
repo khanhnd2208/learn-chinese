@@ -2,10 +2,7 @@ import { hanziAnalysisResultSchema, type HanziAiDraftResult } from './hanziAnaly
 import { containsUnsafeAiText } from './hanziNormalization';
 import { preNormalizeAiDraft } from './hanziPreNormalize';
 import { parseHanziDraft } from './hanziSchemaRegistry';
-import {
-	applyHanziTrustPolicy,
-	resultRequiresTrustReview,
-} from './hanziTrustPolicy';
+import { applyHanziTrustPolicy } from './hanziTrustPolicy';
 import {
 	containsAncientFormLanguage,
 	containsUnverifiedPhoneticLanguage,

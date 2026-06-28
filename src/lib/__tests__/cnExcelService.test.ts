@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as XLSX from 'xlsx';
 import {
 	previewUserWorkbook,
 	importUserWorkbook,
 } from '@/services/chinese/cnExcelService';
+import { buildExcelWorkbookBuffer } from '@/lib/excelWorkbook';
 import { VI_DU_COLUMN_KEYS } from '@/lib/chinese/parseFillExample';
 import { buildFiveFillExampleCells } from '@/lib/chinese/sampleFillExamples';
 
@@ -35,18 +35,16 @@ const mockWordFindMany = vi.mocked(prisma.cnWord.findMany);
 const mockWordSetFindMany = vi.mocked(prisma.cnWordSet.findMany);
 const mockTransaction = vi.mocked(prisma.$transaction);
 
-function workbookFile(sheets: Record<string, Record<string, unknown>[]>): File {
-	const wb = XLSX.utils.book_new();
-	for (const [name, rows] of Object.entries(sheets)) {
-		XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), name);
-	}
-	const buffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
-	return new File([buffer], 'test.xlsx', {
+async function workbookFile(sheets: Record<string, Record<string, unknown>[]>): Promise<File> {
+	const buffer = await buildExcelWorkbookBuffer(
+		Object.entries(sheets).map(([name, rows]) => ({ name, rows })),
+	);
+	return new File([new Uint8Array(buffer)], 'test.xlsx', {
 		type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 	});
 }
 
-function tuVungFile(rows: Record<string, unknown>[]): File {
+function tuVungFile(rows: Record<string, unknown>[]): Promise<File> {
 	return workbookFile({ tu_vung: rows });
 }
 
@@ -80,7 +78,7 @@ beforeEach(() => {
 
 describe('previewUserWorkbook — tu_vung format', () => {
 	it('accepts valid tu_vung workbook with 12-column format', async () => {
-		const file = tuVungFile([
+		const file = await tuVungFile([
 			withFiveExamples({
 				bo_tu: 'Bài 1',
 				simplified: '学生',
@@ -108,7 +106,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 	});
 
 	it('merges legacy mnemonic/usage into ghi_chu', async () => {
-		const file = tuVungFile([
+		const file = await tuVungFile([
 			withFiveExamples({
 				bo_tu: 'Bài 1',
 				simplified: '朋友',
@@ -125,7 +123,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 	});
 
 	it('rejects when fewer than 5 valid examples', async () => {
-		const file = tuVungFile([
+		const file = await tuVungFile([
 			{
 				bo_tu: 'Bài 1',
 				simplified: '学生',
@@ -140,7 +138,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 	});
 
 	it('surfaces badExampleWarnings with per-cell reasons', async () => {
-		const file = tuVungFile([
+		const file = await tuVungFile([
 			{
 				bo_tu: 'Bài 1',
 				simplified: '老师',
@@ -180,13 +178,13 @@ describe('previewUserWorkbook — tu_vung format', () => {
 		// Replace vi_du_1 with unblanked sentence that still contains target word
 		repairedRow.vi_du_1 = '我很好。|wǒ hěn hǎo.|Tôi rất __.';
 
-		const preview = await previewUserWorkbook(tuVungFile([repairedRow]));
+		const preview = await previewUserWorkbook(await tuVungFile([repairedRow]));
 		expect(preview.errors).toHaveLength(0);
 		expect(preview.warnings.some((w) => w.includes('tự thêm dấu trống'))).toBe(true);
 	});
 
 	it('rejects missing required fields', async () => {
-		const file = tuVungFile([
+		const file = await tuVungFile([
 			{ bo_tu: 'Bài 1', simplified: '学生' },
 		]);
 		const preview = await previewUserWorkbook(file);
@@ -195,7 +193,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 	});
 
 	it('rejects duplicate simplified in file', async () => {
-		const file = tuVungFile([
+		const file = await tuVungFile([
 			{ bo_tu: 'Bài 1', simplified: '学生', pinyin: 'xuésheng', meaning_vi: 'học sinh' },
 			{ bo_tu: 'Bài 2', simplified: '学生', pinyin: 'xuésheng', meaning_vi: 'học sinh' },
 		]);
@@ -205,7 +203,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 
 	it('warns when bo_tu already exists for user', async () => {
 		mockWordSetFindMany.mockResolvedValue([{ title: 'Bài 1' }] as never);
-		const file = tuVungFile([
+		const file = await tuVungFile([
 			{ bo_tu: 'Bài 1', simplified: '学生', pinyin: 'xuésheng', meaning_vi: 'học sinh' },
 		]);
 		const preview = await previewUserWorkbook(file, 'user-1');
@@ -214,7 +212,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 	});
 
 	it('rejects unknown format', async () => {
-		const file = workbookFile({ random: [{ foo: 'bar' }] });
+		const file = await workbookFile({ random: [{ foo: 'bar' }] });
 		const preview = await previewUserWorkbook(file);
 		expect(preview.errors.some((e) => e.includes('không đúng định dạng'))).toBe(true);
 	});
@@ -222,7 +220,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 
 describe('previewUserWorkbook — legacy format', () => {
 	it('accepts valid sample-shaped workbook', async () => {
-		const file = workbookFile({
+		const file = await workbookFile({
 			sets: [{ set_key: 'bai1', title: 'Bài 1', description: '', source: 'manual' }],
 			set_items: [
 				{ set_key: 'bai1', raw_term: '我', word_simplified: '我' },
@@ -241,7 +239,7 @@ describe('previewUserWorkbook — legacy format', () => {
 	});
 
 	it('rejects missing sets sheet', async () => {
-		const file = workbookFile({
+		const file = await workbookFile({
 			set_items: [{ set_key: 'bai1', raw_term: '我' }],
 		});
 		const preview = await previewUserWorkbook(file);
@@ -249,7 +247,7 @@ describe('previewUserWorkbook — legacy format', () => {
 	});
 
 	it('rejects duplicate set_key', async () => {
-		const file = workbookFile({
+		const file = await workbookFile({
 			sets: [
 				{ set_key: 'dup', title: 'A', description: '', source: 'manual' },
 				{ set_key: 'dup', title: 'B', description: '', source: 'manual' },
@@ -263,7 +261,7 @@ describe('previewUserWorkbook — legacy format', () => {
 
 describe('importUserWorkbook — tu_vung format', () => {
 	it('upserts words and creates set with suffix on collision', async () => {
-		const file = tuVungFile([
+		const file = await tuVungFile([
 			withFiveExamples({
 				bo_tu: 'Bài 1',
 				simplified: '学生',

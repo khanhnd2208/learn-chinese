@@ -5,9 +5,13 @@ import {
 	RATE_LIMIT_LOOKUP_PER_MIN,
 	RATE_LIMIT_WINDOW_MS,
 } from '@/config/constants';
+import { validateJsonContentLength } from '@/lib/apiValidation';
 import { checkRateLimit, rateLimitKey } from '@/lib/rateLimit';
 
 export const POST = withAuth(async (request, user) => {
+	const contentLengthError = validateJsonContentLength(request.headers);
+	if (contentLengthError) return apiError(contentLengthError, 400);
+
 	const limit = checkRateLimit(rateLimitKey(user.id, 'lookup'), {
 		limit: RATE_LIMIT_LOOKUP_PER_MIN,
 		windowMs: RATE_LIMIT_WINDOW_MS,

@@ -13,18 +13,21 @@ vi.mock('@/lib/prisma', () => ({
 		cnWordSetItem: {
 			findMany: vi.fn(),
 			update: vi.fn(),
+			count: vi.fn(),
 		},
 		cnWordSet: {
 			findFirst: vi.fn(),
 			update: vi.fn(),
 		},
 		cnWordProgress: {
+			createMany: vi.fn(),
 			deleteMany: vi.fn(),
 			findMany: vi.fn(),
 		},
 		cnWord: {
 			findMany: vi.fn(),
 		},
+		$transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
 	},
 }));
 
@@ -77,6 +80,12 @@ describe('resolveSrsPoolWordIds', () => {
 		const ids = await resolveSrsPoolWordIds('user-1');
 
 		expect(ids).toEqual(new Set(['w1', 'w2', 'w3']));
+		expect(mockProgressFindMany).toHaveBeenCalledWith(expect.objectContaining({
+			where: expect.objectContaining({
+				userId: 'user-1',
+				word: { simplified: { in: ['学习', '你好'] } },
+			}),
+		}));
 		expect(mockItemUpdate).toHaveBeenCalledWith({
 			where: { id: 'i2' },
 			data: { wordId: 'w2' },

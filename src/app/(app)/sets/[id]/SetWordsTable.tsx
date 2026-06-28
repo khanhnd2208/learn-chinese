@@ -4,11 +4,11 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import MaterialIcon from '@/components/ui/MaterialIcon';
-import type { CnWordSetDTO, CnWordSetItemDTO, CnWordSetListItemDTO } from '@/types/chinese';
+import type { CnWordSetDTO, CnWordSetItemDTO } from '@/types/chinese';
 
 interface Props {
 	set: CnWordSetDTO;
-	otherSets: CnWordSetListItemDTO[];
+	otherSets: Array<{ id: string; title: string }>;
 	onMessage?: (message: { success?: string; error?: string }) => void;
 }
 
@@ -52,7 +52,7 @@ async function confirmBulkRemove(items: CnWordSetItemDTO[]): Promise<boolean> {
 }
 
 async function confirmBulkMove(
-	toSet: CnWordSetListItemDTO,
+	toSet: { title: string },
 	count: number,
 ): Promise<boolean> {
 	return confirm(`Chuyển ${count} từ sang bộ "${toSet.title}"?`);

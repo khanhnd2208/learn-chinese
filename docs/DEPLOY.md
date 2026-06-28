@@ -34,6 +34,7 @@ Nếu thiếu secret, job fail sớm với message rõ ràng thay vì lỗi mơ 
 - MongoDB (NextAuth users/sessions)
 - Nginx/Caddy reverse proxy + HTTPS
 - Domain trỏ về VPS (cập nhật Google OAuth redirect URI)
+- PM2 chạy **1 process fork** cho bản beta hiện tại
 
 ## Lần đầu trên VPS
 
@@ -61,6 +62,8 @@ pm2 save
 Không bật PM2 cluster mode cho phiên bản này. Giữ `instances=1`, `exec_mode=fork`; trước khi scale nhiều process phải chuyển rate limiter theo phút sang Redis/PostgreSQL.
 
 Reverse proxy cần cho phép request Hanzi AI chạy tối đa 90 giây. Với Nginx đặt `proxy_read_timeout 90s;` và `proxy_send_timeout 90s;`.
+
+Health check public: `GET /api/health` trả `200` khi app, PostgreSQL và MongoDB đều sẵn sàng; trả `503` khi dependency lỗi. Endpoint không trả secret hoặc stack trace.
 
 ### Migration Hanzi AI (2026-06-18)
 
@@ -132,12 +135,21 @@ npx prisma migrate deploy   # kỳ vọng: already up to date
 | `NEXTAUTH_URL` | URL public, vd. `https://chinese.yourdomain.com` |
 | `AUTH_TRUST_HOST` | `true` sau reverse proxy |
 | `DATABASE_URL` | PostgreSQL connection string |
+| `PG_POOL_MAX` | Tuỳ chọn; mặc định prod `5`, dev `10` |
+| `PG_IDLE_TIMEOUT_MS` | Tuỳ chọn; mặc định `30000` |
 | `MONGODB_URI` | MongoDB cho NextAuth |
 | `DEEPSEEK_API_KEY` | API key server-side cho Hanzi Lab |
 | `HANZI_AI_MODEL` | Mặc định `deepseek-v4-flash` |
 
 ## Kiểm tra sau deploy
 
-1. `GET /api/review/stats` — trả stats (cần đăng nhập)
-2. `/review` — làm 1 câu → **Dừng & lưu** → thấy summary
-3. `/review/stats` — `reviewedToday` tăng
+1. `GET /api/health` — trả `200` và checks `postgres: ok`, `mongo: ok`
+2. `GET /api/review/stats` — trả stats (cần đăng nhập)
+3. `/review` — làm 1 câu → **Dừng & lưu** → thấy summary
+4. `/review/stats` — `reviewedToday` tăng
+
+Gate production local/CI:
+
+```bash
+npm run quality:prod
+```

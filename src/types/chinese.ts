@@ -231,6 +231,8 @@ export interface CnPracticeQuestionDTO {
 	isStickingPoint?: boolean;
 	/** CnExample id used for fill_sentence questions */
 	exampleId?: string;
+	/** Word-level pinyin for fill_sentence reveal (distinct from sentence pinyin) */
+	wordPinyin?: string;
 }
 
 export interface CnPracticeSubmitItem {
