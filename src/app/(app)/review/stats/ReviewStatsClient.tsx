@@ -182,8 +182,7 @@ export default function ReviewStatsClient() {
 				<h2 className="text-lg font-black text-foreground">Kỹ năng</h2>
 				<div className="mt-4 flex flex-col gap-4">
 					<ChannelSkill label="Nghĩa" rate={stats.meaningRate} />
-					<ChannelSkill label="Nghe" rate={stats.listeningRate} />
-					<ChannelSkill label="Pinyin" rate={stats.pinyinRate} />
+					<ChannelSkill label="Âm đọc" rate={stats.soundRate} />
 					<ChannelSkill label="Câu" rate={stats.sentenceRate} />
 				</div>
 				{(stats.recallTotal > 0 || stats.mcqTotal > 0) && (

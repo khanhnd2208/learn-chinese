@@ -53,8 +53,7 @@ describe('buildInfernoWordChannels', () => {
 
 		expect(pairs.length).toBeGreaterThan(0);
 		expect(pairs.some((p) => p.channel === 'meaning')).toBe(true);
-		expect(pairs.some((p) => p.channel === 'pinyin')).toBe(true);
-		expect(pairs.some((p) => p.channel === 'listening')).toBe(true);
+		expect(pairs.some((p) => p.channel === 'sound')).toBe(true);
 	});
 
 	it('skips unpublished words missing from card map', () => {

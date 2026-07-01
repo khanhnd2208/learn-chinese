@@ -46,16 +46,13 @@ export interface ProgressForMetrics {
 	wordId?: string;
 	state: CnWordProgressState;
 	meaningIntervalIdx: number;
-	listeningIntervalIdx: number;
-	pinyinIntervalIdx: number;
+	soundIntervalIdx: number;
 	sentenceIntervalIdx: number;
 	meaningDueAt: Date | null;
-	listeningDueAt: Date | null;
-	pinyinDueAt: Date | null;
+	soundDueAt: Date | null;
 	sentenceDueAt: Date | null;
 	meaningTotal: number;
-	listeningTotal: number;
-	pinyinTotal: number;
+	soundTotal: number;
 	sentenceTotal: number;
 	dueAt: Date;
 }
@@ -71,29 +68,25 @@ export type OverduePressure = 'none' | 'mild' | 'moderate' | 'severe';
 
 const CHANNEL_DUE_FIELDS = [
 	'meaningDueAt',
-	'listeningDueAt',
-	'pinyinDueAt',
+	'soundDueAt',
 	'sentenceDueAt',
 ] as const satisfies ReadonlyArray<keyof ProgressForMetrics>;
 
 const CHANNEL_TOTAL_FIELDS: Record<SkillChannel, keyof ProgressForMetrics> = {
 	meaning: 'meaningTotal',
-	listening: 'listeningTotal',
-	pinyin: 'pinyinTotal',
+	sound: 'soundTotal',
 	sentence: 'sentenceTotal',
 };
 
 const CHANNELS_BY_DUE_FIELD: Record<typeof CHANNEL_DUE_FIELDS[number], SkillChannel> = {
 	meaningDueAt: 'meaning',
-	listeningDueAt: 'listening',
-	pinyinDueAt: 'pinyin',
+	soundDueAt: 'sound',
 	sentenceDueAt: 'sentence',
 };
 
 const INTERVAL_FIELDS = [
 	'meaningIntervalIdx',
-	'listeningIntervalIdx',
-	'pinyinIntervalIdx',
+	'soundIntervalIdx',
 	'sentenceIntervalIdx',
 ] as const satisfies ReadonlyArray<keyof ProgressForMetrics>;
 
@@ -494,8 +487,7 @@ export interface ReviewInsightInput {
 	streak: number;
 	forecast: ForecastDay[];
 	meaningRate: number;
-	listeningRate: number;
-	pinyinRate: number;
+	soundRate: number;
 	sentenceRate: number;
 	hasActiveWords: boolean;
 }
@@ -508,8 +500,7 @@ export function generateReviewInsights(input: ReviewInsightInput): string[] {
 		streak,
 		forecast,
 		meaningRate,
-		listeningRate,
-		pinyinRate,
+		soundRate,
 		sentenceRate,
 		hasActiveWords,
 	} = input;
@@ -532,8 +523,7 @@ export function generateReviewInsights(input: ReviewInsightInput): string[] {
 	}
 
 	const channels = [
-		{ label: 'Nghe', rate: listeningRate },
-		{ label: 'Pinyin', rate: pinyinRate },
+		{ label: 'Âm đọc', rate: soundRate },
 		{ label: 'Nghĩa', rate: meaningRate },
 		{ label: 'Dùng câu', rate: sentenceRate },
 	];

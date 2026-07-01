@@ -40,8 +40,7 @@ import type {
 
 const INFERNO_TYPES_BY_CHANNEL: Record<SkillChannel, CnQuestionType[]> = {
 	meaning: ['hanzi_to_meaning', 'meaning_to_hanzi', 'meaning_to_hanzi_typed'],
-	listening: ['audio_to_meaning', 'audio_to_hanzi', 'audio_to_hanzi_typed'],
-	pinyin: ['pinyin_to_hanzi', 'hanzi_to_pinyin', 'hanzi_to_pinyin_typed'],
+	sound: ['sound_to_hanzi', 'sound_to_hanzi_typed'],
 	sentence: ['fill_sentence', 'fill_sentence_typed'],
 };
 

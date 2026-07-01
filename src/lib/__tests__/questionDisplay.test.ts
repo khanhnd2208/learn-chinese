@@ -44,43 +44,31 @@ describe('resolveWrongAnswerReveal', () => {
 		expect(reveal.secondary).toEqual({ kind: 'pinyin', text: 'xué xí' });
 	});
 
-	it('hanzi_to_pinyin_typed: pinyin only, no hanzi repeat', () => {
+	it('sound_to_hanzi: full word info for sound mode', () => {
 		const reveal = resolveWrongAnswerReveal(baseQuestion({
-			type: 'hanzi_to_pinyin_typed',
-			hanzi: '学习',
-			correctAnswer: 'xué xí',
-		}));
-		expect(reveal.primary).toEqual({ kind: 'pinyin', text: 'xué xí' });
-		expect(reveal.secondary).toBeUndefined();
-	});
-
-	it('audio_to_hanzi: full word info for audio mode', () => {
-		const reveal = resolveWrongAnswerReveal(baseQuestion({
-			type: 'audio_to_hanzi',
-			hanzi: '学习',
+			type: 'sound_to_hanzi',
 			pinyin: 'xué xí',
 			meaningVi: 'học tập; học hỏi',
 			correctAnswer: '学习',
 			audioText: '学习',
 		}));
-		expect(reveal.mode).toBe('audio');
+		expect(reveal.mode).toBe('sound');
 		expect(reveal.primary).toEqual({ kind: 'hanzi', text: '学习' });
 		expect(reveal.secondary).toEqual({ kind: 'pinyin', text: 'xué xí' });
 		expect(reveal.tertiary).toEqual({ kind: 'meaning', text: 'học tập' });
 	});
 
-	it('audio_to_meaning: meaning primary with hanzi and pinyin', () => {
+	it('sound_to_hanzi_typed: hanzi primary with pinyin and meaning', () => {
 		const reveal = resolveWrongAnswerReveal(baseQuestion({
-			type: 'audio_to_meaning',
-			hanzi: '学习',
+			type: 'sound_to_hanzi_typed',
 			pinyin: 'xué xí',
-			correctAnswer: 'học tập',
+			meaningVi: 'học tập',
+			correctAnswer: '学习',
 			audioText: '学习',
 		}));
-		expect(reveal.mode).toBe('audio');
-		expect(reveal.primary).toEqual({ kind: 'meaning', text: 'học tập' });
-		expect(reveal.secondary).toEqual({ kind: 'hanzi', text: '学习' });
-		expect(reveal.tertiary).toEqual({ kind: 'pinyin', text: 'xué xí' });
+		expect(reveal.mode).toBe('sound');
+		expect(reveal.primary).toEqual({ kind: 'hanzi', text: '学习' });
+		expect(reveal.secondary).toEqual({ kind: 'pinyin', text: 'xué xí' });
 	});
 
 	it('fill_sentence: sentence mode with completed sentence and fill word', () => {

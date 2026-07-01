@@ -1,10 +1,10 @@
-import { isAudioQuestion, isFillSentenceQuestion } from '@/lib/chinese/questionLabels';
+import { isSoundQuestion, isFillSentenceQuestion } from '@/lib/chinese/questionLabels';
 import type { CnPracticeQuestionDTO } from '@/types/chinese';
 
 export type RevealPrimaryKind = 'hanzi' | 'pinyin' | 'meaning';
 
 export interface WrongAnswerReveal {
-	mode: 'word' | 'sentence' | 'audio';
+	mode: 'word' | 'sentence' | 'sound';
 	primary: { kind: RevealPrimaryKind; text: string };
 	secondary?: { kind: RevealPrimaryKind; text: string };
 	tertiary?: { kind: RevealPrimaryKind; text: string };
@@ -43,36 +43,12 @@ function resolveWordReveal(q: CnPracticeQuestionDTO): WrongAnswerReveal {
 		};
 	}
 
-	if (type === 'pinyin_to_hanzi') {
+	if (type === 'sound_to_hanzi' || type === 'sound_to_hanzi_typed') {
 		return {
-			mode: 'word',
+			mode: 'sound',
 			primary: { kind: 'hanzi', text: q.correctAnswer },
-			...(q.meaningVi ? { secondary: { kind: 'meaning', text: firstMeaningSegment(q.meaningVi)! } } : {}),
-		};
-	}
-
-	if (type === 'hanzi_to_pinyin' || type === 'hanzi_to_pinyin_typed') {
-		return {
-			mode: 'word',
-			primary: { kind: 'pinyin', text: q.correctAnswer },
-		};
-	}
-
-	if (type === 'audio_to_hanzi' || type === 'audio_to_hanzi_typed') {
-		return {
-			mode: 'audio',
-			primary: { kind: 'hanzi', text: q.hanzi ?? q.correctAnswer },
 			...(q.pinyin ? { secondary: { kind: 'pinyin', text: q.pinyin } } : {}),
 			...(q.meaningVi ? { tertiary: { kind: 'meaning', text: firstMeaningSegment(q.meaningVi)! } } : {}),
-		};
-	}
-
-	if (type === 'audio_to_meaning') {
-		return {
-			mode: 'audio',
-			primary: { kind: 'meaning', text: q.correctAnswer },
-			...(q.hanzi ? { secondary: { kind: 'hanzi', text: q.hanzi } } : {}),
-			...(q.pinyin ? { tertiary: { kind: 'pinyin', text: q.pinyin } } : {}),
 		};
 	}
 
@@ -111,7 +87,7 @@ export function resolveWrongAnswerReveal(q: CnPracticeQuestionDTO): WrongAnswerR
 	if (isFillSentenceQuestion(q.type)) {
 		return resolveSentenceReveal(q);
 	}
-	if (isAudioQuestion(q.type)) {
+	if (isSoundQuestion(q.type)) {
 		return resolveWordReveal(q);
 	}
 	return resolveWordReveal(q);

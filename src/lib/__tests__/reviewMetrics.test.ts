@@ -28,16 +28,13 @@ function makeProgress(overrides: Partial<ProgressForMetrics> = {}): ProgressForM
 		wordId: 'w1',
 		state: 'learning',
 		meaningIntervalIdx: 1,
-		listeningIntervalIdx: 0,
-		pinyinIntervalIdx: 0,
+		soundIntervalIdx: 0,
 		sentenceIntervalIdx: 0,
 		meaningDueAt: now,
-		listeningDueAt: now,
-		pinyinDueAt: now,
+		soundDueAt: now,
 		sentenceDueAt: null,
 		meaningTotal: 1,
-		listeningTotal: 1,
-		pinyinTotal: 1,
+		soundTotal: 1,
 		sentenceTotal: 0,
 		dueAt: now,
 		...overrides,
@@ -51,12 +48,10 @@ describe('reviewMetrics', () => {
 		const progress = [
 			makeProgress({
 				meaningDueAt: yesterday,
-				listeningDueAt: today,
-				pinyinDueAt: today,
+				soundDueAt: today,
 				sentenceDueAt: today,
 				meaningTotal: 1,
-				listeningTotal: 1,
-				pinyinTotal: 1,
+				soundTotal: 1,
 				sentenceTotal: 0,
 			}),
 		];
@@ -67,8 +62,8 @@ describe('reviewMetrics', () => {
 		const now = new Date('2026-06-23T12:00:00');
 		const progress = [makeProgress({ sentenceTotal: 0, sentenceDueAt: now })];
 		const withExamples = new Set<string>();
-		expect(countDueChannelsForMetrics(progress, now, withExamples)).toBe(3);
-		expect(countDueChannelsForMetrics(progress, now, new Set(['w1']))).toBe(4);
+		expect(countDueChannelsForMetrics(progress, now, withExamples)).toBe(2);
+		expect(countDueChannelsForMetrics(progress, now, new Set(['w1']))).toBe(3);
 	});
 
 	it('counts unique due words separately from due channels', () => {
@@ -80,16 +75,14 @@ describe('reviewMetrics', () => {
 				wordId: 'w2',
 				meaningTotal: 2,
 				meaningDueAt: future,
-				listeningTotal: 2,
-				listeningDueAt: future,
-				pinyinTotal: 2,
-				pinyinDueAt: future,
+				soundTotal: 2,
+				soundDueAt: future,
 				sentenceTotal: 1,
 				sentenceDueAt: future,
 			}),
 		];
 		expect(countDueWordsForMetrics(progress, now)).toBe(1);
-		expect(countDueChannelsForMetrics(progress, now)).toBe(4);
+		expect(countDueChannelsForMetrics(progress, now)).toBe(3);
 	});
 
 	it('forecast today matches countDueChannelsForMetrics', () => {
@@ -98,8 +91,7 @@ describe('reviewMetrics', () => {
 		const progress = [
 			makeProgress({
 				meaningDueAt: addLocalDays(today, -1),
-				listeningDueAt: today,
-				pinyinDueAt: addLocalDays(today, 1),
+				soundDueAt: addLocalDays(today, 1),
 				sentenceDueAt: addLocalDays(today, 2),
 				sentenceTotal: 1,
 			}),
@@ -118,16 +110,13 @@ describe('reviewMetrics', () => {
 	it('builds forecast buckets for 7 days', () => {
 		const now = new Date('2026-06-23T12:00:00');
 		const today = startOfLocalDay(now);
-		const tomorrow = addLocalDays(today, 1);
 		const progress = [
 			makeProgress({
 				meaningDueAt: addLocalDays(today, -1),
-				listeningDueAt: today,
-				pinyinDueAt: tomorrow,
+				soundDueAt: today,
 				sentenceDueAt: addLocalDays(today, 2),
 				meaningTotal: 1,
-				listeningTotal: 1,
-				pinyinTotal: 1,
+				soundTotal: 1,
 				sentenceTotal: 1,
 			}),
 		];
@@ -135,7 +124,7 @@ describe('reviewMetrics', () => {
 		expect(forecast).toHaveLength(7);
 		expect(forecast[0].dueCount).toBe(2);
 		expect(forecast[0].overdueCount).toBe(1);
-		expect(forecast[1].dueCount).toBe(1);
+		expect(forecast[1].dueCount).toBe(0);
 		expect(forecast[2].dueCount).toBe(1);
 	});
 
@@ -152,7 +141,7 @@ describe('reviewMetrics', () => {
 		const now = new Date('2026-06-23T12:00:00');
 		const future = addLocalDays(now, 2);
 		const progress = [
-			makeProgress({ meaningDueAt: addLocalDays(now, -1), listeningDueAt: future, listeningTotal: 1 }),
+			makeProgress({ meaningDueAt: addLocalDays(now, -1), soundDueAt: future, soundTotal: 1 }),
 		];
 		expect(findNextDueAt(progress, now)?.getTime()).toBe(future.getTime());
 	});
@@ -186,7 +175,7 @@ describe('reviewMetrics', () => {
 	it('computes state distribution and mature percent', () => {
 		const progress = [
 			makeProgress({ state: 'new', meaningIntervalIdx: 0 }),
-			makeProgress({ state: 'mastered', meaningIntervalIdx: 4, listeningIntervalIdx: 3 }),
+			makeProgress({ state: 'mastered', meaningIntervalIdx: 4, soundIntervalIdx: 3 }),
 		];
 		const dist = computeStateDistribution(progress);
 		expect(dist.new).toBe(1);
@@ -223,8 +212,7 @@ describe('reviewMetrics', () => {
 				{ dayKey: 'b', label: 'Mai', dueCount: 30, overdueCount: 0 },
 			],
 			meaningRate: 80,
-			listeningRate: 45,
-			pinyinRate: 70,
+			soundRate: 45,
 			sentenceRate: 0,
 			hasActiveWords: true,
 		});
@@ -241,12 +229,10 @@ describe('reviewMetrics', () => {
 		const tomorrow = addLocalDays(startOfLocalDay(now), 1);
 		const idle = {
 			meaningDueAt: future,
-			listeningDueAt: future,
-			pinyinDueAt: future,
+			soundDueAt: future,
 			sentenceDueAt: future,
 			meaningTotal: 1,
-			listeningTotal: 1,
-			pinyinTotal: 1,
+			soundTotal: 1,
 			sentenceTotal: 1,
 		};
 		const progress = [
@@ -258,12 +244,12 @@ describe('reviewMetrics', () => {
 			makeProgress({
 				wordId: 'w2',
 				...idle,
-				listeningDueAt: in20m,
+				soundDueAt: in20m,
 			}),
 			makeProgress({
 				wordId: 'w3',
 				...idle,
-				pinyinDueAt: in1h,
+				soundDueAt: in1h,
 			}),
 			makeProgress({
 				wordId: 'w4',

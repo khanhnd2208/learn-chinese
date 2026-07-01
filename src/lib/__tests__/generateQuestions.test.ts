@@ -50,20 +50,17 @@ const progressAtRecall: CnWordProgressDTO = {
 	intervalIdx: 2,
 	lastReviewedAt: null,
 	meaningRate: 80,
-	listeningRate: 70,
-	pinyinRate: 60,
+	soundRate: 65,
 	sentenceRate: 0,
 	meaningTotal: 5,
-	listeningTotal: 4,
-	pinyinTotal: 3,
+	soundTotal: 7,
 	sentenceTotal: 0,
 	meaningIntervalIdx: 2,
-	listeningIntervalIdx: 1,
-	pinyinIntervalIdx: 0,
+	soundIntervalIdx: 1,
 	sentenceIntervalIdx: 0,
 };
 
-describe('generateQuestions (11 core types)', () => {
+describe('generateQuestions (7 core types)', () => {
 	it('generates requested number of questions', () => {
 		const questions = generatePracticeSession(sampleWords, 10);
 		expect(questions.length).toBeGreaterThan(0);
@@ -93,10 +90,12 @@ describe('generateQuestions (11 core types)', () => {
 		expect(q!.correctAnswer).toBe('学生');
 	});
 
-	it('generates hanzi_to_pinyin MCQ', () => {
-		const q = generateQuestionForWord(sampleWords[0], sampleWords, 'hanzi_to_pinyin', 0);
+	it('generates sound_to_hanzi MCQ with pinyin stimulus', () => {
+		const q = generateQuestionForWord(sampleWords[0], sampleWords, 'sound_to_hanzi', 0);
 		expect(q).toBeTruthy();
-		expect(q!.options).toContain('xuésheng');
+		expect(q!.pinyin).toBe('xuésheng');
+		expect(q!.audioText).toBe('学生');
+		expect(q!.options).toContain('学生');
 	});
 
 	it('review question follows channel stage', () => {
@@ -135,7 +134,7 @@ describe('generateQuestions (11 core types)', () => {
 		}
 	});
 
-	it('smart_mixed practice rotates all four SRS channels including sentence', () => {
+	it('smart_mixed practice rotates all three SRS channels including sentence', () => {
 		const wordWithExamples: CnWordCardDTO = {
 			...sampleWords[0],
 			examples: [{
@@ -159,8 +158,7 @@ describe('generateQuestions (11 core types)', () => {
 		});
 		const channels = new Set(questions.map((q) => questionChannel(q.type)));
 		expect(channels.has('meaning')).toBe(true);
-		expect(channels.has('listening')).toBe(true);
-		expect(channels.has('pinyin')).toBe(true);
+		expect(channels.has('sound')).toBe(true);
 		expect(channels.has('sentence')).toBe(true);
 		expect(questions.some((q) => q.type === 'fill_sentence' || q.type === 'fill_sentence_typed')).toBe(true);
 	});
@@ -209,8 +207,7 @@ describe('generateQuestions (11 core types)', () => {
 		});
 		const types = new Set(questions.map((q) => q.type));
 		expect(types.has('hanzi_to_meaning')).toBe(true);
-		expect(types.has('audio_to_hanzi')).toBe(true);
-		expect(types.has('pinyin_to_hanzi')).toBe(true);
+		expect(types.has('sound_to_hanzi')).toBe(true);
 		expect(types.has('meaning_to_hanzi_typed')).toBe(false);
 	});
 });

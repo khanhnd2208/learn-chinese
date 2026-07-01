@@ -87,7 +87,7 @@ export default function PracticeModePicker({
 					))}
 				</div>
 				<p className="mt-2 text-xs text-muted">
-					Mỗi level xen 4 kênh (nghĩa, nghe, pinyin, câu). Luyện tập không thay đổi lịch SRS.
+					Mỗi level xen 3 kênh (nghĩa, âm đọc, câu). Luyện tập không thay đổi lịch SRS.
 				</p>
 			</div>
 		</div>

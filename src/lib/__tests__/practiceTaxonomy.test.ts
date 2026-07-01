@@ -43,49 +43,47 @@ function mkProgress(overrides: Partial<CnWordProgressDTO> = {}): CnWordProgressD
 		intervalIdx: 2,
 		lastReviewedAt: null,
 		meaningRate: 80,
-		listeningRate: 70,
-		pinyinRate: 60,
+		soundRate: 65,
 		sentenceRate: 0,
 		meaningTotal: 5,
-		listeningTotal: 4,
-		pinyinTotal: 3,
+		soundTotal: 7,
 		sentenceTotal: 0,
 		meaningIntervalIdx: 0,
-		listeningIntervalIdx: 0,
-		pinyinIntervalIdx: 0,
+		soundIntervalIdx: 0,
 		sentenceIntervalIdx: 0,
 		...overrides,
 	};
 }
 
-describe('practiceTaxonomy (11 core types, 4 channels)', () => {
-	it('has 4 SRS channels and 11 question types in groups', () => {
-		expect(ALL_SKILL_CHANNELS).toEqual(['meaning', 'listening', 'pinyin', 'sentence']);
+describe('practiceTaxonomy (7 core types, 3 channels)', () => {
+	it('has 3 SRS channels and 7 question types in groups', () => {
+		expect(ALL_SKILL_CHANNELS).toEqual(['meaning', 'sound', 'sentence']);
 		const grouped = Object.values(GROUP_QUESTION_MAP).flat();
-		expect(new Set(grouped).size).toBe(6);
-		expect(CORE_QUESTION_TYPES.length).toBe(11);
+		expect(new Set(grouped).size).toBe(4);
+		expect(CORE_QUESTION_TYPES.length).toBe(7);
 	});
 
 	it('maps channels to practice groups', () => {
 		expect(CHANNEL_TO_GROUP.meaning).toBe('core_vocab');
-		expect(CHANNEL_TO_GROUP.listening).toBe('listening');
-		expect(CHANNEL_TO_GROUP.pinyin).toBe('core_vocab');
+		expect(CHANNEL_TO_GROUP.sound).toBe('sound');
 		expect(CHANNEL_TO_GROUP.sentence).toBe('sentence');
 	});
 
 	it('practice modes map to groups + smart_mixed', () => {
 		expect(practiceModeToGroup('smart_mixed')).toBe('smart_mixed');
 		expect(practiceModeToGroup('meaning')).toBe('core_vocab');
-		expect(practiceModeToGroup('pinyin')).toBe('core_vocab');
+		expect(practiceModeToGroup('pinyin')).toBe('sound');
+		expect(practiceModeToGroup('listening')).toBe('sound');
+		expect(practiceModeToGroup('sound')).toBe('sound');
 		expect(practiceModeToGroup('core_vocab')).toBe('core_vocab');
-		expect(practiceModeToGroup('listening')).toBe('listening');
 		expect(practiceModeToGroup('sentence')).toBe('sentence');
 		expect(practiceModeToGroup('unknown')).toBe('smart_mixed');
 	});
 
 	it('resolvePracticeSessionMode maps channel modes', () => {
 		expect(resolvePracticeSessionMode('meaning')).toEqual({ group: 'core_vocab', targetChannel: 'meaning' });
-		expect(resolvePracticeSessionMode('pinyin')).toEqual({ group: 'core_vocab', targetChannel: 'pinyin' });
+		expect(resolvePracticeSessionMode('pinyin')).toEqual({ group: 'sound', targetChannel: 'sound' });
+		expect(resolvePracticeSessionMode('listening')).toEqual({ group: 'sound', targetChannel: 'sound' });
 		expect(resolvePracticeSessionMode('smart_mixed')).toEqual({ group: 'smart_mixed', practiceFormat: 'mixed' });
 	});
 
@@ -98,7 +96,7 @@ describe('practiceTaxonomy (11 core types, 4 channels)', () => {
 
 	it('single-channel practice returns only that channel type', () => {
 		const word = mkWord();
-		const progress = mkProgress({ meaningIntervalIdx: 2, pinyinIntervalIdx: 0, listeningIntervalIdx: 0 });
+		const progress = mkProgress({ meaningIntervalIdx: 2, soundIntervalIdx: 0 });
 		const types = selectQuestionTypesForWord(word, progress, {
 			group: 'core_vocab',
 			targetChannel: 'meaning',
@@ -110,7 +108,7 @@ describe('practiceTaxonomy (11 core types, 4 channels)', () => {
 
 	it('fixed level practice ignores progress interval', () => {
 		const word = mkWord();
-		const progress = mkProgress({ meaningIntervalIdx: 2, pinyinIntervalIdx: 2, listeningIntervalIdx: 2 });
+		const progress = mkProgress({ meaningIntervalIdx: 2, soundIntervalIdx: 2 });
 		const types = selectQuestionTypesForWord(word, progress, {
 			group: 'smart_mixed',
 			targetChannel: 'meaning',
@@ -123,30 +121,28 @@ describe('practiceTaxonomy (11 core types, 4 channels)', () => {
 
 	it('all channels always unlocked', () => {
 		expect(isChannelUnlocked(null, 'meaning')).toBe(true);
-		expect(isChannelUnlocked(null, 'listening')).toBe(true);
-		expect(isChannelUnlocked(null, 'pinyin')).toBe(true);
+		expect(isChannelUnlocked(null, 'sound')).toBe(true);
 		expect(isChannelUnlocked(null, 'sentence')).toBe(true);
 	});
 
-	it('getUnlockedGroups returns core, listening, and sentence', () => {
-		expect(getUnlockedGroups(null)).toEqual(['core_vocab', 'listening', 'sentence']);
+	it('getUnlockedGroups returns core, sound, and sentence', () => {
+		expect(getUnlockedGroups(null)).toEqual(['core_vocab', 'sound', 'sentence']);
 	});
 
 	it('reviewQuestionTypeForChannel maps stage to question type', () => {
 		expect(reviewQuestionTypeForChannel('meaning', 0)).toBe('hanzi_to_meaning');
 		expect(reviewQuestionTypeForChannel('meaning', 1)).toBe('meaning_to_hanzi');
 		expect(reviewQuestionTypeForChannel('meaning', 2)).toBe('meaning_to_hanzi_typed');
-		expect(reviewQuestionTypeForChannel('pinyin', 1)).toBe('hanzi_to_pinyin');
-		expect(reviewQuestionTypeForChannel('listening', 0)).toBe('audio_to_hanzi');
-		expect(reviewQuestionTypeForChannel('listening', 1)).toBe('audio_to_hanzi');
-		expect(reviewQuestionTypeForChannel('listening', 2)).toBe('audio_to_hanzi_typed');
+		expect(reviewQuestionTypeForChannel('sound', 0)).toBe('sound_to_hanzi');
+		expect(reviewQuestionTypeForChannel('sound', 1)).toBe('sound_to_hanzi');
+		expect(reviewQuestionTypeForChannel('sound', 2)).toBe('sound_to_hanzi_typed');
 		expect(reviewQuestionTypeForChannel('sentence', 0)).toBe('fill_sentence');
 		expect(reviewQuestionTypeForChannel('sentence', 2)).toBe('fill_sentence_typed');
 	});
 
 	it('typed types require word fields', () => {
 		expect(wordSupportsQuestionType(mkWord(), 'meaning_to_hanzi_typed')).toBe(true);
-		expect(wordSupportsQuestionType(mkWord({ pinyin: '' }), 'hanzi_to_pinyin_typed')).toBe(false);
+		expect(wordSupportsQuestionType(mkWord({ pinyin: '' }), 'sound_to_hanzi_typed')).toBe(false);
 	});
 
 	it('selectQuestionTypesForWord returns only supported core types', () => {
@@ -159,15 +155,14 @@ describe('practiceTaxonomy (11 core types, 4 channels)', () => {
 	});
 
 	it('goal weights sum to 100', () => {
-		const sum = DEFAULT_GOAL_WEIGHTS.meaning + DEFAULT_GOAL_WEIGHTS.listening
-			+ DEFAULT_GOAL_WEIGHTS.pinyin + DEFAULT_GOAL_WEIGHTS.sentence;
+		const sum = DEFAULT_GOAL_WEIGHTS.meaning + DEFAULT_GOAL_WEIGHTS.sound + DEFAULT_GOAL_WEIGHTS.sentence;
 		expect(sum).toBe(100);
 	});
 
 	describe('stage-aware practice types', () => {
 		it('uses MCQ2 type when meaningIntervalIdx is 1', () => {
 			const word = mkWord();
-			const progress = mkProgress({ meaningIntervalIdx: 1, pinyinIntervalIdx: 0, listeningIntervalIdx: 0 });
+			const progress = mkProgress({ meaningIntervalIdx: 1, soundIntervalIdx: 0 });
 			const types = selectQuestionTypesForWord(word, progress, { group: 'core_vocab', count: 6 });
 			expect(types).toContain('meaning_to_hanzi');
 			expect(types).not.toContain('hanzi_to_meaning');
@@ -175,7 +170,7 @@ describe('practiceTaxonomy (11 core types, 4 channels)', () => {
 
 		it('uses typed recall when meaningIntervalIdx is 2', () => {
 			const word = mkWord();
-			const progress = mkProgress({ meaningIntervalIdx: 2, pinyinIntervalIdx: 0, listeningIntervalIdx: 0 });
+			const progress = mkProgress({ meaningIntervalIdx: 2, soundIntervalIdx: 0 });
 			const types = selectQuestionTypesForWord(word, progress, { group: 'core_vocab', count: 6 });
 			expect(types).toContain('meaning_to_hanzi_typed');
 			expect(types).not.toContain('hanzi_to_meaning');
@@ -186,15 +181,12 @@ describe('practiceTaxonomy (11 core types, 4 channels)', () => {
 			const word = mkWord();
 			const progress = mkProgress({
 				meaningIntervalIdx: 2,
-				pinyinIntervalIdx: 1,
-				listeningIntervalIdx: 0,
+				soundIntervalIdx: 1,
 			});
 			const types = selectQuestionTypesForWord(word, progress, { group: 'smart_mixed', count: 6 });
 			expect(types).toContain('meaning_to_hanzi_typed');
-			expect(types).toContain('hanzi_to_pinyin');
-			expect(types).toContain('audio_to_hanzi');
-			expect(types).not.toContain('audio_to_meaning');
-			expect(types).toHaveLength(3);
+			expect(types).toContain('sound_to_hanzi');
+			expect(types).toHaveLength(2);
 		});
 
 		it('includes sentence channel in smart_mixed when word has fill examples', () => {
@@ -212,8 +204,7 @@ describe('practiceTaxonomy (11 core types, 4 channels)', () => {
 			});
 			const progress = mkProgress({
 				meaningIntervalIdx: 0,
-				pinyinIntervalIdx: 0,
-				listeningIntervalIdx: 0,
+				soundIntervalIdx: 0,
 				sentenceIntervalIdx: 1,
 			});
 			const types = selectQuestionTypesForWord(word, progress, {
@@ -222,7 +213,7 @@ describe('practiceTaxonomy (11 core types, 4 channels)', () => {
 				sessionContext: 'practice',
 			});
 			expect(types).toContain('fill_sentence');
-			expect(types).toHaveLength(4);
+			expect(types).toHaveLength(3);
 		});
 
 		it('uses stage-appropriate sentence type in sentence mode', () => {
@@ -252,25 +243,24 @@ describe('practiceTaxonomy (11 core types, 4 channels)', () => {
 			}
 		});
 
-		it('uses typed listening when listeningIntervalIdx is 2', () => {
+		it('uses typed sound when soundIntervalIdx is 2', () => {
 			const word = mkWord();
-			const progress = mkProgress({ listeningIntervalIdx: 2 });
-			const types = selectQuestionTypesForWord(word, progress, { group: 'listening', count: 3 });
-			expect(types).toEqual(['audio_to_hanzi_typed']);
+			const progress = mkProgress({ soundIntervalIdx: 2 });
+			const types = selectQuestionTypesForWord(word, progress, { group: 'sound', count: 3 });
+			expect(types).toEqual(['sound_to_hanzi_typed']);
 		});
 	});
 
 	describe('reviewQuestionTypeForMaintain', () => {
 		it('returns MCQ types when roll < 0.3', () => {
 			expect(reviewQuestionTypeForMaintain('meaning', () => 0)).toBe('hanzi_to_meaning');
-			expect(reviewQuestionTypeForMaintain('listening', () => 0)).toBe('audio_to_hanzi');
+			expect(reviewQuestionTypeForMaintain('sound', () => 0)).toBe('sound_to_hanzi');
 			expect(reviewQuestionTypeForMaintain('sentence', () => 0)).toBe('fill_sentence');
 		});
 
 		it('returns typed types when roll >= 0.3', () => {
 			expect(reviewQuestionTypeForMaintain('meaning', () => 0.5)).toBe('meaning_to_hanzi_typed');
-			expect(reviewQuestionTypeForMaintain('listening', () => 0.5)).toBe('audio_to_hanzi_typed');
-			expect(reviewQuestionTypeForMaintain('pinyin', () => 0.5)).toBe('hanzi_to_pinyin_typed');
+			expect(reviewQuestionTypeForMaintain('sound', () => 0.5)).toBe('sound_to_hanzi_typed');
 			expect(reviewQuestionTypeForMaintain('sentence', () => 0.5)).toBe('fill_sentence_typed');
 		});
 

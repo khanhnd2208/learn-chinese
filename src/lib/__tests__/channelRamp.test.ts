@@ -14,30 +14,24 @@ function baseProgress(overrides: Partial<CnWordProgress> = {}): CnWordProgress {
 		lastReviewedAt: null,
 		meaningCorrect: 0,
 		meaningTotal: 0,
-		listeningCorrect: 0,
-		listeningTotal: 0,
-		pinyinCorrect: 0,
-		pinyinTotal: 0,
+		soundCorrect: 0,
+		soundTotal: 0,
 		sentenceCorrect: 0,
 		sentenceTotal: 0,
 		meaningDueAt: null,
 		meaningIntervalIdx: 0,
-		listeningDueAt: null,
-		listeningIntervalIdx: 0,
-		pinyinDueAt: null,
-		pinyinIntervalIdx: 0,
+		soundDueAt: null,
+		soundIntervalIdx: 0,
 		sentenceDueAt: null,
 		sentenceIntervalIdx: 0,
 		sentenceUnlockedAt: null,
 		lastExampleId: null,
 		meaningHeavyLapses: 0,
-		listeningHeavyLapses: 0,
-		pinyinHeavyLapses: 0,
+		soundHeavyLapses: 0,
 		sentenceHeavyLapses: 0,
 		isStickingPoint: false,
 		meaningMarkedKnownAt: null,
-		listeningMarkedKnownAt: null,
-		pinyinMarkedKnownAt: null,
+		soundMarkedKnownAt: null,
 		sentenceMarkedKnownAt: null,
 		sentenceIntroDayKey: null,
 		sentenceIntroDayCount: 0,
@@ -51,8 +45,7 @@ describe('channelRamp', () => {
 	it('all channels are always ramp eligible', () => {
 		const p = baseProgress();
 		expect(isChannelRampEligible(p, 'meaning')).toBe(true);
-		expect(isChannelRampEligible(p, 'listening')).toBe(true);
-		expect(isChannelRampEligible(p, 'pinyin')).toBe(true);
+		expect(isChannelRampEligible(p, 'sound')).toBe(true);
 		expect(isChannelRampEligible(p, 'sentence')).toBe(true);
 	});
 });

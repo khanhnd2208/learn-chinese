@@ -1,5 +1,5 @@
 /* ════════════════════════════════════════════════════════════════════════
-   generateQuestions.ts — Practice question generator (9 core types)
+   generateQuestions.ts — Practice question generator (7 core types)
    ════════════════════════════════════════════════════════════════════════ */
 import {
 	type PracticeGroup,
@@ -10,6 +10,7 @@ import {
 	selectQuestionTypesForWord,
 	wordSupportsQuestionType,
 	practiceIntervalIdxForChannel,
+	soundMcqHardMode,
 	PRACTICE_FILL_TYPES_BY_CHANNEL,
 	PRACTICE_MCQ_TYPES_BY_CHANNEL,
 } from '@/lib/chinese/practiceTaxonomy';
@@ -29,8 +30,13 @@ export interface GenerateSessionOptions {
 	sessionContext?: SessionContext;
 	/** Practice-only: force all channels to this SRS interval (ignores progress). */
 	fixedIntervalIdx?: number;
-	/** Practice-only: MCQ or fill-in type pools rotated across 4 channels. */
+	/** Practice-only: MCQ or fill-in type pools rotated across 3 channels. */
 	practiceFormat?: 'mixed' | 'mcq' | 'fill';
+}
+
+export interface GenerateQuestionOptions {
+	/** Harder distractors for sound_to_hanzi (mcq2 / maintain MCQ roll) */
+	hardMode?: boolean;
 }
 
 export function mergeWordPools(
@@ -117,8 +123,7 @@ function channelIntervalIdx(progress: CnWordProgressDTO | null, channel: SkillCh
 	if (!progress) return 0;
 	switch (channel) {
 		case 'meaning': return progress.meaningIntervalIdx;
-		case 'listening': return progress.listeningIntervalIdx;
-		case 'pinyin': return progress.pinyinIntervalIdx;
+		case 'sound': return progress.soundIntervalIdx;
 		case 'sentence': return progress.sentenceIntervalIdx;
 	}
 }
@@ -183,8 +188,10 @@ export function generateQuestionForWord(
 	allWords: CnWordCardDTO[],
 	type: CnQuestionType,
 	idx: number,
+	genOptions: GenerateQuestionOptions = {},
 ): CnPracticeQuestionDTO | null {
 	const similarChars = collectSimilarChars(word, allWords);
+	const { hardMode = false } = genOptions;
 
 	switch (type) {
 		case 'hanzi_to_meaning': {
@@ -217,74 +224,21 @@ export function generateQuestionForWord(
 				...wordLearningExtras(word),
 			};
 		}
-		case 'pinyin_to_hanzi': {
-			const options = buildMcqOptionsForType(type, word, allWords, word.simplified, 3, similarChars);
+		case 'sound_to_hanzi': {
+			const options = buildMcqOptionsForType(
+				type, word, allWords, word.simplified, 3, similarChars, hardMode,
+			);
 			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
 			return {
 				id: makeId(word.id, type, idx),
 				wordId: word.id,
 				type,
-				prompt: `Chọn Hán tự cho pinyin: ${word.pinyin}`,
-				pinyin: word.pinyin,
-				options,
-				correctAnswer: word.simplified,
-				...wordLearningExtras(word),
-			};
-		}
-		case 'hanzi_to_pinyin': {
-			const options = buildMcqOptionsForType(type, word, allWords, word.pinyin);
-			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
-			return {
-				id: makeId(word.id, type, idx),
-				wordId: word.id,
-				type,
-				prompt: `Chọn pinyin của: ${word.simplified}`,
-				hanzi: word.simplified,
-				options,
-				correctAnswer: word.pinyin,
-				...wordLearningExtras(word),
-			};
-		}
-		case 'audio_to_hanzi': {
-			const options = buildMcqOptionsForType(type, word, allWords, word.simplified, 3, similarChars);
-			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
-			return {
-				id: makeId(word.id, type, idx),
-				wordId: word.id,
-				type,
-				prompt: 'Nghe và chọn Hán tự đúng',
+				prompt: 'Nghe âm đọc và chọn Hán tự đúng',
 				audioText: word.simplified,
-				hanzi: word.simplified,
 				pinyin: word.pinyin,
 				meaningVi: word.meaningVi,
 				options,
 				correctAnswer: word.simplified,
-				...wordLearningExtras(word),
-			};
-		}
-		case 'audio_to_meaning': {
-			const similarMeanings = unique(
-				allWords
-					.filter((w) =>
-						w.id !== word.id &&
-						w.chars.some((wc) =>
-							word.chars.some((c) => c.similarGroupId && c.similarGroupId === wc.similarGroupId),
-						),
-					)
-					.map((w) => w.meaningVi),
-			);
-			const options = buildMcqOptionsForType(type, word, allWords, word.meaningVi, 3, similarMeanings);
-			if (!options || options.length < MIN_MCQ_OPTIONS) return null;
-			return {
-				id: makeId(word.id, type, idx),
-				wordId: word.id,
-				type,
-				prompt: 'Nghe và chọn nghĩa đúng',
-				audioText: word.simplified,
-				hanzi: word.simplified,
-				pinyin: word.pinyin,
-				options,
-				correctAnswer: word.meaningVi,
 				...wordLearningExtras(word),
 			};
 		}
@@ -299,24 +253,13 @@ export function generateQuestionForWord(
 				correctAnswer: word.simplified,
 				...wordLearningExtras(word),
 			};
-		case 'hanzi_to_pinyin_typed':
+		case 'sound_to_hanzi_typed':
 			return {
 				id: makeId(word.id, type, idx),
 				wordId: word.id,
 				type,
-				prompt: `Gõ pinyin của: ${word.simplified}`,
-				hanzi: word.simplified,
-				correctAnswer: word.pinyin,
-				...wordLearningExtras(word),
-			};
-		case 'audio_to_hanzi_typed':
-			return {
-				id: makeId(word.id, type, idx),
-				wordId: word.id,
-				type,
-				prompt: 'Nghe và gõ Hán tự',
+				prompt: 'Nghe âm đọc và gõ Hán tự',
 				audioText: word.simplified,
-				hanzi: word.simplified,
 				pinyin: word.pinyin,
 				meaningVi: word.meaningVi,
 				correctAnswer: word.simplified,
@@ -331,7 +274,7 @@ export function generateQuestionForWord(
 	}
 }
 
-/** Rotate all four SRS channels so practice covers meaning, listening, pinyin, and sentence. */
+/** Rotate all three SRS channels so practice covers meaning, sound, and sentence. */
 function generateBalancedChannelPracticeSession(
 	words: CnWordCardDTO[],
 	count: number,
@@ -352,7 +295,8 @@ function generateBalancedChannelPracticeSession(
 		const type = reviewQuestionTypeForChannel(channel, intervalIdx);
 
 		if (wordSupportsQuestionType(word, type)) {
-			const q = generateQuestionForWord(word, poolWords, type, questions.length);
+			const hardMode = soundMcqHardMode(intervalIdx, type);
+			const q = generateQuestionForWord(word, poolWords, type, questions.length, { hardMode });
 			if (q) {
 				questions.push(enrichQuestionWithProgress(q, progress, intervalIdx));
 			}
@@ -387,7 +331,8 @@ function generateSingleChannelPracticeSession(
 		const type = reviewQuestionTypeForChannel(channel, intervalIdx);
 
 		if (wordSupportsQuestionType(word, type)) {
-			const q = generateQuestionForWord(word, poolWords, type, questions.length);
+			const hardMode = soundMcqHardMode(intervalIdx, type);
+			const q = generateQuestionForWord(word, poolWords, type, questions.length, { hardMode });
 			if (q) {
 				questions.push(enrichQuestionWithProgress(q, progress, intervalIdx));
 			}
@@ -399,7 +344,7 @@ function generateSingleChannelPracticeSession(
 	return spreadShuffle(questions).slice(0, count);
 }
 
-/** Rotate 4 channels using a fixed MCQ or fill-in type pool per channel. */
+/** Rotate 3 channels using a fixed MCQ or fill-in type pool per channel. */
 function generateBalancedFormatPracticeSession(
 	words: CnWordCardDTO[],
 	count: number,
@@ -541,12 +486,21 @@ export function generatePracticeSession(
 	return spreadShuffle(questions).slice(0, count);
 }
 
+export function generateSoundSession(
+	words: CnWordCardDTO[],
+	count = 10,
+	progressMap?: Map<string, CnWordProgressDTO | null>,
+): CnPracticeQuestionDTO[] {
+	return generatePracticeSession(words, count, { group: 'sound', progressMap });
+}
+
+/** @deprecated Use generateSoundSession */
 export function generateListeningSession(
 	words: CnWordCardDTO[],
 	count = 10,
 	progressMap?: Map<string, CnWordProgressDTO | null>,
 ): CnPracticeQuestionDTO[] {
-	return generatePracticeSession(words, count, { group: 'listening', progressMap });
+	return generateSoundSession(words, count, progressMap);
 }
 
 /** Generate one review question for a due channel entry */
@@ -566,21 +520,21 @@ export function generateReviewQuestion(
 		return q ? enrichQuestionWithProgress(q, progress) : null;
 	}
 
-	const q = generateQuestionForWord(word, allWords, type, idx);
+	const q = generateQuestionForWord(word, allWords, type, idx, {
+		hardMode: soundMcqHardMode(intervalIdx, type),
+	});
 	return q ? enrichQuestionWithProgress(q, progress) : null;
 }
 
 const INFERNO_MCQ_BY_CHANNEL: Record<SkillChannel, CnQuestionType[]> = {
 	meaning: ['hanzi_to_meaning', 'meaning_to_hanzi'],
-	listening: ['audio_to_meaning', 'audio_to_hanzi'],
-	pinyin: ['pinyin_to_hanzi', 'hanzi_to_pinyin'],
+	sound: ['sound_to_hanzi'],
 	sentence: ['fill_sentence'],
 };
 
 const INFERNO_FILL_BY_CHANNEL: Record<SkillChannel, CnQuestionType[]> = {
 	meaning: ['meaning_to_hanzi_typed'],
-	listening: ['audio_to_hanzi_typed'],
-	pinyin: ['hanzi_to_pinyin_typed'],
+	sound: ['sound_to_hanzi_typed'],
 	sentence: ['fill_sentence_typed'],
 };
 
@@ -612,7 +566,7 @@ export function generateInfernoQuestion(
 
 	for (const type of typeCandidates) {
 		if (!wordSupportsQuestionType(word, type)) continue;
-		const q = generateQuestionForWord(word, allWords, type, idx);
+		const q = generateQuestionForWord(word, allWords, type, idx, { hardMode: true });
 		if (q) return enrichQuestionWithProgress(q, progress);
 	}
 
@@ -620,7 +574,7 @@ export function generateInfernoQuestion(
 		if (ch === channel) continue;
 		for (const type of [...INFERNO_FILL_BY_CHANNEL[ch], ...INFERNO_MCQ_BY_CHANNEL[ch]]) {
 			if (!wordSupportsQuestionType(word, type)) continue;
-			const q = generateQuestionForWord(word, allWords, type, idx);
+			const q = generateQuestionForWord(word, allWords, type, idx, { hardMode: true });
 			if (q) return enrichQuestionWithProgress(q, progress);
 		}
 	}

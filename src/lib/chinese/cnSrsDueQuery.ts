@@ -16,10 +16,8 @@ export function buildDueCandidateWhere(
 		OR: [
 			{ meaningTotal: 0 },
 			{ meaningDueAt: { lte: now } },
-			{ listeningTotal: 0 },
-			{ listeningDueAt: { lte: now } },
-			{ pinyinTotal: 0 },
-			{ pinyinDueAt: { lte: now } },
+			{ soundTotal: 0 },
+			{ soundDueAt: { lte: now } },
 			{ sentenceTotal: 0 },
 			{ sentenceDueAt: { lte: now } },
 			{ dueAt: { lte: now } },
@@ -32,10 +30,8 @@ export function progressMatchesDueCandidateSuperset(p: CnWordProgress, now: Date
 	return (
 		p.meaningTotal === 0
 		|| (p.meaningDueAt instanceof Date && p.meaningDueAt <= now)
-		|| p.listeningTotal === 0
-		|| (p.listeningDueAt instanceof Date && p.listeningDueAt <= now)
-		|| p.pinyinTotal === 0
-		|| (p.pinyinDueAt instanceof Date && p.pinyinDueAt <= now)
+		|| p.soundTotal === 0
+		|| (p.soundDueAt instanceof Date && p.soundDueAt <= now)
 		|| p.sentenceTotal === 0
 		|| (p.sentenceDueAt instanceof Date && p.sentenceDueAt <= now)
 		|| p.dueAt <= now

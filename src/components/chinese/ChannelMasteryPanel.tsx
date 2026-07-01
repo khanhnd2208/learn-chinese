@@ -3,8 +3,7 @@ import type { CnWordCardDTO } from '@/types/chinese';
 
 const CHANNEL_LABELS: Record<string, string> = {
 	meaning: 'Nghĩa',
-	listening: 'Nghe',
-	pinyin: 'Pinyin',
+	sound: 'Âm đọc',
 	sentence: 'Câu',
 	hanzi: 'Chữ Hán',
 };

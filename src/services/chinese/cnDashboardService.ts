@@ -28,16 +28,13 @@ function progressToMetrics(p: {
 	wordId: string;
 	state: ProgressForMetrics['state'];
 	meaningIntervalIdx: number;
-	listeningIntervalIdx: number;
-	pinyinIntervalIdx: number;
+	soundIntervalIdx: number;
 	sentenceIntervalIdx: number;
 	meaningDueAt: Date | null;
-	listeningDueAt: Date | null;
-	pinyinDueAt: Date | null;
+	soundDueAt: Date | null;
 	sentenceDueAt: Date | null;
 	meaningTotal: number;
-	listeningTotal: number;
-	pinyinTotal: number;
+	soundTotal: number;
 	sentenceTotal: number;
 	dueAt: Date;
 }): ProgressForMetrics {
@@ -45,16 +42,13 @@ function progressToMetrics(p: {
 		wordId: p.wordId,
 		state: p.state,
 		meaningIntervalIdx: p.meaningIntervalIdx,
-		listeningIntervalIdx: p.listeningIntervalIdx,
-		pinyinIntervalIdx: p.pinyinIntervalIdx,
+		soundIntervalIdx: p.soundIntervalIdx,
 		sentenceIntervalIdx: p.sentenceIntervalIdx,
 		meaningDueAt: p.meaningDueAt,
-		listeningDueAt: p.listeningDueAt,
-		pinyinDueAt: p.pinyinDueAt,
+		soundDueAt: p.soundDueAt,
 		sentenceDueAt: p.sentenceDueAt,
 		meaningTotal: p.meaningTotal,
-		listeningTotal: p.listeningTotal,
-		pinyinTotal: p.pinyinTotal,
+		soundTotal: p.soundTotal,
 		sentenceTotal: p.sentenceTotal,
 		dueAt: p.dueAt,
 	};
@@ -120,13 +114,9 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 		srsProgress.reduce((s, p) => s + p.meaningCorrect, 0),
 		srsProgress.reduce((s, p) => s + p.meaningTotal, 0),
 	);
-	const listeningRate = rate(
-		srsProgress.reduce((s, p) => s + p.listeningCorrect, 0),
-		srsProgress.reduce((s, p) => s + p.listeningTotal, 0),
-	);
-	const pinyinRate = rate(
-		srsProgress.reduce((s, p) => s + p.pinyinCorrect, 0),
-		srsProgress.reduce((s, p) => s + p.pinyinTotal, 0),
+	const soundRate = rate(
+		srsProgress.reduce((s, p) => s + p.soundCorrect, 0),
+		srsProgress.reduce((s, p) => s + p.soundTotal, 0),
 	);
 	const sentenceRate = rate(
 		srsProgress.reduce((s, p) => s + p.sentenceCorrect, 0),
@@ -170,8 +160,7 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 		streak,
 		dailySeries,
 		overallRate,
-		listeningRate,
-		pinyinRate,
+		soundRate,
 		sentenceRate,
 		meaningRate,
 		topErrors,
