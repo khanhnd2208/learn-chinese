@@ -27,30 +27,24 @@ function progressFixture(overrides: Partial<CnWordProgress> & Pick<CnWordProgres
 		lastReviewedAt: null,
 		meaningCorrect: 0,
 		meaningTotal: 0,
-		listeningCorrect: 0,
-		listeningTotal: 0,
-		pinyinCorrect: 0,
-		pinyinTotal: 0,
+		soundCorrect: 0,
+		soundTotal: 0,
 		sentenceCorrect: 0,
 		sentenceTotal: 0,
 		meaningDueAt: null,
 		meaningIntervalIdx: 0,
-		listeningDueAt: null,
-		listeningIntervalIdx: 0,
-		pinyinDueAt: null,
-		pinyinIntervalIdx: 0,
+		soundDueAt: null,
+		soundIntervalIdx: 0,
 		sentenceDueAt: null,
 		sentenceIntervalIdx: 0,
 		sentenceUnlockedAt: null,
 		lastExampleId: null,
 		meaningHeavyLapses: 0,
-		listeningHeavyLapses: 0,
-		pinyinHeavyLapses: 0,
+		soundHeavyLapses: 0,
 		sentenceHeavyLapses: 0,
 		isStickingPoint: false,
 		meaningMarkedKnownAt: null,
-		listeningMarkedKnownAt: null,
-		pinyinMarkedKnownAt: null,
+		soundMarkedKnownAt: null,
 		sentenceMarkedKnownAt: null,
 		sentenceIntroDayKey: null,
 		sentenceIntroDayCount: 0,
@@ -125,8 +119,7 @@ describe('cnSrsService', () => {
 	it('all channels due for new enrolled word', () => {
 		const p = progressFixture({ id: 'p1', userId: 'u1', wordId: 'w-new' });
 		expect(isChannelDue(p, 'meaning', now)).toBe(true);
-		expect(isChannelDue(p, 'listening', now)).toBe(true);
-		expect(isChannelDue(p, 'pinyin', now)).toBe(true);
+		expect(isChannelDue(p, 'sound', now)).toBe(true);
 	});
 
 	it('does not due early before interval expires', () => {
@@ -135,12 +128,12 @@ describe('cnSrsService', () => {
 			id: 'p1',
 			userId: 'u1',
 			wordId: 'w1',
-			listeningTotal: 5,
-			listeningCorrect: 4,
-			listeningDueAt: future,
-			listeningIntervalIdx: 3,
+			soundTotal: 5,
+			soundCorrect: 4,
+			soundDueAt: future,
+			soundIntervalIdx: 3,
 		});
-		expect(isChannelDue(p, 'listening', now)).toBe(false);
+		expect(isChannelDue(p, 'sound', now)).toBe(false);
 	});
 
 	it('excludes sentence channel without fill examples from due counts', () => {
@@ -149,8 +142,8 @@ describe('cnSrsService', () => {
 		const withExample = progressFixture({ id: 'p2', userId: 'u1', wordId: 'w-has-fill' });
 		const list = [p, withExample];
 
-		expect(countDueChannelsForProgressList(list, now)).toBe(8);
-		expect(countDueChannelsForProgressList(list, now, withFill)).toBe(7);
+		expect(countDueChannelsForProgressList(list, now)).toBe(6);
+		expect(countDueChannelsForProgressList(list, now, withFill)).toBe(5);
 	});
 
 	it('reaches mastered state at 30-day threshold', () => {
@@ -201,17 +194,17 @@ describe('cnSrsService', () => {
 
 	it('mergeSubmitItemsInMemory creates new progress for unknown wordId', () => {
 		const items: CnPracticeSubmitItem[] = [
-			{ wordId: 'w-new', questionType: 'audio_to_meaning', correct: false },
+			{ wordId: 'w-new', questionType: 'sound_to_hanzi', correct: false },
 		];
 		const { progressByWordId } = mergeSubmitItemsInMemory('u1', items, [], now);
 		const p = progressByWordId.get('w-new')!;
 
 		expect(p.state).toBe('weak');
-		expect(p.listeningTotal).toBe(1);
-		expect(p.listeningCorrect).toBe(0);
-		expect(p.listeningIntervalIdx).toBe(0);
-		expect(p.listeningDueAt!.getTime()).toBe(addMinutes(now, CN_WRONG_FIRST_RETRY_MINUTES).getTime());
-		expect(p.listeningHeavyLapses).toBe(1);
+		expect(p.soundTotal).toBe(1);
+		expect(p.soundCorrect).toBe(0);
+		expect(p.soundIntervalIdx).toBe(0);
+		expect(p.soundDueAt!.getTime()).toBe(addMinutes(now, CN_WRONG_FIRST_RETRY_MINUTES).getTime());
+		expect(p.soundHeavyLapses).toBe(1);
 	});
 
 	it('mergeSubmitItemsInMemory handles two items for new wordId in one batch', () => {

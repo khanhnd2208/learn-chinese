@@ -104,7 +104,7 @@ export default function SrsReportPanel({ dashboard }: Props) {
 			</section>
 
 			<section className="animate-section-in space-y-4">
-				<SectionHeading sub="1 mục = 1 từ × 1 kỹ năng (nghĩa / nghe / pinyin / câu)">
+				<SectionHeading sub="1 mục = 1 từ × 1 kỹ năng (nghĩa / âm đọc / câu)">
 					Lịch ôn SRS
 				</SectionHeading>
 				<div className="grid grid-cols-3 gap-3">
@@ -145,8 +145,7 @@ export default function SrsReportPanel({ dashboard }: Props) {
 						</div>
 						<div className="flex flex-col gap-4">
 							<ChannelSkill label="Nghĩa" rate={dashboard.meaningRate} />
-							<ChannelSkill label="Nghe" rate={dashboard.listeningRate} />
-							<ChannelSkill label="Pinyin" rate={dashboard.pinyinRate} />
+							<ChannelSkill label="Âm đọc" rate={dashboard.soundRate} />
 							<ChannelSkill label="Câu" rate={dashboard.sentenceRate} />
 						</div>
 					</div>

@@ -1,6 +1,6 @@
 import { ALL_SKILL_CHANNELS } from '@/lib/chinese/practiceTaxonomy';
 
-/** `dueCount` on set list DTOs counts due SRS channels (up to 4 per word), not words. */
+/** `dueCount` on set list DTOs counts due SRS channels (up to 3 per word), not words. */
 export function maxSrsChannelsForSet(itemCount: number): number {
 	return itemCount * ALL_SKILL_CHANNELS.length;
 }

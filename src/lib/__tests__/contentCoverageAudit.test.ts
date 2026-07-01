@@ -80,7 +80,7 @@ describe('seed content coverage audit (6 core types)', () => {
 	});
 
 	it('core vocab types generate for most seed words', () => {
-		const coreTypes: CnQuestionType[] = ['hanzi_to_meaning', 'meaning_to_hanzi', 'pinyin_to_hanzi'];
+		const coreTypes: CnQuestionType[] = ['hanzi_to_meaning', 'meaning_to_hanzi', 'sound_to_hanzi'];
 		for (const type of coreTypes) {
 			const supported = cards.filter((c) => wordSupportsQuestionType(c, type)).length;
 			expect(supported).toBeGreaterThan(total * 0.95);
@@ -90,7 +90,7 @@ describe('seed content coverage audit (6 core types)', () => {
 	});
 
 	it('typed recall types generate for most seed words', () => {
-		const typedTypes: CnQuestionType[] = ['meaning_to_hanzi_typed', 'hanzi_to_pinyin_typed'];
+		const typedTypes: CnQuestionType[] = ['meaning_to_hanzi_typed', 'sound_to_hanzi_typed'];
 		for (const type of typedTypes) {
 			const supported = cards.filter((c) => wordSupportsQuestionType(c, type)).length;
 			expect(supported).toBeGreaterThan(total * 0.95);

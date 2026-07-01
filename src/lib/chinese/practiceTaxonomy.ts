@@ -19,7 +19,7 @@ export { ALL_SKILL_CHANNELS, questionChannel };
 
 export type PracticeGroup =
 	| 'core_vocab'
-	| 'listening'
+	| 'sound'
 	| 'sentence'
 	| 'smart_mixed';
 
@@ -27,28 +27,25 @@ export type SessionContext = 'review' | 'practice';
 
 export interface GoalWeights {
 	meaning: number;
-	listening: number;
-	pinyin: number;
+	sound: number;
 	sentence: number;
 }
 
 export const DEFAULT_GOAL_WEIGHTS: GoalWeights = {
 	meaning: 30,
-	listening: 25,
-	pinyin: 20,
+	sound: 45,
 	sentence: 25,
 };
 
 export const GROUP_QUESTION_MAP: Record<Exclude<PracticeGroup, 'smart_mixed'>, CnQuestionType[]> = {
-	core_vocab: ['hanzi_to_meaning', 'meaning_to_hanzi', 'pinyin_to_hanzi', 'hanzi_to_pinyin'],
-	listening: ['audio_to_hanzi'],
+	core_vocab: ['hanzi_to_meaning', 'meaning_to_hanzi'],
+	sound: ['sound_to_hanzi'],
 	sentence: ['fill_sentence'],
 };
 
 export const CHANNEL_TO_GROUP: Record<SkillChannel, Exclude<PracticeGroup, 'smart_mixed'>> = {
 	meaning: 'core_vocab',
-	listening: 'listening',
-	pinyin: 'core_vocab',
+	sound: 'sound',
 	sentence: 'sentence',
 };
 
@@ -70,16 +67,14 @@ export interface PracticeSessionMode {
 /** MCQ question types per SRS channel (practice) */
 export const PRACTICE_MCQ_TYPES_BY_CHANNEL: Record<SkillChannel, CnQuestionType[]> = {
 	meaning: ['hanzi_to_meaning', 'meaning_to_hanzi'],
-	listening: ['audio_to_meaning', 'audio_to_hanzi'],
-	pinyin: ['pinyin_to_hanzi', 'hanzi_to_pinyin'],
+	sound: ['sound_to_hanzi'],
 	sentence: ['fill_sentence'],
 };
 
 /** Typed / fill-in question types per SRS channel (practice) */
 export const PRACTICE_FILL_TYPES_BY_CHANNEL: Record<SkillChannel, CnQuestionType[]> = {
 	meaning: ['meaning_to_hanzi_typed'],
-	listening: ['audio_to_hanzi_typed'],
-	pinyin: ['hanzi_to_pinyin_typed'],
+	sound: ['sound_to_hanzi_typed'],
 	sentence: ['fill_sentence_typed'],
 };
 
@@ -117,15 +112,16 @@ export function resolvePracticeSessionMode(mode: string): PracticeSessionMode {
 		case 'lv3':
 		case 'srs_maintain':
 			return { group: 'smart_mixed', fixedIntervalIdx: 3 };
-		// Legacy channel modes (deep links)
+		// Legacy channel modes (deep links) — listening/pinyin → sound
 		case 'meaning':
 		case 'core_vocab':
 		case 'core':
 			return { group: 'core_vocab', targetChannel: 'meaning' };
 		case 'pinyin':
-			return { group: 'core_vocab', targetChannel: 'pinyin' };
 		case 'listening':
-			return { group: 'listening', targetChannel: 'listening' };
+		case 'pronunciation':
+		case 'sound':
+			return { group: 'sound', targetChannel: 'sound' };
 		case 'sentence':
 			return { group: 'sentence', targetChannel: 'sentence' };
 		default:
@@ -160,12 +156,11 @@ function shuffle<T>(arr: T[]): T[] {
 
 function channelRates(progress: CnWordProgressDTO | null): Record<SkillChannel, number | null> {
 	if (!progress) {
-		return { meaning: null, listening: null, pinyin: null, sentence: null };
+		return { meaning: null, sound: null, sentence: null };
 	}
 	return {
 		meaning: progress.meaningRate,
-		listening: progress.listeningRate,
-		pinyin: progress.pinyinRate,
+		sound: progress.soundRate,
 		sentence: progress.sentenceRate,
 	};
 }
@@ -174,13 +169,12 @@ function channelIntervalIdx(progress: CnWordProgressDTO | null, channel: SkillCh
 	if (!progress) return 0;
 	switch (channel) {
 		case 'meaning': return progress.meaningIntervalIdx;
-		case 'listening': return progress.listeningIntervalIdx;
-		case 'pinyin': return progress.pinyinIntervalIdx;
+		case 'sound': return progress.soundIntervalIdx;
 		case 'sentence': return progress.sentenceIntervalIdx;
 	}
 }
 
-/** All three channels are always active in the minimal SRS model */
+/** All channels are always active in the minimal SRS model */
 export function isChannelUnlocked(
 	progress: CnWordProgressDTO | null,
 	channel: SkillChannel,
@@ -192,7 +186,7 @@ export function isChannelUnlocked(
 
 export function getUnlockedGroups(progress: CnWordProgressDTO | null): PracticeGroup[] {
 	void progress;
-	return ['core_vocab', 'listening', 'sentence'];
+	return ['core_vocab', 'sound', 'sentence'];
 }
 
 /** Pick a mixed question type for maintain stage (Lv6+) */
@@ -204,10 +198,8 @@ export function reviewQuestionTypeForMaintain(
 	switch (channel) {
 		case 'meaning':
 			return roll < 0.3 ? 'hanzi_to_meaning' : 'meaning_to_hanzi_typed';
-		case 'listening':
-			return roll < 0.3 ? 'audio_to_hanzi' : 'audio_to_hanzi_typed';
-		case 'pinyin':
-			return roll < 0.3 ? 'pinyin_to_hanzi' : 'hanzi_to_pinyin_typed';
+		case 'sound':
+			return roll < 0.3 ? 'sound_to_hanzi' : 'sound_to_hanzi_typed';
 		case 'sentence':
 			return roll < 0.3 ? 'fill_sentence' : 'fill_sentence_typed';
 	}
@@ -226,20 +218,22 @@ export function reviewQuestionTypeForChannel(
 			if (stage === 'mcq2') return 'meaning_to_hanzi';
 			if (stage === 'maintain') return reviewQuestionTypeForMaintain(channel, rng);
 			return 'meaning_to_hanzi_typed';
-		case 'pinyin':
-			if (stage === 'mcq1') return 'pinyin_to_hanzi';
-			if (stage === 'mcq2') return 'hanzi_to_pinyin';
+		case 'sound':
+			if (stage === 'mcq1' || stage === 'mcq2') return 'sound_to_hanzi';
 			if (stage === 'maintain') return reviewQuestionTypeForMaintain(channel, rng);
-			return 'hanzi_to_pinyin_typed';
-		case 'listening':
-			if (stage === 'mcq1' || stage === 'mcq2') return 'audio_to_hanzi';
-			if (stage === 'maintain') return reviewQuestionTypeForMaintain(channel, rng);
-			return 'audio_to_hanzi_typed';
+			return 'sound_to_hanzi_typed';
 		case 'sentence':
 			if (stage === 'mcq1' || stage === 'mcq2') return 'fill_sentence';
 			if (stage === 'maintain') return reviewQuestionTypeForMaintain(channel, rng);
 			return 'fill_sentence_typed';
 	}
+}
+
+/** Whether sound_to_hanzi MCQ should use harder distractors (mcq2 / maintain MCQ roll) */
+export function soundMcqHardMode(intervalIdx: number, questionType: CnQuestionType): boolean {
+	if (questionType !== 'sound_to_hanzi') return false;
+	const stage = stageFromIntervalIdx(intervalIdx);
+	return stage === 'mcq2' || stage === 'maintain';
 }
 
 function channelWeaknessScore(
@@ -252,11 +246,10 @@ function channelWeaknessScore(
 	const totals: Record<SkillChannel, number> = progress
 		? {
 			meaning: progress.meaningTotal,
-			listening: progress.listeningTotal,
-			pinyin: progress.pinyinTotal,
+			sound: progress.soundTotal,
 			sentence: progress.sentenceTotal,
 		}
-		: { meaning: 0, listening: 0, pinyin: 0, sentence: 0 };
+		: { meaning: 0, sound: 0, sentence: 0 };
 	const practiced = totals[channel] > 0;
 	const effectiveRate = practiced && rate !== null ? rate : 0;
 	return (100 - effectiveRate) * goalWeights[channel];
@@ -368,12 +361,8 @@ export function wordSupportsQuestionType(word: CnWordCardDTO, type: CnQuestionTy
 		case 'meaning_to_hanzi':
 		case 'meaning_to_hanzi_typed':
 			return !!word.simplified && !!word.meaningVi;
-		case 'pinyin_to_hanzi':
-		case 'hanzi_to_pinyin':
-		case 'hanzi_to_pinyin_typed':
-		case 'audio_to_hanzi':
-		case 'audio_to_hanzi_typed':
-		case 'audio_to_meaning':
+		case 'sound_to_hanzi':
+		case 'sound_to_hanzi_typed':
 			return !!word.simplified && !!word.pinyin;
 		case 'fill_sentence':
 		case 'fill_sentence_typed':
@@ -417,7 +406,7 @@ export function selectQuestionTypesForWord(
 
 	if (!types.length) {
 		types = progress
-			? stageTypesForChannels(progress, ['meaning', 'pinyin', 'sentence'])
+			? stageTypesForChannels(progress, ['meaning', 'sound', 'sentence'])
 				.filter((t) => wordSupportsQuestionType(word, t))
 			: GROUP_QUESTION_MAP.core_vocab.filter((t) => wordSupportsQuestionType(word, t));
 	}

@@ -196,8 +196,7 @@ function wordCardDTOFromWord(
 	const channelMastery: CnChannelMasteryDTO[] | undefined = progress
 		? ([
 			{ channel: 'meaning' as const, rate: progress.meaningRate, total: progress.meaningTotal },
-			{ channel: 'listening' as const, rate: progress.listeningRate, total: progress.listeningTotal },
-			{ channel: 'pinyin' as const, rate: progress.pinyinRate, total: progress.pinyinTotal },
+			{ channel: 'sound' as const, rate: progress.soundRate, total: progress.soundTotal },
 			{ channel: 'sentence' as const, rate: progress.sentenceRate, total: progress.sentenceTotal },
 		].map((ch) => {
 			const level = channelMasteryLevel(ch.rate, ch.total);

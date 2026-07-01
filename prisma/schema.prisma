@@ -34,16 +34,18 @@ enum CnQuestionType {
   // Active MVP types (app generates these only)
   hanzi_to_meaning
   meaning_to_hanzi
-  pinyin_to_hanzi
-  hanzi_to_pinyin
-  audio_to_hanzi
-  audio_to_meaning
   meaning_to_hanzi_typed
-  hanzi_to_pinyin_typed
-  audio_to_hanzi_typed
+  sound_to_hanzi
+  sound_to_hanzi_typed
   fill_sentence
   fill_sentence_typed
   // Legacy — kept for historical CnAnswerLog rows
+  pinyin_to_hanzi
+  hanzi_to_pinyin
+  hanzi_to_pinyin_typed
+  audio_to_hanzi
+  audio_to_hanzi_typed
+  audio_to_meaning
   audio_to_pinyin
   audio_to_pinyin_typed
   hanzi_from_meaning
@@ -309,30 +311,24 @@ model CnWordProgress {
   lastReviewedAt   DateTime?
   meaningCorrect   Int                 @default(0)
   meaningTotal     Int                 @default(0)
-  listeningCorrect Int                 @default(0)
-  listeningTotal   Int                 @default(0)
-  pinyinCorrect    Int                 @default(0)
-  pinyinTotal      Int                 @default(0)
+  soundCorrect     Int                 @default(0)
+  soundTotal       Int                 @default(0)
   sentenceCorrect  Int                 @default(0)
   sentenceTotal    Int                 @default(0)
   meaningDueAt     DateTime?
   meaningIntervalIdx Int               @default(0)
-  listeningDueAt   DateTime?
-  listeningIntervalIdx Int             @default(0)
-  pinyinDueAt      DateTime?
-  pinyinIntervalIdx Int                @default(0)
+  soundDueAt       DateTime?
+  soundIntervalIdx Int                 @default(0)
   sentenceDueAt    DateTime?
   sentenceIntervalIdx Int              @default(0)
   sentenceUnlockedAt DateTime?
   lastExampleId      String?
   meaningHeavyLapses   Int @default(0)
-  listeningHeavyLapses Int @default(0)
-  pinyinHeavyLapses    Int @default(0)
+  soundHeavyLapses     Int @default(0)
   sentenceHeavyLapses  Int @default(0)
   isStickingPoint      Boolean @default(false)
   meaningMarkedKnownAt   DateTime?
-  listeningMarkedKnownAt DateTime?
-  pinyinMarkedKnownAt    DateTime?
+  soundMarkedKnownAt     DateTime?
   sentenceMarkedKnownAt  DateTime?
   sentenceIntroDayKey    String?
   sentenceIntroDayCount  Int @default(0)
@@ -343,8 +339,7 @@ model CnWordProgress {
   @@index([userId, dueAt])
   @@index([userId, state])
   @@index([userId, meaningDueAt])
-  @@index([userId, listeningDueAt])
-  @@index([userId, pinyinDueAt])
+  @@index([userId, soundDueAt])
   @@index([userId, sentenceDueAt])
 }
 

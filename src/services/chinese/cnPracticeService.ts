@@ -79,8 +79,13 @@ export async function buildPracticeSession(
 	});
 }
 
+export async function buildSoundSession(userId: string, setId: string, count = 10) {
+	return buildPracticeSession(userId, setId, count, 'sound');
+}
+
+/** @deprecated Use buildSoundSession */
 export async function buildListeningSession(userId: string, setId: string, count = 10) {
-	return buildPracticeSession(userId, setId, count, 'listening');
+	return buildSoundSession(userId, setId, count);
 }
 
 export interface ReviewQuestionsResult {

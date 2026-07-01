@@ -46,6 +46,7 @@ export function pickDistractorsForType(
 	correct: string,
 	count = 3,
 	prefer: string[] = [],
+	hardMode = false,
 ): string[] {
 	const others = pool.filter((w) => w.id !== target.id);
 	let ranked: Array<{ value: string; score: number }> = [];
@@ -65,30 +66,20 @@ export function pickDistractorsForType(
 						+ (Math.abs(w.simplified.length - target.simplified.length) <= 1 ? 2 : 0),
 				}));
 			break;
-		case 'hanzi_to_pinyin':
-			ranked = others.map((w) => ({
-				value: w.pinyin,
-				score: scoreCandidate(target, w)
-					+ (10 - levenshtein(normalizePinyinPlain(w.pinyinPlain ?? w.pinyin), normalizePinyinPlain(target.pinyinPlain ?? target.pinyin))),
-			}));
-			break;
-		case 'pinyin_to_hanzi': {
+		case 'sound_to_hanzi': {
 			const targetPlain = normalizePinyinPlain(target.pinyinPlain ?? target.pinyin);
-			ranked = others.map((w) => ({
-				value: w.simplified,
-				score: 10 - levenshtein(normalizePinyinPlain(w.pinyinPlain ?? w.pinyin), targetPlain),
-			}));
+			ranked = others.map((w) => {
+				let score = scoreCandidate(target, w);
+				if (hardMode) {
+					score += 10 - levenshtein(
+						normalizePinyinPlain(w.pinyinPlain ?? w.pinyin),
+						targetPlain,
+					);
+				}
+				return { value: w.simplified, score };
+			});
 			break;
 		}
-		case 'audio_to_hanzi':
-			ranked = others.map((w) => ({ value: w.simplified, score: scoreCandidate(target, w) }));
-			break;
-		case 'audio_to_meaning':
-			ranked = others.map((w) => ({
-				value: w.meaningVi,
-				score: scoreCandidate(target, w) + (w.meaningVi.length <= target.meaningVi.length + 6 ? 1 : 0),
-			}));
-			break;
 		case 'fill_sentence':
 			ranked = others.map((w) => ({
 				value: w.simplified,
@@ -133,8 +124,9 @@ export function buildMcqOptionsForType(
 	correct: string,
 	count = 3,
 	prefer: string[] = [],
+	hardMode = false,
 ): string[] | null {
-	const distractors = pickDistractorsForType(type, target, pool, correct, count, prefer);
+	const distractors = pickDistractorsForType(type, target, pool, correct, count, prefer, hardMode);
 	if (distractors.length < 1) return null;
 	return shuffle(unique([correct, ...distractors]));
 }

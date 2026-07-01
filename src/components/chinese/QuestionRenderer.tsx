@@ -7,7 +7,7 @@ import SentencePromptCard from '@/components/chinese/SentencePromptCard';
 import SpeakButton from '@/components/chinese/SpeakButton';
 import StickingPointCard from '@/components/chinese/StickingPointCard';
 import { questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
-import { isAudioQuestion, isFillSentenceQuestion, isTypedQuestion, learnerSessionLabel } from '@/lib/chinese/questionLabels';
+import { isSoundQuestion, isFillSentenceQuestion, isTypedQuestion, learnerSessionLabel } from '@/lib/chinese/questionLabels';
 import { gradeAnswer } from '@/lib/chinese/answerGrade';
 import { formatReviewScheduleLabel } from '@/lib/chinese/reviewMetrics';
 import { useSpeech } from '@/lib/chinese/useSpeech';
@@ -40,15 +40,10 @@ const CHANNEL_PILL: Record<SkillChannel, { icon: string; className: string; full
 		className: 'border-accent/40 bg-accent/15 text-accent',
 		fullLabel: 'KÊNH NGHĨA',
 	},
-	listening: {
+	sound: {
 		icon: 'headphones',
 		className: 'border-success/40 bg-success/15 text-success',
-		fullLabel: 'KÊNH NGHE',
-	},
-	pinyin: {
-		icon: 'text_fields',
-		className: 'border-border bg-surface-hover text-foreground',
-		fullLabel: 'KÊNH PINYIN',
+		fullLabel: 'KÊNH ÂM ĐỌC',
 	},
 	sentence: {
 		icon: 'edit_note',
@@ -173,7 +168,7 @@ export default function QuestionRenderer({
 	useEffect(() => () => clearAdvanceKeyGuard(), [clearAdvanceKeyGuard]);
 
 	const q = questions[idx];
-	const audioOnly = q ? isAudioQuestion(q.type) : false;
+	const isSound = q ? isSoundQuestion(q.type) : false;
 	const typedOnly = q ? isTypedQuestion(q.type) : false;
 	const waiting = pendingAdvance || isExiting;
 	const hasHint = q ? questionHasHint(q) : false;
@@ -196,14 +191,14 @@ export default function QuestionRenderer({
 	}, [questions.length, onComplete, clearAdvanceKeyGuard]);
 
 	useEffect(() => {
-		if (!q?.audioText || !supported || !audioOnly) return;
+		if (!q?.audioText || !supported || !isSound) return;
 		const audioText = q.audioText;
 		const key = `${q.id}-${idx}`;
 		if (autoPlayedRef.current === key) return;
 		autoPlayedRef.current = key;
 		const timer = setTimeout(() => speak(audioText), 400);
 		return () => clearTimeout(timer);
-	}, [q?.id, q?.audioText, idx, audioOnly, supported, speak]);
+	}, [q?.id, q?.audioText, idx, isSound, supported, speak]);
 
 	useEffect(() => {
 		if (!pendingAdvance) return;
@@ -375,7 +370,7 @@ export default function QuestionRenderer({
 						{q.prompt}
 					</p>
 					<div className="animate-fade-slide-up opacity-0" style={{ animationDelay: '0.1s' }}>
-						<QuestionHeroCard key={q.id} question={q} audioOnly={audioOnly} />
+						<QuestionHeroCard key={q.id} question={q} isSound={isSound} />
 					</div>
 					{hasHint && (
 						<button
@@ -473,14 +468,12 @@ export default function QuestionRenderer({
 							}}
 							disabled={waiting || !!feedback}
 							placeholder={
-								q.type === 'hanzi_to_pinyin_typed'
-									? 'Nhập pinyin...'
-									: q.type === 'fill_sentence_typed'
-										? 'Nhập Hán tự điền vào chỗ trống...'
-										: 'Nhập Hán tự...'
+								q.type === 'fill_sentence_typed'
+									? 'Nhập Hán tự điền vào chỗ trống...'
+									: 'Nhập Hán tự...'
 							}
 							className={`w-full rounded-xl border px-4 py-4 text-center text-xl font-bold focus:outline-none focus:ring-2 focus:ring-accent ${
-								q.type === 'meaning_to_hanzi_typed' || q.type === 'audio_to_hanzi_typed' || q.type === 'fill_sentence_typed'
+								q.type === 'meaning_to_hanzi_typed' || q.type === 'sound_to_hanzi_typed' || q.type === 'fill_sentence_typed'
 									? 'hanzi-lg'
 									: ''
 							} ${
@@ -636,14 +629,11 @@ function HintPanel({ question: q }: { question: CnPracticeQuestionDTO }) {
 	);
 }
 
-function QuestionHeroCard({ question: q, audioOnly }: { question: CnPracticeQuestionDTO; audioOnly: boolean }) {
-	if (audioOnly) {
+function QuestionHeroCard({ question: q, isSound }: { question: CnPracticeQuestionDTO; isSound: boolean }) {
+	if (isSound && q.pinyin) {
 		return (
 			<div className="card-paper animate-float mx-auto flex min-h-[200px] w-full max-w-md flex-col items-center justify-center gap-4 p-8">
-				<div className="flex h-16 w-16 items-center justify-center rounded-full border border-accent/20 bg-accent-subtle">
-					<MaterialIcon name="headphones" className="text-accent" size={32} />
-				</div>
-				<p className="text-sm text-muted">Nhấn nút bên dưới để nghe lại</p>
+				<p className="text-2xl font-bold text-accent">{q.pinyin}</p>
 				{q.audioText && <SpeakButton text={q.audioText} label="Phát âm" />}
 			</div>
 		);
@@ -676,7 +666,7 @@ function QuestionHeroCard({ question: q, audioOnly }: { question: CnPracticeQues
 			{q.hanzi && <p className="hanzi-display text-6xl font-black text-foreground">{q.hanzi}</p>}
 			{q.pinyin && !q.hanzi && <p className="text-2xl font-bold text-accent">{q.pinyin}</p>}
 			{q.pinyin && q.hanzi && <p className="mt-2 text-lg font-bold text-muted">{q.pinyin}</p>}
-			{q.audioText && !audioOnly && (
+			{q.audioText && !isSound && (
 				<div className="mt-4">
 					<SpeakButton text={q.audioText} label="Phát âm" />
 				</div>

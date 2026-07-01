@@ -27,7 +27,12 @@ const VALID_SET_SOURCES = new Set(['manual', 'hsk', 'textbook']);
 const VALID_PROGRESS_STATES = new Set<CnWordProgressState>([
 	'new', 'learning', 'weak', 'familiar', 'strong', 'mastered',
 ]);
-const VALID_QUESTION_TYPES = CORE_QUESTION_TYPE_SET;
+const VALID_QUESTION_TYPES = new Set<string>([
+	...CORE_QUESTION_TYPE_SET,
+	// Legacy types in historical exports / answer logs
+	'pinyin_to_hanzi', 'hanzi_to_pinyin', 'hanzi_to_pinyin_typed',
+	'audio_to_hanzi', 'audio_to_hanzi_typed', 'audio_to_meaning',
+]);
 const VALID_ERROR_TYPES = new Set<CnErrorType>([
 	'sai_nghia', 'sai_pinyin', 'sai_thanh_dieu', 'nghe_khong_ra',
 	'nham_chu', 'quen_hanzi', 'sai_mau_cau', 'sai_vi_tri', 'qua_han',
@@ -59,6 +64,55 @@ function asDate(value: unknown): Date | null {
 	}
 	const date = new Date(String(value));
 	return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/** Read sound channel progress from row; merges legacy listening + pinyin columns if present */
+function soundProgressFromRow(row: Row): {
+	soundCorrect: number;
+	soundTotal: number;
+	soundDueAt: Date | null;
+	soundIntervalIdx: number;
+} {
+	const soundCorrect = asInt(row.sound_correct ?? row.soundCorrect);
+	const soundTotal = asInt(row.sound_total ?? row.soundTotal);
+	const soundDueAt = asDate(row.sound_due_at ?? row.soundDueAt);
+	const soundIntervalIdx = asInt(row.sound_interval_idx ?? row.soundIntervalIdx);
+
+	const listeningCorrect = asInt(row.listening_correct ?? row.listeningCorrect);
+	const listeningTotal = asInt(row.listening_total ?? row.listeningTotal);
+	const pinyinCorrect = asInt(row.pinyin_correct ?? row.pinyinCorrect);
+	const pinyinTotal = asInt(row.pinyin_total ?? row.pinyinTotal);
+	const listeningIntervalIdx = asInt(row.listening_interval_idx ?? row.listeningIntervalIdx);
+	const pinyinIntervalIdx = asInt(row.pinyin_interval_idx ?? row.pinyinIntervalIdx);
+	const listeningDueAt = asDate(row.listening_due_at ?? row.listeningDueAt);
+	const pinyinDueAt = asDate(row.pinyin_due_at ?? row.pinyinDueAt);
+
+	const hasLegacy = listeningTotal > 0 || pinyinTotal > 0
+		|| row.listening_correct !== undefined || row.listeningCorrect !== undefined
+		|| row.pinyin_correct !== undefined || row.pinyinCorrect !== undefined;
+
+	if (!hasLegacy) {
+		return { soundCorrect, soundTotal, soundDueAt, soundIntervalIdx };
+	}
+
+	const mergedCorrect = soundCorrect + listeningCorrect + pinyinCorrect;
+	const mergedTotal = soundTotal + listeningTotal + pinyinTotal;
+	let mergedIntervalIdx = soundIntervalIdx;
+	let mergedDueAt = soundDueAt;
+	if (pinyinIntervalIdx > mergedIntervalIdx) {
+		mergedIntervalIdx = pinyinIntervalIdx;
+		mergedDueAt = pinyinDueAt ?? mergedDueAt;
+	}
+	if (listeningIntervalIdx > mergedIntervalIdx) {
+		mergedIntervalIdx = listeningIntervalIdx;
+		mergedDueAt = listeningDueAt ?? mergedDueAt;
+	}
+	return {
+		soundCorrect: mergedCorrect,
+		soundTotal: mergedTotal,
+		soundDueAt: mergedDueAt,
+		soundIntervalIdx: mergedIntervalIdx,
+	};
 }
 
 function rowsFromSheet(workbook: ExcelWorkbookData, sheetName: string): Row[] {
@@ -286,18 +340,14 @@ export async function buildUserDataExportWorkbook(userId: string): Promise<Buffe
 		last_reviewed_at: p.lastReviewedAt?.toISOString() ?? '',
 		meaning_correct: p.meaningCorrect,
 		meaning_total: p.meaningTotal,
-		listening_correct: p.listeningCorrect,
-		listening_total: p.listeningTotal,
-		pinyin_correct: p.pinyinCorrect,
-		pinyin_total: p.pinyinTotal,
+		sound_correct: p.soundCorrect,
+		sound_total: p.soundTotal,
 		sentence_correct: p.sentenceCorrect,
 		sentence_total: p.sentenceTotal,
 		meaning_due_at: p.meaningDueAt?.toISOString() ?? '',
 		meaning_interval_idx: p.meaningIntervalIdx,
-		listening_due_at: p.listeningDueAt?.toISOString() ?? '',
-		listening_interval_idx: p.listeningIntervalIdx,
-		pinyin_due_at: p.pinyinDueAt?.toISOString() ?? '',
-		pinyin_interval_idx: p.pinyinIntervalIdx,
+		sound_due_at: p.soundDueAt?.toISOString() ?? '',
+		sound_interval_idx: p.soundIntervalIdx,
 		sentence_due_at: p.sentenceDueAt?.toISOString() ?? '',
 		sentence_interval_idx: p.sentenceIntervalIdx,
 	})),
@@ -545,8 +595,7 @@ async function previewLegacyWorkbook(workbook: ExcelWorkbookData): Promise<UserW
 		if (!VALID_PROGRESS_STATES.has(state)) errors.push(`progress dòng ${i + 2}: state không hợp lệ`);
 		for (const pair of [
 			['meaning_correct', 'meaning_total'],
-			['listening_correct', 'listening_total'],
-			['pinyin_correct', 'pinyin_total'],
+			['sound_correct', 'sound_total'],
 			['sentence_correct', 'sentence_total'],
 			['char_correct', 'char_total'],
 		] as const) {
@@ -823,6 +872,7 @@ async function importLegacyWorkbook(
 				select: { id: true },
 			});
 			if (!word) continue;
+			const soundProgress = soundProgressFromRow(row);
 			await tx.cnWordProgress.upsert({
 				where: { userId_wordId: { userId, wordId: word.id } },
 				create: {
@@ -834,18 +884,14 @@ async function importLegacyWorkbook(
 					lastReviewedAt: asDate(row.last_reviewed_at ?? row.lastReviewedAt),
 					meaningCorrect: asInt(row.meaning_correct ?? row.meaningCorrect),
 					meaningTotal: asInt(row.meaning_total ?? row.meaningTotal),
-					listeningCorrect: asInt(row.listening_correct ?? row.listeningCorrect),
-					listeningTotal: asInt(row.listening_total ?? row.listeningTotal),
-					pinyinCorrect: asInt(row.pinyin_correct ?? row.pinyinCorrect),
-					pinyinTotal: asInt(row.pinyin_total ?? row.pinyinTotal),
+					soundCorrect: soundProgress.soundCorrect,
+					soundTotal: soundProgress.soundTotal,
 					sentenceCorrect: asInt(row.sentence_correct ?? row.sentenceCorrect),
 					sentenceTotal: asInt(row.sentence_total ?? row.sentenceTotal),
 					meaningDueAt: asDate(row.meaning_due_at ?? row.meaningDueAt),
 					meaningIntervalIdx: asInt(row.meaning_interval_idx ?? row.meaningIntervalIdx),
-					listeningDueAt: asDate(row.listening_due_at ?? row.listeningDueAt),
-					listeningIntervalIdx: asInt(row.listening_interval_idx ?? row.listeningIntervalIdx),
-					pinyinDueAt: asDate(row.pinyin_due_at ?? row.pinyinDueAt),
-					pinyinIntervalIdx: asInt(row.pinyin_interval_idx ?? row.pinyinIntervalIdx),
+					soundDueAt: soundProgress.soundDueAt,
+					soundIntervalIdx: soundProgress.soundIntervalIdx,
 					sentenceDueAt: asDate(row.sentence_due_at ?? row.sentenceDueAt),
 					sentenceIntervalIdx: asInt(row.sentence_interval_idx ?? row.sentenceIntervalIdx),
 				},
@@ -856,18 +902,14 @@ async function importLegacyWorkbook(
 					lastReviewedAt: asDate(row.last_reviewed_at ?? row.lastReviewedAt),
 					meaningCorrect: asInt(row.meaning_correct ?? row.meaningCorrect),
 					meaningTotal: asInt(row.meaning_total ?? row.meaningTotal),
-					listeningCorrect: asInt(row.listening_correct ?? row.listeningCorrect),
-					listeningTotal: asInt(row.listening_total ?? row.listeningTotal),
-					pinyinCorrect: asInt(row.pinyin_correct ?? row.pinyinCorrect),
-					pinyinTotal: asInt(row.pinyin_total ?? row.pinyinTotal),
+					soundCorrect: soundProgress.soundCorrect,
+					soundTotal: soundProgress.soundTotal,
 					sentenceCorrect: asInt(row.sentence_correct ?? row.sentenceCorrect),
 					sentenceTotal: asInt(row.sentence_total ?? row.sentenceTotal),
 					meaningDueAt: asDate(row.meaning_due_at ?? row.meaningDueAt),
 					meaningIntervalIdx: asInt(row.meaning_interval_idx ?? row.meaningIntervalIdx),
-					listeningDueAt: asDate(row.listening_due_at ?? row.listeningDueAt),
-					listeningIntervalIdx: asInt(row.listening_interval_idx ?? row.listeningIntervalIdx),
-					pinyinDueAt: asDate(row.pinyin_due_at ?? row.pinyinDueAt),
-					pinyinIntervalIdx: asInt(row.pinyin_interval_idx ?? row.pinyinIntervalIdx),
+					soundDueAt: soundProgress.soundDueAt,
+					soundIntervalIdx: soundProgress.soundIntervalIdx,
 					sentenceDueAt: asDate(row.sentence_due_at ?? row.sentenceDueAt),
 					sentenceIntervalIdx: asInt(row.sentence_interval_idx ?? row.sentenceIntervalIdx),
 				},

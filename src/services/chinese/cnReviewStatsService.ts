@@ -33,16 +33,13 @@ function progressToMetrics(p: {
 	wordId: string;
 	state: ProgressForMetrics['state'];
 	meaningIntervalIdx: number;
-	listeningIntervalIdx: number;
-	pinyinIntervalIdx: number;
+	soundIntervalIdx: number;
 	sentenceIntervalIdx: number;
 	meaningDueAt: Date | null;
-	listeningDueAt: Date | null;
-	pinyinDueAt: Date | null;
+	soundDueAt: Date | null;
 	sentenceDueAt: Date | null;
 	meaningTotal: number;
-	listeningTotal: number;
-	pinyinTotal: number;
+	soundTotal: number;
 	sentenceTotal: number;
 	dueAt: Date;
 }): ProgressForMetrics {
@@ -50,16 +47,13 @@ function progressToMetrics(p: {
 		wordId: p.wordId,
 		state: p.state,
 		meaningIntervalIdx: p.meaningIntervalIdx,
-		listeningIntervalIdx: p.listeningIntervalIdx,
-		pinyinIntervalIdx: p.pinyinIntervalIdx,
+		soundIntervalIdx: p.soundIntervalIdx,
 		sentenceIntervalIdx: p.sentenceIntervalIdx,
 		meaningDueAt: p.meaningDueAt,
-		listeningDueAt: p.listeningDueAt,
-		pinyinDueAt: p.pinyinDueAt,
+		soundDueAt: p.soundDueAt,
 		sentenceDueAt: p.sentenceDueAt,
 		meaningTotal: p.meaningTotal,
-		listeningTotal: p.listeningTotal,
-		pinyinTotal: p.pinyinTotal,
+		soundTotal: p.soundTotal,
 		sentenceTotal: p.sentenceTotal,
 		dueAt: p.dueAt,
 	};
@@ -93,16 +87,13 @@ async function loadProgressMetrics(
 				wordId: true,
 				state: true,
 				meaningIntervalIdx: true,
-				listeningIntervalIdx: true,
-				pinyinIntervalIdx: true,
+				soundIntervalIdx: true,
 				sentenceIntervalIdx: true,
 				meaningDueAt: true,
-				listeningDueAt: true,
-				pinyinDueAt: true,
+				soundDueAt: true,
 				sentenceDueAt: true,
 				meaningTotal: true,
-				listeningTotal: true,
-				pinyinTotal: true,
+				soundTotal: true,
 				sentenceTotal: true,
 				dueAt: true,
 			},
@@ -211,13 +202,9 @@ export async function getReviewStats(userId: string): Promise<CnReviewStatsDTO> 
 		progress.reduce((s, p) => s + p.meaningCorrect, 0),
 		progress.reduce((s, p) => s + p.meaningTotal, 0),
 	);
-	const listeningRate = rate(
-		progress.reduce((s, p) => s + p.listeningCorrect, 0),
-		progress.reduce((s, p) => s + p.listeningTotal, 0),
-	);
-	const pinyinRate = rate(
-		progress.reduce((s, p) => s + p.pinyinCorrect, 0),
-		progress.reduce((s, p) => s + p.pinyinTotal, 0),
+	const soundRate = rate(
+		progress.reduce((s, p) => s + p.soundCorrect, 0),
+		progress.reduce((s, p) => s + p.soundTotal, 0),
 	);
 	const sentenceRate = rate(
 		progress.reduce((s, p) => s + p.sentenceCorrect, 0),
@@ -249,8 +236,7 @@ export async function getReviewStats(userId: string): Promise<CnReviewStatsDTO> 
 		streak,
 		forecast,
 		meaningRate,
-		listeningRate,
-		pinyinRate,
+		soundRate,
 		sentenceRate,
 		hasActiveWords,
 	});
@@ -264,8 +250,7 @@ export async function getReviewStats(userId: string): Promise<CnReviewStatsDTO> 
 		remainingEstimate,
 		weakCount,
 		meaningRate,
-		listeningRate,
-		pinyinRate,
+		soundRate,
 		sentenceRate,
 		recallAccuracy: recallSplit.recallAccuracy,
 		recallTotal: recallSplit.recallTotal,

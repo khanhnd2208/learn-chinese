@@ -3,7 +3,7 @@ import { spreadByWordId } from '@/services/chinese/cnPracticeService';
 import { spreadShuffle } from '@/lib/chinese/generateQuestions';
 import type { CnPracticeQuestionDTO } from '@/types/chinese';
 
-function makeEntry(wordId: string, channel: 'meaning' | 'listening' | 'pinyin' | 'sentence' = 'meaning') {
+function makeEntry(wordId: string, channel: 'meaning' | 'sound' | 'sentence' = 'meaning') {
 	return {
 		progress: { wordId },
 		channel,
@@ -25,9 +25,9 @@ describe('spreadByWordId', () => {
 	it('separates same word channels when alternatives exist', () => {
 		const entries = [
 			makeEntry('w1', 'meaning'),
-			makeEntry('w1', 'listening'),
+			makeEntry('w1', 'sound'),
 			makeEntry('w2', 'meaning'),
-			makeEntry('w3', 'pinyin'),
+			makeEntry('w3', 'sound'),
 		];
 		const spread = spreadByWordId(entries, 1);
 		for (let i = 1; i < spread.length; i++) {
@@ -38,7 +38,7 @@ describe('spreadByWordId', () => {
 	it('preserves all entries', () => {
 		const entries = [
 			makeEntry('w1', 'meaning'),
-			makeEntry('w1', 'listening'),
+			makeEntry('w1', 'sound'),
 			makeEntry('w2', 'meaning'),
 		];
 		expect(spreadByWordId(entries).length).toBe(entries.length);

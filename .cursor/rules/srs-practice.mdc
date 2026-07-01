@@ -9,7 +9,7 @@ alwaysApply: false
 ## SRS model
 
 - **Not** SM-2/Anki — multi-track Leitner per `(word, channel)`
-- **4 channels**: meaning, listening, pinyin, sentence
+- **3 channels**: meaning, sound (audio + pinyin together), sentence
 - Intervals in `src/config/constants.ts`: `CN_SRS_INTERVAL_DAYS` (1d → 30d ladder)
 - All channels active from enrollment (`channelRamp.ts` stub returns true)
 - First wrong on MCQ stages: 30m cooldown (`CN_WRONG_FIRST_RETRY_MINUTES`)
@@ -24,11 +24,12 @@ alwaysApply: false
 
 ## Practice
 
-- **11 core question types** — `coreQuestionTypes.ts` (includes `fill_sentence`, `fill_sentence_typed`)
+- **7 core question types** — `coreQuestionTypes.ts` (includes `fill_sentence`, `fill_sentence_typed`, `sound_to_hanzi`, `sound_to_hanzi_typed`)
+- Sound channel always shows audio + visible pinyin; never audio-only
 - Sentence ladder: mcq1/mcq2 → `fill_sentence` MCQ; recall/maintain → `fill_sentence_typed`
 - Examples: 5 `vi_du_1…5` per word in `tu_vung` import (`parseFillExample.ts`)
 - Question generation: `generateQuestions.ts` + `verifiedExample.ts`
-- Modes: `core_vocab`, `listening`, `sentence`, `smart_mixed`
+- Modes: `core_vocab`, `sound`, `sentence`, `smart_mixed`
 
 ## Tests
 

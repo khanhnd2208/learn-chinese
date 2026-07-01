@@ -7,12 +7,8 @@ export function learnerQuestionLabel(type: CnQuestionType): string {
 		hanzi_to_meaning: 'Nhận biết nghĩa',
 		meaning_to_hanzi: 'Nhớ chữ từ nghĩa',
 		meaning_to_hanzi_typed: 'Gõ chữ từ nghĩa',
-		pinyin_to_hanzi: 'Nối pinyin với chữ',
-		hanzi_to_pinyin: 'Chọn pinyin',
-		hanzi_to_pinyin_typed: 'Gõ pinyin',
-		audio_to_hanzi: 'Nghe → chọn chữ',
-		audio_to_hanzi_typed: 'Nghe → gõ chữ',
-		audio_to_meaning: 'Nghe → hiểu nghĩa',
+		sound_to_hanzi: 'Âm đọc → chọn chữ',
+		sound_to_hanzi_typed: 'Âm đọc → gõ chữ',
 		fill_sentence: 'Điền từ vào câu',
 		fill_sentence_typed: 'Gõ từ vào câu',
 	};
@@ -24,12 +20,8 @@ export function learnerSessionLabel(type: CnQuestionType): string {
 		hanzi_to_meaning: 'meaning',
 		meaning_to_hanzi: 'meaning',
 		meaning_to_hanzi_typed: 'meaning',
-		pinyin_to_hanzi: 'pinyin',
-		hanzi_to_pinyin: 'pinyin',
-		hanzi_to_pinyin_typed: 'pinyin',
-		audio_to_hanzi: 'listening',
-		audio_to_hanzi_typed: 'listening',
-		audio_to_meaning: 'listening',
+		sound_to_hanzi: 'sound',
+		sound_to_hanzi_typed: 'sound',
 		fill_sentence: 'sentence',
 		fill_sentence_typed: 'sentence',
 	};
@@ -41,12 +33,8 @@ export function questionTypeLabel(type: CnQuestionType): string {
 		hanzi_to_meaning: 'Hán tự → Nghĩa',
 		meaning_to_hanzi: 'Nghĩa → Hán tự',
 		meaning_to_hanzi_typed: 'Nghĩa → Gõ Hán tự',
-		pinyin_to_hanzi: 'Pinyin → Hán tự',
-		hanzi_to_pinyin: 'Hán tự → Pinyin',
-		hanzi_to_pinyin_typed: 'Hán tự → Gõ pinyin',
-		audio_to_hanzi: 'Nghe → Hán tự',
-		audio_to_hanzi_typed: 'Nghe → Gõ Hán tự',
-		audio_to_meaning: 'Nghe → Nghĩa',
+		sound_to_hanzi: 'Âm đọc → Hán tự',
+		sound_to_hanzi_typed: 'Âm đọc → Gõ Hán tự',
 		fill_sentence: 'Câu → Chọn từ',
 		fill_sentence_typed: 'Câu → Gõ từ',
 	};
@@ -62,10 +50,12 @@ export function practiceModeLabel(mode: string): string {
 		level_recall: 'Bắt đầu nhớ',
 		level_maintain: 'Thuần thục',
 		meaning: 'Nghĩa',
-		pinyin: 'Pinyin',
 		core_vocab: 'Nghĩa',
 		core: 'Nghĩa',
-		listening: 'Nghe',
+		sound: 'Âm đọc',
+		pronunciation: 'Âm đọc',
+		listening: 'Âm đọc',
+		pinyin: 'Âm đọc',
 		sentence: 'Câu',
 	};
 	return labels[mode] ?? 'Luyện tập';
@@ -74,11 +64,11 @@ export function practiceModeLabel(mode: string): string {
 export const PRACTICE_MIX_MODE = {
 	mode: 'smart_mixed',
 	label: 'Tổng hợp',
-	description: 'Xen 4 kênh · level SRS theo tiến độ từng từ',
+	description: 'Xen 3 kênh · level SRS theo tiến độ từng từ',
 	icon: 'shuffle',
 } as const;
 
-/** Fixed SRS difficulty — rotates all 4 channels at the chosen level (does not change SRS data). */
+/** Fixed SRS difficulty — rotates all 3 channels at the chosen level (does not change SRS data). */
 export const PRACTICE_LEVEL_MODES = [
 	{
 		mode: 'level_mcq1',
@@ -97,7 +87,7 @@ export const PRACTICE_LEVEL_MODES = [
 	{
 		mode: 'level_recall',
 		label: 'Bắt đầu nhớ',
-		description: 'Gõ chữ / pinyin / câu',
+		description: 'Gõ chữ / âm đọc / câu',
 		icon: 'looks_3',
 		intervalIdx: 2,
 	},
@@ -122,15 +112,19 @@ export function practiceModeChannel(mode: string): SkillChannel | null {
 export function channelLabel(channel: string): string {
 	const labels: Record<string, string> = {
 		meaning: 'Nghĩa',
-		listening: 'Nghe',
-		pinyin: 'Pinyin',
+		sound: 'Âm đọc',
 		sentence: 'Câu',
 	};
 	return labels[channel] ?? channel;
 }
 
+export function isSoundQuestion(type: CnQuestionType): boolean {
+	return type.startsWith('sound_');
+}
+
+/** @deprecated Use isSoundQuestion */
 export function isAudioQuestion(type: CnQuestionType): boolean {
-	return type.startsWith('audio_');
+	return isSoundQuestion(type);
 }
 
 export function isTypedQuestion(type: string): boolean {
