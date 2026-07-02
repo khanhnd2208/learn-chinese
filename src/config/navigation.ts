@@ -17,8 +17,9 @@ export const MAIN_NAV: NavLink[] = [
 
 export const BOTTOM_NAV: NavLink[] = [
 	{ href: '/', label: 'Trang chủ', icon: 'home', shortLabel: 'Home' },
+	{ href: '/sets', label: 'Luyện tập', icon: 'menu_book', shortLabel: 'Luyện tập' },
 	{ href: '/review', label: 'Luyện SRS', icon: 'refresh', shortLabel: 'SRS' },
-	{ href: '/sets', label: 'Bộ từ', icon: 'menu_book', shortLabel: 'Sets' },
+	{ href: '/inferno', label: 'Địa Ngục', icon: 'local_fire_department', shortLabel: 'Địa ngục' },
 	{ href: '/dashboard', label: 'Báo cáo học tập', icon: 'query_stats', shortLabel: 'Báo cáo' },
 ];
 
