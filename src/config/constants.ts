@@ -42,6 +42,8 @@ export const CN_DEFAULT_PRACTICE_COUNT = 20;
 export const CN_DEFAULT_REVIEW_COUNT = 25;
 /** Questions fetched per review batch (infinite queue) */
 export const CN_REVIEW_PREFETCH_SIZE = 5;
+/** Average seconds per SRS review item — used for briefing time estimate */
+export const CN_REVIEW_SECONDS_PER_ITEM = 20;
 export const CN_INFERNO_PREFETCH_SIZE = 5;
 export const CN_MAX_CHANNELS_PER_WORD_REVIEW = 3;
 

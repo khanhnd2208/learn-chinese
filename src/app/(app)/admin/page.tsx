@@ -1,5 +1,6 @@
 "use client";
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { CnImportPreview } from '@/lib/chinese/parseChineseFile';
 import type { CnWordDTO } from '@/types/chinese';
@@ -49,8 +50,15 @@ export default function AdminChinesePage() {
 
 	return (
 		<div className="p-8">
-			<h1 className="text-2xl font-black uppercase">Quản lý nội dung Tiếng Trung</h1>
-			<p className="mt-2 text-sm text-muted">Import CSV/XLSX — validate, preview, publish. Mnemonic lưu dạng draft/published.</p>
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div>
+					<h1 className="text-2xl font-black uppercase">Quản lý nội dung Tiếng Trung</h1>
+					<p className="mt-2 text-sm text-muted">Import CSV/XLSX — validate, preview, publish. Mnemonic lưu dạng draft/published.</p>
+				</div>
+				<Link href="/admin/analytics" className="btn-secondary">
+					Theo dõi luyện tập
+				</Link>
+			</div>
 
 			<div className="mt-8 rounded-xl border border-border p-6">
 				<div className="flex flex-wrap items-center justify-between gap-3">

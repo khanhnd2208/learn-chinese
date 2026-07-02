@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
 import QuestionRenderer from '@/components/chinese/QuestionRenderer';
+import SessionBriefingCard from '@/components/chinese/SessionBriefingCard';
 import SessionSummaryCard from '@/components/chinese/SessionSummaryCard';
 import {
 	CN_INFERNO_PREFETCH_SIZE,
@@ -17,9 +18,9 @@ import {
 } from '@/config/constants';
 import { isTypedQuestion } from '@/lib/chinese/questionLabels';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
-import type { CnPracticeQuestionDTO } from '@/types/chinese';
+import type { CnInfernoStatsDTO, CnPracticeQuestionDTO } from '@/types/chinese';
 
-type Phase = 'loading' | 'gate' | 'review' | 'summary' | 'empty';
+type Phase = 'briefing' | 'loading' | 'gate' | 'review' | 'summary' | 'empty';
 
 interface InfernoBatch {
 	questions: CnPracticeQuestionDTO[];
@@ -50,13 +51,21 @@ async function fetchInfernoBatch(recentWordIds: string[]): Promise<InfernoBatch>
 	return json.data;
 }
 
+async function fetchInfernoStats(): Promise<CnInfernoStatsDTO> {
+	const res = await fetch('/api/inferno/stats');
+	const json = await res.json() as { ok: boolean; data?: { stats: CnInfernoStatsDTO } };
+	if (!json.ok || !json.data) throw new Error('Không tải được thống kê Địa Ngục');
+	return json.data.stats;
+}
+
 export default function InfernoSessionClient() {
 	const router = useRouter();
 	const { enqueue, flushAndWait, sessionResult, isFlushing, resetSession } = useIncrementalSubmit({
 		endpoint: '/api/inferno/submit',
 	});
 
-	const [phase, setPhase] = useState<Phase>('loading');
+	const [phase, setPhase] = useState<Phase>('briefing');
+	const [infernoStats, setInfernoStats] = useState<CnInfernoStatsDTO | null>(null);
 	const [totalEnrolled, setTotalEnrolled] = useState(0);
 	const [masteryByWordId, setMasteryByWordId] = useState<Record<string, number>>({});
 	const [eligiblePairs, setEligiblePairs] = useState(0);
@@ -162,12 +171,23 @@ export default function InfernoSessionClient() {
 		setPhase('review');
 	}, [resetSession, trackQuestions]);
 
+	const loadBriefing = useCallback(async () => {
+		setPhase('briefing');
+		const stats = await fetchInfernoStats();
+		setInfernoStats(stats);
+		setTotalEnrolled(stats.totalEnrolled);
+
+		if (stats.totalEnrolled > 0 && stats.totalEnrolled < INFERNO_MIN_ENROLLED) {
+			setPhase('gate');
+		}
+	}, []);
+
 	useEffect(() => {
 		const timer = setTimeout(() => {
-			void loadInitial().catch(() => setPhase('empty'));
+			void loadBriefing().catch(() => setPhase('empty'));
 		}, 0);
 		return () => clearTimeout(timer);
-	}, [loadInitial]);
+	}, [loadBriefing]);
 
 	const handleAnswer = useCallback((result: {
 		wordId: string;
@@ -223,6 +243,69 @@ export default function InfernoSessionClient() {
 			Thống kê
 		</Link>
 	);
+
+	if (phase === 'briefing') {
+		if (!infernoStats) {
+			return (
+				<div className="mx-auto flex min-h-[50vh] max-w-2xl flex-col items-center justify-center gap-3 px-4 text-muted">
+					<MaterialIcon name="local_fire_department" className="text-warning" size={40} filled />
+					<p>Đang tải báo cáo Địa Ngục...</p>
+				</div>
+			);
+		}
+
+		const masteredPct = infernoStats.totalEnrolled > 0
+			? Math.round((infernoStats.masteredCount / infernoStats.totalEnrolled) * 100)
+			: 0;
+		const stuckCount = infernoStats.stuckAtZero.length;
+
+		return (
+			<SessionBriefingCard
+				title="Địa Ngục"
+				icon="local_fire_department"
+				theme="warning"
+				heroValue={infernoStats.totalEnrolled}
+				heroLabel="từ SRS trong chế độ thử thách"
+				heroSub={`${infernoStats.masteredCount} từ đã chinh phục (≥300 điểm)`}
+				stats={[
+					{
+						label: 'Điểm TB',
+						value: infernoStats.avgMasteryScore,
+					},
+					{
+						label: 'Tỷ lệ đúng',
+						value: infernoStats.totalAnswered > 0 ? `${infernoStats.overallAccuracy}%` : '—',
+					},
+					...(stuckCount > 0 ? [{
+						label: 'Kẹt ở 0',
+						value: stuckCount,
+						sub: 'Cần chinh phục',
+						highlight: true,
+					}] : []),
+					{
+						label: 'Tiến độ',
+						value: `${masteredPct}%`,
+						sub: 'từ đạt mastery',
+					},
+				]}
+				insight={infernoStats.insights[0] ?? 'Chế độ khó — MCQ +30, điền +70, sai trừ điểm mạnh.'}
+				primaryLabel="Vào Địa Ngục"
+				onPrimary={() => { void loadInitial(); }}
+				secondaryLinks={[
+					{ href: '/dashboard?tab=inferno', label: 'Báo cáo học tập', icon: 'query_stats' },
+					{ href: '/', label: 'Trang chủ', icon: 'home' },
+				]}
+				extra={(
+					<div className="mx-auto max-w-xs">
+						<ProgressBar value={masteredPct} className="h-2" />
+						<p className="mt-1 text-center text-xs text-muted">
+							{infernoStats.masteredCount} / {infernoStats.totalEnrolled} từ chinh phục
+						</p>
+					</div>
+				)}
+			/>
+		);
+	}
 
 	if (phase === 'loading') {
 		return (
@@ -314,7 +397,7 @@ export default function InfernoSessionClient() {
 				subtitle={summaryReason === 'exit'
 					? 'Điểm đã được lưu.'
 					: `Đã luyện ${reviewedCount} câu`}
-				onPrimaryAction={() => { void loadInitial(); }}
+				onPrimaryAction={() => { void loadBriefing(); }}
 				primaryLabel="Luyện tiếp"
 				secondaryLinks={[
 					{ href: '/dashboard?tab=inferno', label: 'Báo cáo học tập', icon: 'query_stats' },

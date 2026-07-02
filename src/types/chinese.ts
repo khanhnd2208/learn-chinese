@@ -325,6 +325,22 @@ export interface CnReviewStatusDTO {
 	pressure: 'none' | 'mild' | 'moderate' | 'severe';
 }
 
+export interface CnReviewBriefingDTO {
+	/** Unique words with ≥1 due channel today */
+	dueWords: number;
+	/** Due (word, channel) pairs — equals question count in review */
+	dueChannels: number;
+	overdueCount: number;
+	pressure: 'none' | 'mild' | 'moderate' | 'severe';
+	streak: number;
+	reviewedToday: number;
+	accuracyToday: number;
+	maturePct: number;
+	estimatedMinutes: number;
+	hasActiveWords: boolean;
+	insight: string;
+}
+
 export interface CnDashboardDTO {
 	setCount: number;
 	wordsLearned: number;
@@ -386,6 +402,40 @@ export interface CnInfernoStatsDTO {
 	stuckAtZero: CnInfernoWordRankDTO[];
 	wordsWithProgress: number;
 	insights: string[];
+}
+
+export interface CnAdminSourceBreakdownDTO {
+	review: number;
+	practice: number;
+	inferno: number;
+	other: number;
+}
+
+export interface CnAdminUserActivityDTO {
+	userId: string;
+	name: string;
+	email: string;
+	answers7d: number;
+	answers30d: number;
+	activeDays7d: number;
+	activeDays30d: number;
+	streak: number;
+	lastActiveAt: string | null;
+	sessions7d: number;
+	avgItemsPerSession: number;
+	accuracy30d: number;
+	sourceBreakdown: CnAdminSourceBreakdownDTO;
+}
+
+export interface CnAdminAnalyticsDTO {
+	activeToday: number;
+	active7d: number;
+	active30d: number;
+	totalAnswers7d: number;
+	totalAnswers30d: number;
+	sourceBreakdown: CnAdminSourceBreakdownDTO;
+	dailySeries: CnReviewDailyActivityDTO[];
+	users: CnAdminUserActivityDTO[];
 }
 
 export interface CreateCnWordSetInput {
