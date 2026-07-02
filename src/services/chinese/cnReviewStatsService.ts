@@ -3,6 +3,7 @@
    ════════════════════════════════════════════════════════════════════════ */
 import { cache } from 'react';
 import { prisma } from '@/lib/prisma';
+import { CN_REVIEW_SECONDS_PER_ITEM } from '@/config/constants';
 import { groupLogsIntoSessions } from '@/lib/chinese/groupAnswerSessions';
 import { rate } from '@/lib/chinese/hanziUtils';
 import {
@@ -12,6 +13,7 @@ import {
 	computeMaturePct,
 	computeStateDistribution,
 	computeStreak,
+	countDueWordsForMetrics,
 	countOverdueChannels,
 	findNextDueAt,
 	formatNextDueLabel,
@@ -25,7 +27,7 @@ import {
 } from '@/lib/chinese/reviewMetrics';
 import { resolveSrsPoolWordIds } from '@/services/chinese/cnSrsEnrollmentService';
 import { countDueToday, loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
-import type { CnErrorType, CnReviewStatsDTO, CnReviewStatusDTO } from '@/types/chinese';
+import type { CnErrorType, CnReviewBriefingDTO, CnReviewStatsDTO, CnReviewStatusDTO } from '@/types/chinese';
 
 const HISTORY_DAYS = 90;
 
@@ -132,6 +134,105 @@ export async function getReviewStatus(userId: string): Promise<CnReviewStatusDTO
 		overdueCount,
 		streak,
 		pressure: overduePressureLevel(overdueCount),
+	};
+}
+
+export async function getReviewBriefing(userId: string): Promise<CnReviewBriefingDTO> {
+	const now = new Date();
+	const todayStart = startOfLocalDay(now);
+	const historySince = new Date(now.getTime() - HISTORY_DAYS * 86_400_000);
+
+	const [dueChannels, activeWordIds, todayLogs, historyLogs] = await Promise.all([
+		countDueToday(userId),
+		resolveSrsPoolWordIds(userId),
+		prisma.cnAnswerLog.findMany({
+			where: {
+				userId,
+				createdAt: { gte: todayStart },
+				source: { in: ['review', 'mark_known'] },
+			},
+			select: { correct: true },
+		}),
+		prisma.cnAnswerLog.findMany({
+			where: {
+				userId,
+				createdAt: { gte: historySince },
+				source: { in: ['review', 'mark_known'] },
+			},
+			select: { createdAt: true, correct: true },
+		}),
+	]);
+
+	const activeIds = [...activeWordIds];
+	const hasActiveWords = activeIds.length > 0;
+	const { metrics: progressMetrics, wordsWithFillExamples } = await loadProgressMetrics(userId, activeIds);
+	const overdueCount = countOverdueChannels(progressMetrics, todayStart, wordsWithFillExamples);
+	const dueWords = countDueWordsForMetrics(progressMetrics, now, wordsWithFillExamples);
+	const maturePct = computeMaturePct(progressMetrics);
+
+	const channelRows = hasActiveWords
+		? await prisma.cnWordProgress.findMany({
+			where: { userId, wordId: { in: activeIds } },
+			select: {
+				meaningCorrect: true,
+				meaningTotal: true,
+				soundCorrect: true,
+				soundTotal: true,
+				sentenceCorrect: true,
+				sentenceTotal: true,
+			},
+		})
+		: [];
+
+	const dailySeries = aggregateDailySeries(historyLogs);
+	const activeDayKeys = dailySeries.filter((d) => d.reviewed > 0).map((d) => d.dayKey);
+	const streak = computeStreak(activeDayKeys, now);
+
+	const reviewedToday = todayLogs.length;
+	const correctToday = todayLogs.filter((l) => l.correct).length;
+	const accuracyToday = rate(correctToday, reviewedToday);
+
+	const forecast = buildForecast(progressMetrics, now, 7, wordsWithFillExamples);
+	const meaningRate = rate(
+		channelRows.reduce((s, p) => s + p.meaningCorrect, 0),
+		channelRows.reduce((s, p) => s + p.meaningTotal, 0),
+	);
+	const soundRate = rate(
+		channelRows.reduce((s, p) => s + p.soundCorrect, 0),
+		channelRows.reduce((s, p) => s + p.soundTotal, 0),
+	);
+	const sentenceRate = rate(
+		channelRows.reduce((s, p) => s + p.sentenceCorrect, 0),
+		channelRows.reduce((s, p) => s + p.sentenceTotal, 0),
+	);
+
+	const insights = generateReviewInsights({
+		dueTotal: dueChannels,
+		overdueCount,
+		streak,
+		forecast,
+		meaningRate,
+		soundRate,
+		sentenceRate,
+		hasActiveWords,
+	});
+
+	const estimatedMinutes = dueChannels > 0
+		? Math.max(1, Math.ceil((dueChannels * CN_REVIEW_SECONDS_PER_ITEM) / 60))
+		: 0;
+
+	return {
+		dueWords,
+		dueChannels,
+		overdueCount,
+		pressure: overduePressureLevel(overdueCount),
+		streak,
+		reviewedToday,
+		accuracyToday,
+		maturePct,
+		estimatedMinutes,
+		hasActiveWords,
+		insight: insights[0] ?? 'Sẵn sàng ôn tập — bắt đầu ngay!',
 	};
 }
 

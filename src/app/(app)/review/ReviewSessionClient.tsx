@@ -5,14 +5,15 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import QuestionRenderer from '@/components/chinese/QuestionRenderer';
+import SessionBriefingCard from '@/components/chinese/SessionBriefingCard';
 import SessionSummaryCard from '@/components/chinese/SessionSummaryCard';
 import SrsVocabManager from '@/components/chinese/SrsVocabManager';
 import { CN_REVIEW_PREFETCH_SIZE } from '@/config/constants';
 import { questionChannel } from '@/lib/chinese/coreQuestionTypes';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
-import type { CnPracticeQuestionDTO } from '@/types/chinese';
+import type { CnPracticeQuestionDTO, CnReviewBriefingDTO } from '@/types/chinese';
 
-type Phase = 'loading' | 'review' | 'summary' | 'empty';
+type Phase = 'briefing' | 'loading' | 'review' | 'summary' | 'empty';
 
 function wordChannelKey(wordId: string, questionType: CnPracticeQuestionDTO['type']): string {
 	return `${wordId}:${questionChannel(questionType)}`;
@@ -46,13 +47,28 @@ async function fetchReviewBatch(
 	};
 }
 
+async function fetchReviewBriefing(): Promise<CnReviewBriefingDTO> {
+	const res = await fetch('/api/review/briefing');
+	const json = await res.json() as { ok: boolean; data?: { briefing: CnReviewBriefingDTO } };
+	if (!json.ok || !json.data) throw new Error('Không tải được báo cáo SRS');
+	return json.data.briefing;
+}
+
+function pressureLabel(pressure: CnReviewBriefingDTO['pressure']): string | undefined {
+	if (pressure === 'none') return undefined;
+	if (pressure === 'mild') return 'Nhẹ';
+	if (pressure === 'moderate') return 'Trung bình';
+	return 'Cao';
+}
+
 export default function ReviewSessionClient() {
 	const router = useRouter();
 	const { enqueue, flushAndWait, sessionResult, isFlushing, resetSession } = useIncrementalSubmit({
 		endpoint: '/api/review/submit',
 	});
 
-	const [phase, setPhase] = useState<Phase>('loading');
+	const [phase, setPhase] = useState<Phase>('briefing');
+	const [briefing, setBriefing] = useState<CnReviewBriefingDTO | null>(null);
 	const [dueToday, setDueToday] = useState(0);
 	const [dueRemaining, setDueRemaining] = useState(0);
 	const [skippedUnpublished, setSkippedUnpublished] = useState(0);
@@ -105,12 +121,19 @@ export default function ReviewSessionClient() {
 		setPhase('review');
 	}, [resetSession, trackQuestions]);
 
+	const loadBriefing = useCallback(async () => {
+		setPhase('briefing');
+		const data = await fetchReviewBriefing();
+		setBriefing(data);
+		setDueToday(data.dueChannels);
+	}, []);
+
 	useEffect(() => {
 		const timer = setTimeout(() => {
-			void loadInitial().catch(() => setPhase('empty'));
+			void loadBriefing().catch(() => setPhase('empty'));
 		}, 0);
 		return () => clearTimeout(timer);
-	}, [loadInitial]);
+	}, [loadBriefing]);
 
 	const showSummary = useCallback((reason: 'exit' | 'complete') => {
 		setSummaryReason(reason);
@@ -218,10 +241,73 @@ export default function ReviewSessionClient() {
 			open={showManager}
 			onClose={() => setShowManager(false)}
 			onUpdated={() => {
-				void loadInitial();
+				void loadBriefing();
+				if (phase === 'review' || phase === 'loading') void loadInitial();
 			}}
 		/>
 	);
+
+	if (phase === 'briefing') {
+		if (!briefing) {
+			return (
+				<div className="mx-auto flex min-h-[50vh] max-w-2xl items-center justify-center px-4 text-muted">
+					Đang tải báo cáo SRS...
+				</div>
+			);
+		}
+
+		const hasDue = briefing.dueChannels > 0;
+		const overdueSub = briefing.overdueCount > 0
+			? `${briefing.overdueCount} mục trễ${pressureLabel(briefing.pressure) ? ` · Áp lực ${pressureLabel(briefing.pressure)?.toLowerCase()}` : ''}`
+			: undefined;
+
+		return (
+			<>
+				<SessionBriefingCard
+					title="Luyện SRS"
+					icon="history"
+					theme="accent"
+					heroValue={hasDue ? briefing.dueChannels : '✓'}
+					heroLabel={hasDue
+						? `${briefing.dueWords} từ · ${briefing.dueChannels} mục cần ôn`
+						: 'Không có mục cần ôn hôm nay'}
+					heroSub={hasDue ? `Ước tính ~${briefing.estimatedMinutes} phút` : undefined}
+					stats={[
+						...(briefing.streak > 0 ? [{
+							label: 'Chuỗi ngày',
+							value: briefing.streak,
+							sub: briefing.reviewedToday === 0 ? 'Ôn hôm nay để giữ chuỗi' : undefined,
+							highlight: briefing.reviewedToday === 0,
+						}] : []),
+						...(briefing.reviewedToday > 0 ? [{
+							label: 'Đã ôn hôm nay',
+							value: briefing.reviewedToday,
+							sub: briefing.accuracyToday > 0 ? `${briefing.accuracyToday}% đúng` : undefined,
+						}] : []),
+						...(briefing.overdueCount > 0 ? [{
+							label: 'Quá hạn',
+							value: briefing.overdueCount,
+							sub: overdueSub,
+							highlight: true,
+						}] : []),
+						...(briefing.maturePct > 0 ? [{
+							label: 'Độ chín',
+							value: `${briefing.maturePct}%`,
+						}] : []),
+					]}
+					insight={briefing.insight}
+					primaryLabel={hasDue ? 'Bắt đầu ôn' : 'Không có mục để ôn'}
+					onPrimary={() => { if (hasDue) void loadInitial(); }}
+					primaryDisabled={!hasDue}
+					secondaryLinks={[
+						{ href: '/dashboard', label: 'Báo cáo học tập', icon: 'query_stats' },
+						{ href: '/sets', label: 'Bộ từ', icon: 'menu_book' },
+					]}
+				/>
+				{managerModal}
+			</>
+		);
+	}
 
 	if (phase === 'loading') {
 		return (
@@ -309,7 +395,7 @@ export default function ReviewSessionClient() {
 					? 'Tiến độ đã được lưu — quay lại bất cứ lúc nào.'
 					: undefined}
 				onPrimaryAction={() => {
-					void loadInitial();
+					void loadBriefing();
 				}}
 				primaryLabel="Luyện tiếp"
 				/>
