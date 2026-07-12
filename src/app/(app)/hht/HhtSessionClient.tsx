@@ -21,6 +21,22 @@ interface HhtBatch {
 	eligibleWordCount: number;
 }
 
+interface HhtStats {
+	totalEnrolled: number;
+	activeSetCount: number;
+	eligibleWordCount: number;
+}
+
+async function fetchHhtStats(): Promise<HhtStats> {
+	const res = await fetch('/api/hht/stats');
+	const json = await res.json() as {
+		ok: boolean;
+		data?: { stats: HhtStats };
+	};
+	if (!json.ok || !json.data?.stats) throw new Error('Không tải được thống kê HHT Mode');
+	return json.data.stats;
+}
+
 async function fetchHhtBatch(recentWordIds: string[]): Promise<HhtBatch> {
 	const params = new URLSearchParams({ limit: String(CN_HHT_PREFETCH_SIZE) });
 	if (recentWordIds.length) params.set('recentWordIds', recentWordIds.join(','));
@@ -40,6 +56,7 @@ export default function HhtSessionClient() {
 	});
 
 	const [phase, setPhase] = useState<Phase>('briefing');
+	const [hhtStats, setHhtStats] = useState<HhtStats | null>(null);
 	const [totalEnrolled, setTotalEnrolled] = useState(0);
 	const [activeSetCount, setActiveSetCount] = useState(0);
 	const [eligibleWordCount, setEligibleWordCount] = useState(0);
@@ -129,13 +146,15 @@ export default function HhtSessionClient() {
 
 	const loadBriefing = useCallback(async () => {
 		setPhase('briefing');
+		setHhtStats(null);
 		try {
-			const data = await fetchHhtBatch([]);
-			setTotalEnrolled(data.totalEnrolled);
-			setActiveSetCount(data.activeSetCount);
-			setEligibleWordCount(data.eligibleWordCount);
+			const stats = await fetchHhtStats();
+			setHhtStats(stats);
+			setTotalEnrolled(stats.totalEnrolled);
+			setActiveSetCount(stats.activeSetCount);
+			setEligibleWordCount(stats.eligibleWordCount);
 
-			if (data.totalEnrolled > 0 && data.totalEnrolled < HHT_MIN_ENROLLED) {
+			if (stats.totalEnrolled > 0 && stats.totalEnrolled < HHT_MIN_ENROLLED) {
 				setPhase('gate');
 			}
 		} catch {
@@ -187,6 +206,15 @@ export default function HhtSessionClient() {
 		: 0;
 
 	if (phase === 'briefing') {
+		if (!hhtStats) {
+			return (
+				<div className="mx-auto flex min-h-[50vh] max-w-2xl flex-col items-center justify-center gap-3 px-4 text-muted">
+					<MaterialIcon name="quiz" className="text-accent" size={40} filled />
+					<p>Đang tải thống kê HHT Mode...</p>
+				</div>
+			);
+		}
+
 		return (
 			<SessionBriefingCard
 				title="HHT Mode"

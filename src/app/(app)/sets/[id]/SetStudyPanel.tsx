@@ -50,7 +50,7 @@ export default function SetStudyPanel({ set }: Props) {
 					<div className="mt-6">
 						<h2 className="mb-3 text-sm font-bold text-foreground">Luyện tập</h2>
 						<p className="mb-3 text-xs text-muted">
-							Luyện tập tổng hợp — xen 3 kênh, level theo tiến độ từng từ. Không ảnh hưởng lịch SRS.
+							Tổng hợp xen 3 kênh theo tiến độ SRS, hoặc Chỉ MCQ (trắc nghiệm). Không ảnh hưởng lịch ôn.
 						</p>
 						<PracticeModePicker setId={set.id} />
 					</div>

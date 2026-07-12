@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	applyHhtWeightDecay,
+	hhtSessionStatsWhenNoQuestions,
 	pickHhtWordBatch,
 } from '@/services/chinese/cnHhtService';
 import { HHT_MIN_WEIGHT, HHT_WEIGHT_DECAY } from '@/config/constants';
@@ -29,6 +30,30 @@ describe('applyHhtWeightDecay', () => {
 	it('floors at HHT_MIN_WEIGHT', () => {
 		expect(applyHhtWeightDecay(HHT_MIN_WEIGHT, true)).toBe(HHT_MIN_WEIGHT);
 		expect(applyHhtWeightDecay(HHT_MIN_WEIGHT + 0.01, true)).toBeGreaterThanOrEqual(HHT_MIN_WEIGHT);
+	});
+});
+
+describe('hhtSessionStatsWhenNoQuestions', () => {
+	it('returns zeros when pool is empty', () => {
+		expect(hhtSessionStatsWhenNoQuestions(0, 0)).toEqual({
+			totalEnrolled: 0,
+			activeSetCount: 0,
+			eligibleWordCount: 0,
+		});
+	});
+
+	it('preserves enrolled count when pool is non-empty but no questions', () => {
+		expect(hhtSessionStatsWhenNoQuestions(12, 3)).toEqual({
+			totalEnrolled: 12,
+			activeSetCount: 3,
+			eligibleWordCount: 0,
+		});
+	});
+
+	it('keeps activeSetCount from srsActive sets even without linked entries', () => {
+		const stats = hhtSessionStatsWhenNoQuestions(5, 2);
+		expect(stats.totalEnrolled).toBe(5);
+		expect(stats.activeSetCount).toBe(2);
 	});
 });
 
