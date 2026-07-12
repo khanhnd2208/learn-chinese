@@ -274,6 +274,17 @@ export function generateQuestionForWord(
 	}
 }
 
+/**
+ * Order words by least session usage first (ties keep shuffled order).
+ * Prevents always drilling the same DB-ordered head of a set across sessions.
+ */
+function wordsByLeastUsage(
+	words: CnWordCardDTO[],
+	usage: Map<string, number>,
+): CnWordCardDTO[] {
+	return [...words].sort((a, b) => (usage.get(a.id) ?? 0) - (usage.get(b.id) ?? 0));
+}
+
 /** Rotate all three SRS channels so practice covers meaning, sound, and sentence. */
 function generateBalancedChannelPracticeSession(
 	words: CnWordCardDTO[],
@@ -282,29 +293,41 @@ function generateBalancedChannelPracticeSession(
 	poolWords: CnWordCardDTO[],
 	fixedIntervalIdx?: number,
 ): CnPracticeQuestionDTO[] {
+	const shuffled = shuffle(words);
 	const questions: CnPracticeQuestionDTO[] = [];
+	const usage = new Map<string, number>();
 	let channelRound = 0;
-	let wordRound = 0;
+	let consecutiveMisses = 0;
 	const maxAttempts = count * Math.max(1, words.length) * ALL_SKILL_CHANNELS.length;
 
 	for (let attempt = 0; attempt < maxAttempts && questions.length < count; attempt++) {
-		const word = words[wordRound % words.length];
 		const channel = ALL_SKILL_CHANNELS[channelRound % ALL_SKILL_CHANNELS.length];
-		const progress = progressMap.get(word.id) ?? null;
-		const intervalIdx = practiceIntervalIdxForChannel(progress, channel, fixedIntervalIdx);
-		const type = reviewQuestionTypeForChannel(channel, intervalIdx);
+		const ordered = wordsByLeastUsage(shuffled, usage);
+		let placed = false;
 
-		if (wordSupportsQuestionType(word, type)) {
+		for (const word of ordered) {
+			const progress = progressMap.get(word.id) ?? null;
+			const intervalIdx = practiceIntervalIdxForChannel(progress, channel, fixedIntervalIdx);
+			const type = reviewQuestionTypeForChannel(channel, intervalIdx);
+			if (!wordSupportsQuestionType(word, type)) continue;
+
 			const hardMode = soundMcqHardMode(intervalIdx, type);
 			const q = generateQuestionForWord(word, poolWords, type, questions.length, { hardMode });
-			if (q) {
-				questions.push(enrichQuestionWithProgress(q, progress, intervalIdx));
-			}
+			if (!q) continue;
+
+			questions.push(enrichQuestionWithProgress(q, progress, intervalIdx));
+			usage.set(word.id, (usage.get(word.id) ?? 0) + 1);
+			placed = true;
+			break;
 		}
 
 		channelRound++;
-		if (channelRound % ALL_SKILL_CHANNELS.length === 0) {
-			wordRound++;
+		if (placed) {
+			consecutiveMisses = 0;
+		} else {
+			consecutiveMisses++;
+			// Entire channel unsupported by the set (e.g. no fill examples) — skip and continue
+			if (consecutiveMisses >= ALL_SKILL_CHANNELS.length) break;
 		}
 	}
 
@@ -320,31 +343,42 @@ function generateSingleChannelPracticeSession(
 	channel: SkillChannel,
 	fixedIntervalIdx?: number,
 ): CnPracticeQuestionDTO[] {
+	const shuffled = shuffle(words);
 	const questions: CnPracticeQuestionDTO[] = [];
-	let wordRound = 0;
+	const usage = new Map<string, number>();
 	const maxAttempts = count * Math.max(1, words.length) * 2;
 
 	for (let attempt = 0; attempt < maxAttempts && questions.length < count; attempt++) {
-		const word = words[wordRound % words.length];
-		const progress = progressMap.get(word.id) ?? null;
-		const intervalIdx = practiceIntervalIdxForChannel(progress, channel, fixedIntervalIdx);
-		const type = reviewQuestionTypeForChannel(channel, intervalIdx);
+		const ordered = wordsByLeastUsage(shuffled, usage);
+		let placed = false;
 
-		if (wordSupportsQuestionType(word, type)) {
+		for (const word of ordered) {
+			const progress = progressMap.get(word.id) ?? null;
+			const intervalIdx = practiceIntervalIdxForChannel(progress, channel, fixedIntervalIdx);
+			const type = reviewQuestionTypeForChannel(channel, intervalIdx);
+			if (!wordSupportsQuestionType(word, type)) continue;
+
 			const hardMode = soundMcqHardMode(intervalIdx, type);
 			const q = generateQuestionForWord(word, poolWords, type, questions.length, { hardMode });
-			if (q) {
-				questions.push(enrichQuestionWithProgress(q, progress, intervalIdx));
-			}
+			if (!q) continue;
+
+			questions.push(enrichQuestionWithProgress(q, progress, intervalIdx));
+			usage.set(word.id, (usage.get(word.id) ?? 0) + 1);
+			placed = true;
+			break;
 		}
 
-		wordRound++;
+		if (!placed) break;
 	}
 
 	return spreadShuffle(questions).slice(0, count);
 }
 
-/** Rotate 3 channels using a fixed MCQ or fill-in type pool per channel. */
+/**
+ * Rotate 3 channels using a fixed MCQ or fill-in type pool per channel.
+ * Shuffles the set and prefers least-used words so sessions cover the full set
+ * instead of always drilling the same DB-ordered head (~7 words for count=20).
+ */
 function generateBalancedFormatPracticeSession(
 	words: CnWordCardDTO[],
 	count: number,
@@ -352,29 +386,40 @@ function generateBalancedFormatPracticeSession(
 	poolWords: CnWordCardDTO[],
 	typesByChannel: Record<SkillChannel, CnQuestionType[]>,
 ): CnPracticeQuestionDTO[] {
+	const shuffled = shuffle(words);
 	const questions: CnPracticeQuestionDTO[] = [];
+	const usage = new Map<string, number>();
 	let channelRound = 0;
-	let wordRound = 0;
+	let consecutiveMisses = 0;
 	const maxAttempts = count * Math.max(1, words.length) * ALL_SKILL_CHANNELS.length * 3;
 
 	for (let attempt = 0; attempt < maxAttempts && questions.length < count; attempt++) {
-		const word = words[wordRound % words.length];
 		const channel = ALL_SKILL_CHANNELS[channelRound % ALL_SKILL_CHANNELS.length];
-		const progress = progressMap.get(word.id) ?? null;
 		const typeCandidates = typesByChannel[channel];
+		const ordered = wordsByLeastUsage(shuffled, usage);
+		let placed = false;
 
-		for (const type of typeCandidates) {
-			if (!wordSupportsQuestionType(word, type)) continue;
-			const q = generateQuestionForWord(word, poolWords, type, questions.length);
-			if (q) {
+		for (const word of ordered) {
+			const progress = progressMap.get(word.id) ?? null;
+			for (const type of typeCandidates) {
+				if (!wordSupportsQuestionType(word, type)) continue;
+				const q = generateQuestionForWord(word, poolWords, type, questions.length);
+				if (!q) continue;
+
 				questions.push(enrichQuestionWithProgress(q, progress));
+				usage.set(word.id, (usage.get(word.id) ?? 0) + 1);
+				placed = true;
 				break;
 			}
+			if (placed) break;
 		}
 
 		channelRound++;
-		if (channelRound % ALL_SKILL_CHANNELS.length === 0) {
-			wordRound++;
+		if (placed) {
+			consecutiveMisses = 0;
+		} else {
+			consecutiveMisses++;
+			if (consecutiveMisses >= ALL_SKILL_CHANNELS.length) break;
 		}
 	}
 

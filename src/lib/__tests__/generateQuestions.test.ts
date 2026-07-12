@@ -210,4 +210,56 @@ describe('generateQuestions (7 core types)', () => {
 		expect(types.has('sound_to_hanzi')).toBe(true);
 		expect(types.has('meaning_to_hanzi_typed')).toBe(false);
 	});
+
+	it('mcq practice format only emits MCQ types (no typed)', () => {
+		const questions = generatePracticeSession(sampleWords, 12, {
+			practiceFormat: 'mcq',
+			distractorPool: sampleWords,
+		});
+		expect(questions.length).toBeGreaterThan(0);
+		for (const q of questions) {
+			expect(q.type.endsWith('_typed')).toBe(false);
+		}
+	});
+
+	it('mcq practice prefers unique words before repeating (covers set, not just head)', () => {
+		const manyWords: CnWordCardDTO[] = Array.from({ length: 20 }, (_, i) => ({
+			...sampleWords[i % 2],
+			id: `w-unique-${i}`,
+			simplified: `字${i}`,
+			pinyin: `zì${i}`,
+			meaningVi: `nghĩa ${i}`,
+			examples: [],
+		}));
+
+		const questions = generatePracticeSession(manyWords, 20, {
+			practiceFormat: 'mcq',
+			distractorPool: manyWords,
+		});
+		expect(questions.length).toBe(20);
+		const uniqueIds = new Set(questions.map((q) => q.wordId));
+		// Least-used first: with 20 words and 20 questions, expect near-full coverage
+		expect(uniqueIds.size).toBeGreaterThanOrEqual(15);
+	});
+
+	it('mcq practice varies which words appear across sessions (not stuck on DB order head)', () => {
+		const manyWords: CnWordCardDTO[] = Array.from({ length: 24 }, (_, i) => ({
+			...sampleWords[0],
+			id: `w-var-${i}`,
+			simplified: `词${i}`,
+			pinyin: `cí${i}`,
+			meaningVi: `từ ${i}`,
+			examples: [],
+		}));
+
+		const sessions = Array.from({ length: 8 }, () =>
+			generatePracticeSession(manyWords, 12, {
+				practiceFormat: 'mcq',
+				distractorPool: manyWords,
+			}),
+		);
+		const covered = new Set(sessions.flatMap((qs) => qs.map((q) => q.wordId)));
+		// Across sessions, shuffle + least-used should cover far more than the old ~4–7 head words
+		expect(covered.size).toBeGreaterThanOrEqual(16);
+	});
 });
