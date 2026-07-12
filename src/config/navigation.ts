@@ -11,6 +11,7 @@ export const MAIN_NAV: NavLink[] = [
 	{ href: '/shared-sets', label: 'Chia sẻ bộ từ', icon: 'share', shortLabel: 'Chia sẻ' },
 	{ href: '/hanzi-lab', label: 'Hanzi Lab', icon: 'science', shortLabel: 'Lab' },
 	{ href: '/review', label: 'Luyện SRS', icon: 'history', shortLabel: 'SRS' },
+	{ href: '/hht', label: 'HHT Mode', icon: 'quiz', shortLabel: 'HHT' },
 	{ href: '/inferno', label: 'Địa Ngục', icon: 'local_fire_department', shortLabel: 'Inferno' },
 	{ href: '/dashboard', label: 'Báo cáo học tập', icon: 'trending_up', shortLabel: 'Báo cáo' },
 ];
@@ -19,6 +20,7 @@ export const BOTTOM_NAV: NavLink[] = [
 	{ href: '/', label: 'Trang chủ', icon: 'home', shortLabel: 'Home' },
 	{ href: '/sets', label: 'Luyện tập', icon: 'menu_book', shortLabel: 'Luyện tập' },
 	{ href: '/review', label: 'Luyện SRS', icon: 'refresh', shortLabel: 'SRS' },
+	{ href: '/hht', label: 'HHT Mode', icon: 'quiz', shortLabel: 'HHT' },
 	{ href: '/inferno', label: 'Địa Ngục', icon: 'local_fire_department', shortLabel: 'Địa ngục' },
 	{ href: '/dashboard', label: 'Báo cáo học tập', icon: 'query_stats', shortLabel: 'Báo cáo' },
 ];

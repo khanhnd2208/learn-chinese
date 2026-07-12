@@ -62,6 +62,7 @@ enum CnAnswerSource {
   mark_known
   integrated
   inferno
+  hht
 }
 
 enum CnHanziAiContentStatus {
@@ -214,6 +215,7 @@ model CnWord {
   progress        CnWordProgress[]
   answerLogs      CnAnswerLog[]
   infernoProgress CnInfernoProgress[]
+  hhtProgress     CnHhtProgress[]
   @@index([status])
   @@index([hskLevel])
 }
@@ -371,6 +373,21 @@ model CnInfernoProgress {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
   word           CnWord    @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  @@unique([userId, wordId])
+  @@index([userId])
+}
+
+model CnHhtProgress {
+  id              String    @id @default(cuid())
+  userId          String
+  wordId          String
+  selectionWeight Float     @default(1.0)
+  correctCount    Int       @default(0)
+  wrongCount      Int       @default(0)
+  lastAnsweredAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  word            CnWord    @relation(fields: [wordId], references: [id], onDelete: Cascade)
   @@unique([userId, wordId])
   @@index([userId])
 }

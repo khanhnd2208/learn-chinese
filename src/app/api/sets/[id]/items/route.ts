@@ -1,7 +1,6 @@
 import { withAuth, apiSuccess, apiError } from '@/lib/apiUtils';
-import { CN_MAX_BULK_ITEM_IDS, validateBulkItemIds, validateSetTerms } from '@/lib/apiValidation';
+import { CN_MAX_BULK_ITEM_IDS, validateBulkItemIds } from '@/lib/apiValidation';
 import {
-	addTermsToSet,
 	moveItemToSet,
 	removeItemFromSet,
 	removeItemsFromSet,
@@ -24,15 +23,16 @@ export const GET = withAuth(async (request, user, ctx) => {
 	return apiSuccess(preview);
 });
 
-export const POST = withAuth(async (request, user, ctx) => {
-	const { id } = await (ctx as Ctx).params;
+export const POST = withAuth(async (request, _user, ctx) => {
+	await (ctx as Ctx).params;
 	const body = await request.json() as { terms?: string[] };
-	if (!validateSetTerms(body.terms)) {
-		return apiError('terms không hợp lệ (cần 1–200 từ, không rỗng)', 400);
+	if (body.terms) {
+		return apiError(
+			'Thêm từ vào bộ cần đủ trường (pinyin, nghĩa, 5 ví dụ). Dùng AI Smart Import trên trang bộ từ.',
+			400,
+		);
 	}
-	const result = await addTermsToSet(user.id, id, body.terms);
-	if (!result) return apiError('Set not found', 404);
-	return apiSuccess(result);
+	return apiError('terms không hợp lệ', 400);
 });
 
 export const PATCH = withAuth(async (request, user, ctx) => {
