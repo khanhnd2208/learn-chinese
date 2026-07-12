@@ -57,6 +57,9 @@ export function practiceModeLabel(mode: string): string {
 		listening: 'Âm đọc',
 		pinyin: 'Âm đọc',
 		sentence: 'Câu',
+		mcq: 'Chỉ MCQ',
+		mcqs: 'Chỉ MCQ',
+		practice_mcq: 'Chỉ MCQ',
 	};
 	return labels[mode] ?? 'Luyện tập';
 }
@@ -66,6 +69,13 @@ export const PRACTICE_MIX_MODE = {
 	label: 'Tổng hợp',
 	description: 'Xen 3 kênh · level SRS theo tiến độ từng từ',
 	icon: 'shuffle',
+} as const;
+
+export const PRACTICE_MCQ_MODE = {
+	mode: 'mcq',
+	label: 'Chỉ MCQ',
+	description: 'Chọn đáp án — xen 3 kênh, không gõ chữ',
+	icon: 'quiz',
 } as const;
 
 /** Fixed SRS difficulty — rotates all 3 channels at the chosen level (does not change SRS data). */

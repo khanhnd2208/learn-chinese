@@ -56,6 +56,26 @@ function wordSupportsAnyMcq(word: CnWordCardDTO): boolean {
 	return PRACTICE_MCQ_TYPES.some((type) => wordSupportsQuestionType(word, type));
 }
 
+/** Count user sets with srsActive — matches sets page SRS toggles. */
+export async function countSrsActiveSets(userId: string): Promise<number> {
+	return prisma.cnWordSet.count({
+		where: { userId, srsActive: true },
+	});
+}
+
+/** Stats when the session cannot generate questions yet (pool may still be non-empty). */
+export function hhtSessionStatsWhenNoQuestions(
+	wordCount: number,
+	activeSetCount: number,
+	eligibleWordCount = 0,
+): Pick<HhtSessionResult, 'totalEnrolled' | 'activeSetCount' | 'eligibleWordCount'> {
+	return {
+		totalEnrolled: wordCount,
+		activeSetCount,
+		eligibleWordCount,
+	};
+}
+
 /** SRS-active set items with published wordId. */
 export async function buildHhtSetWordEntries(userId: string): Promise<HhtSetWordEntry[]> {
 	const items = await prisma.cnWordSetItem.findMany({
@@ -155,15 +175,22 @@ export async function buildHhtSession(
 	const wordIds = [...activeWordIds];
 	await ensureEnrollmentForActiveWords(userId, wordIds);
 
-	const entries = await buildHhtSetWordEntries(userId);
-	const activeSetCount = new Set(entries.map((e) => e.setId)).size;
+	const [activeSetCount, entries] = await Promise.all([
+		countSrsActiveSets(userId),
+		buildHhtSetWordEntries(userId),
+	]);
 
-	if (!wordIds.length || !entries.length) {
+	if (!wordIds.length) {
 		return {
 			questions: [],
-			totalEnrolled: 0,
-			activeSetCount: 0,
-			eligibleWordCount: 0,
+			...hhtSessionStatsWhenNoQuestions(0, 0),
+		};
+	}
+
+	if (!entries.length) {
+		return {
+			questions: [],
+			...hhtSessionStatsWhenNoQuestions(wordIds.length, activeSetCount),
 		};
 	}
 
@@ -277,11 +304,27 @@ export async function submitHhtResults(
 export async function getHhtGateStats(userId: string): Promise<{
 	totalEnrolled: number;
 	activeSetCount: number;
+	eligibleWordCount: number;
 }> {
-	const wordIds = await resolveSrsPoolWordIds(userId);
-	const entries = await buildHhtSetWordEntries(userId);
+	const [wordIds, activeSetCount] = await Promise.all([
+		resolveSrsPoolWordIds(userId),
+		countSrsActiveSets(userId),
+	]);
+	const wordIdList = [...wordIds];
+
+	if (!wordIdList.length) {
+		return { totalEnrolled: 0, activeSetCount, eligibleWordCount: 0 };
+	}
+
+	const cardMap = await getWordCardsForSrsPool(userId, wordIdList);
+	const eligibleWordCount = wordIdList.filter((id) => {
+		const card = cardMap.get(id);
+		return card && wordSupportsAnyMcq(card);
+	}).length;
+
 	return {
 		totalEnrolled: wordIds.size,
-		activeSetCount: new Set(entries.map((e) => e.setId)).size,
+		activeSetCount,
+		eligibleWordCount,
 	};
 }
