@@ -54,6 +54,14 @@ export const INFERNO_WRONG_FLAT = 30;
 export const INFERNO_WRONG_PCT = 0.25;
 export const INFERNO_MASTERY_THRESHOLD = 300;
 export const INFERNO_MIN_ENROLLED = 50;
+
+/** HHT Mode — MCQ practice across all SRS-active sets */
+export const CN_HHT_PREFETCH_SIZE = 20;
+export const CN_MAX_HHT_FETCH_LIMIT = 50;
+export const HHT_MIN_ENROLLED = 10;
+export const HHT_WEIGHT_DECAY = 0.85;
+export const HHT_MIN_WEIGHT = 0.15;
+
 export const SESSION_MAX_AGE_SECONDS = 30 * 24 * 60 * 60;
 export const CN_CHANNEL_WEAK_THRESHOLD = 60;
 

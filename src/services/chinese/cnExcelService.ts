@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import type { Prisma } from '@prisma/client';
 import { AppError } from '@/lib/appError';
 import { MAX_CN_TERMS_PER_SET, MAX_IMPORT_ROWS } from '@/config/constants';
 import {
@@ -663,6 +664,62 @@ export async function previewUserWorkbookBuffer(buffer: Buffer, userId?: string)
 	};
 }
 
+function filterValidTuVungRows(parsedRows: ParsedTuVungRow[]): ParsedTuVungRow[] {
+	return parsedRows.filter(
+		(row) => row.boTu && row.simplified && row.pinyin && row.meaningVi
+			&& row.examples.length >= MIN_FILL_EXAMPLES_PER_WORD,
+	);
+}
+
+async function upsertTuVungWordsAndExamples(
+	tx: Prisma.TransactionClient,
+	parsedRows: ParsedTuVungRow[],
+): Promise<Map<string, string>> {
+	const wordIdBySimplified = new Map<string, string>();
+
+	for (const row of parsedRows) {
+		const word = await tx.cnWord.upsert({
+			where: { simplified: row.simplified },
+			create: {
+				simplified: row.simplified,
+				pinyin: row.pinyin,
+				hanViet: row.hanViet,
+				meaningVi: row.meaningVi,
+				partOfSpeech: row.partOfSpeech,
+				ghiChu: row.ghiChu,
+				status: 'published',
+			},
+			update: {
+				pinyin: row.pinyin,
+				hanViet: row.hanViet,
+				meaningVi: row.meaningVi,
+				partOfSpeech: row.partOfSpeech,
+				ghiChu: row.ghiChu,
+				status: 'published',
+			},
+		});
+		wordIdBySimplified.set(row.simplified, word.id);
+
+		await tx.cnExample.deleteMany({ where: { wordId: word.id } });
+		if (row.examples.length) {
+			await tx.cnExample.createMany({
+				data: row.examples.map((ex) => ({
+					wordId: word.id,
+					hanzi: ex.hanzi,
+					pinyin: ex.pinyin,
+					meaningVi: ex.meaningVi,
+					meaningViTemplate: ex.meaningViTemplate,
+					naturalnessStatus: ex.naturalnessStatus,
+					targetWordStart: ex.targetWordStart,
+					targetWordEnd: ex.targetWordEnd,
+				})),
+			});
+		}
+	}
+
+	return wordIdBySimplified;
+}
+
 async function importTuVungWorkbook(
 	userId: string,
 	workbook: ExcelWorkbookData,
@@ -670,10 +727,7 @@ async function importTuVungWorkbook(
 	options: ImportTuVungOptions = {},
 ): Promise<{ preview: UserWorkbookPreview; createdSetIds: string[] }> {
 	const rows = sanitizeSheetRows(rowsFromSheet(workbook, 'tu_vung'));
-	const parsedRows = parseTuVungRows(rows).filter(
-		(row) => row.boTu && row.simplified && row.pinyin && row.meaningVi
-			&& row.examples.length >= MIN_FILL_EXAMPLES_PER_WORD,
-	);
+	const parsedRows = filterValidTuVungRows(parseTuVungRows(rows));
 
 	const existingSets = await prisma.cnWordSet.findMany({
 		where: { userId },
@@ -683,47 +737,7 @@ async function importTuVungWorkbook(
 	const createdSetIds: string[] = [];
 
 	await prisma.$transaction(async (tx) => {
-		const wordIdBySimplified = new Map<string, string>();
-
-		for (const row of parsedRows) {
-			const word = await tx.cnWord.upsert({
-				where: { simplified: row.simplified },
-				create: {
-					simplified: row.simplified,
-					pinyin: row.pinyin,
-					hanViet: row.hanViet,
-					meaningVi: row.meaningVi,
-					partOfSpeech: row.partOfSpeech,
-					ghiChu: row.ghiChu,
-					status: 'published',
-				},
-				update: {
-					pinyin: row.pinyin,
-					hanViet: row.hanViet,
-					meaningVi: row.meaningVi,
-					partOfSpeech: row.partOfSpeech,
-					ghiChu: row.ghiChu,
-					status: 'published',
-				},
-			});
-			wordIdBySimplified.set(row.simplified, word.id);
-
-			await tx.cnExample.deleteMany({ where: { wordId: word.id } });
-			if (row.examples.length) {
-				await tx.cnExample.createMany({
-					data: row.examples.map((ex) => ({
-						wordId: word.id,
-						hanzi: ex.hanzi,
-						pinyin: ex.pinyin,
-						meaningVi: ex.meaningVi,
-						meaningViTemplate: ex.meaningViTemplate,
-						naturalnessStatus: ex.naturalnessStatus,
-						targetWordStart: ex.targetWordStart,
-						targetWordEnd: ex.targetWordEnd,
-					})),
-				});
-			}
-		}
+		const wordIdBySimplified = await upsertTuVungWordsAndExamples(tx, parsedRows);
 
 		const rowsBySet = new Map<string, ParsedTuVungRow[]>();
 		for (const row of parsedRows) {
@@ -988,4 +1002,118 @@ export async function importPastedTuVung(
 		setDescription: '',
 	});
 	return preview;
+}
+
+function appendSetCapacityErrors(
+	preview: UserWorkbookPreview,
+	setTitle: string,
+	existingRawTerms: string[],
+	incomingSimplified: string[],
+): UserWorkbookPreview {
+	const existingTerms = new Set(
+		existingRawTerms.map((t) => normalizeTerm(t)).filter(Boolean),
+	);
+	const newTerms = new Set<string>();
+	for (const term of incomingSimplified) {
+		const normalized = normalizeTerm(term);
+		if (!normalized) continue;
+		if (existingTerms.has(normalized) || newTerms.has(normalized)) continue;
+		newTerms.add(normalized);
+	}
+	const projected = existingTerms.size + newTerms.size;
+	if (projected > MAX_CN_TERMS_PER_SET) {
+		return {
+			...preview,
+			errors: [
+				...preview.errors,
+				`Bộ "${setTitle}" sẽ vượt ${MAX_CN_TERMS_PER_SET} từ (hiện ${existingTerms.size}, thêm ${newTerms.size})`,
+			],
+		};
+	}
+	return preview;
+}
+
+export async function previewTuVungIntoSet(
+	userId: string,
+	setId: string,
+	text: string,
+): Promise<UserWorkbookPreview | null> {
+	const set = await prisma.cnWordSet.findFirst({
+		where: { id: setId, userId },
+		include: { items: { select: { rawTerm: true } } },
+	});
+	if (!set) return null;
+
+	const preview = await previewPastedTuVung(text, set.title, userId);
+	const pastedRows = parsePastedTuVung(text, set.title);
+	const incomingSimplified = pastedRows
+		.map((row) => getField(row as Row, 'simplified'))
+		.filter(Boolean);
+
+	return appendSetCapacityErrors(
+		preview,
+		set.title,
+		set.items.map((item) => item.rawTerm),
+		incomingSimplified,
+	);
+}
+
+export async function importTuVungIntoSet(
+	userId: string,
+	setId: string,
+	text: string,
+): Promise<{ preview: UserWorkbookPreview; addedCount: number } | null> {
+	const set = await prisma.cnWordSet.findFirst({
+		where: { id: setId, userId },
+		include: { items: { select: { rawTerm: true } } },
+	});
+	if (!set) return null;
+
+	const preview = await previewTuVungIntoSet(userId, setId, text);
+	if (!preview || preview.errors.length) {
+		return preview ? { preview, addedCount: 0 } : null;
+	}
+
+	const rows = sanitizeSheetRows(parsePastedTuVung(text, set.title) as Row[]);
+	const parsedRows = filterValidTuVungRows(parseTuVungRows(rows));
+	const existingTerms = new Set(
+		set.items.map((item) => normalizeTerm(item.rawTerm)).filter(Boolean),
+	);
+	const newWordIds: string[] = [];
+	let addedCount = 0;
+
+	await prisma.$transaction(async (tx) => {
+		const wordIdBySimplified = await upsertTuVungWordsAndExamples(tx, parsedRows);
+		const seenTerms = new Set(existingTerms);
+
+		for (const row of parsedRows) {
+			if (seenTerms.size >= MAX_CN_TERMS_PER_SET) break;
+			const term = normalizeTerm(row.simplified);
+			if (!term || seenTerms.has(term)) continue;
+			const wordId = wordIdBySimplified.get(row.simplified);
+			if (!wordId) continue;
+
+			await tx.cnWordSetItem.create({
+				data: {
+					setId,
+					rawTerm: row.simplified,
+					wordId,
+				},
+			});
+			seenTerms.add(term);
+			newWordIds.push(wordId);
+			addedCount++;
+		}
+
+		await tx.cnWordSet.update({
+			where: { id: setId },
+			data: { updatedAt: new Date() },
+		});
+	});
+
+	if (set.srsActive && newWordIds.length) {
+		await enrollWordsInSrs(userId, newWordIds);
+	}
+
+	return { preview, addedCount };
 }

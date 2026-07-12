@@ -74,6 +74,7 @@ export async function buildPracticeSession(
 		group,
 		targetChannel: sessionMode.targetChannel,
 		fixedIntervalIdx: sessionMode.fixedIntervalIdx,
+		practiceFormat: sessionMode.practiceFormat,
 		progressMap,
 		distractorPool,
 	});
