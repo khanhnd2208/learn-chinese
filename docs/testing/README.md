@@ -7,8 +7,6 @@ Index of domain-scoped QA scenarios. Load only the file you need (saves agent co
 ```bash
 npm run quality          # test + lint + build
 npm run typecheck
-npm run harness:hanzi    # offline Hanzi golden cases
-npm run harness:hanzi:report -- --json
 npx prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code
 ```
 
@@ -18,7 +16,6 @@ npx prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/s
 |-----|-------|
 | [auth.md](auth.md) | Auth, permissions, homepage, demo seed |
 | [srs-practice.md](srs-practice.md) | Sets, practice engine, SRS, dashboard |
-| [hanzi-ai.md](hanzi-ai.md) | Hanzi Lab, word detail, P0 Hanzi AI smoke |
 | [excel-import.md](excel-import.md) | Admin CSV/XLSX, Excel round-trip |
 
 ## Full archive
@@ -32,7 +29,7 @@ Includes P1 edge cases, user cases UC01–UC10, P2 automation proposals, known b
 1. Seed content and login as admin + regular user
 2. [auth.md](auth.md) — smoke auth
 3. [srs-practice.md](srs-practice.md) — create set, practice, review, dashboard
-4. [hanzi-ai.md](hanzi-ai.md) — Hanzi Lab + word detail
+4. Word detail smoke test — open `/words/{id}` from a set and verify tabs render
 5. [excel-import.md](excel-import.md) — admin import + Excel round-trip
 6. Mobile/desktop visual pass
 7. Production smoke after migrate deploy (see archive-full.md UC10)

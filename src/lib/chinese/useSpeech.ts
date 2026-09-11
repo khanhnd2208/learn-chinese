@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 export function useSpeech() {
 	const [supported, setSupported] = useState(false);
 	const [speaking, setSpeaking] = useState(false);
+	const [failed, setFailed] = useState(false);
 	const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
 
 	useEffect(() => {
@@ -20,21 +21,34 @@ export function useSpeech() {
 		return () => {
 			window.clearTimeout(supportTimer);
 			window.speechSynthesis.removeEventListener('voiceschanged', loadVoices);
+			window.speechSynthesis.cancel();
 		};
 	}, []);
 
-	const speak = useCallback((text: string, lang = 'zh-CN') => {
-		if (!supported || !text.trim()) return;
-		window.speechSynthesis.cancel();
-		const utterance = new SpeechSynthesisUtterance(text);
-		utterance.lang = lang;
-		utterance.rate = 0.9;
-		const zhVoice = voicesRef.current.find((v) => v.lang.startsWith('zh'));
-		if (zhVoice) utterance.voice = zhVoice;
-		utterance.onstart = () => setSpeaking(true);
-		utterance.onend = () => setSpeaking(false);
-		utterance.onerror = () => setSpeaking(false);
-		window.speechSynthesis.speak(utterance);
+	const speak = useCallback((text: string, lang = 'zh-CN'): boolean => {
+		if (!supported || !text.trim()) return false;
+		try {
+			window.speechSynthesis.cancel();
+			const utterance = new SpeechSynthesisUtterance(text);
+			utterance.lang = lang;
+			utterance.rate = 0.9;
+			const zhVoice = voicesRef.current.find((v) => v.lang.startsWith('zh'));
+			if (zhVoice) utterance.voice = zhVoice;
+			utterance.onstart = () => setSpeaking(true);
+			utterance.onend = () => setSpeaking(false);
+			utterance.onerror = (event) => {
+				setSpeaking(false);
+				if (event.error !== 'interrupted' && event.error !== 'canceled') {
+					setFailed(true);
+				}
+			};
+			setFailed(false);
+			window.speechSynthesis.speak(utterance);
+			return true;
+		} catch {
+			setFailed(true);
+			return false;
+		}
 	}, [supported]);
 
 	const stop = useCallback(() => {
@@ -44,5 +58,5 @@ export function useSpeech() {
 		}
 	}, [supported]);
 
-	return { supported, speaking, speak, stop };
+	return { supported, speaking, failed, speak, stop };
 }

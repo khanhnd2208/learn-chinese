@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
+import ThemeToggle from '@/components/ui/ThemeToggle';
 import { MAIN_NAV, isNavActive } from '@/config/navigation';
 import { reviewBadgePressureClass, useReviewStatus } from '@/lib/chinese/useDueTodayCount';
 
@@ -79,7 +80,12 @@ export default function AppSidebar({ dimmed = false }: Props) {
 					Học ngay
 				</Link>
 
-				<div className="mt-6 flex flex-col gap-1 border-t border-border pt-4">
+				<div className="mt-4 flex items-center justify-between px-2">
+					<span className="label-caps">Giao diện</span>
+					<ThemeToggle />
+				</div>
+
+				<div className="mt-4 flex flex-col gap-1 border-t border-border pt-4">
 					{session?.user ? (
 						<button
 							type="button"

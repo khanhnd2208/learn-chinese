@@ -12,8 +12,14 @@ colors:
   foreground-secondary: "#4a3f38"
   muted: "#8a7b72"
   border: "#ddd2c4"
-  primary: "#c41e3a"
-  primary-hover: "#9e1830"
+  accent: "#9e0027"
+  accent-bright: "#c41e3a"
+  accent-hover: "#e8364f"
+  accent-subtle: "#fdf0f2"
+  accent-foreground: "#ffffff"
+  # Legacy aliases (docs/agents): primary = accent
+  primary: "#9e0027"
+  primary-hover: "#e8364f"
   primary-subtle: "#fdf0f2"
   on-primary: "#ffffff"
   ink: "#1a1a1a"
@@ -151,9 +157,11 @@ components:
 
 # Learn Chinese — Design System
 
+> **UI/UX docs:** See `docs/product/`, `docs/ux/`, `docs/design/`, `docs/qa/` for full design system workflow. Component showcase: `/dev/ui` (admin only).
+
 ## Overview
 
-**Learn Chinese** (Vietnamese: *Học Hán Ngữ*) is a web app that helps Vietnamese speakers master Mandarin Chinese vocabulary. Users create word sets from class notes or HSK lists, study multi-layer word cards, practice with 12 question types, review with spaced repetition (SRS), and analyze characters in Hanzi Lab.
+**Learn Chinese** (Vietnamese: *Học Hán Ngữ*) is a web app that helps Vietnamese speakers master Mandarin Chinese vocabulary. Users create word sets from class notes or HSK lists, study multi-layer word cards, practice with core question types, and review with spaced repetition (SRS).
 
 **Brand personality:** Scholarly yet approachable — like a well-designed study notebook with vermillion seals and warm rice-paper pages. Not childish, not corporate. Calm, focused, culturally grounded.
 
@@ -179,10 +187,9 @@ Design every screen below as a cohesive system. Desktop-first (sidebar layout), 
 | 6 | Word Card | `/words/[id]` | **Core screen** — 5 tabs (see below) |
 | 7 | Practice Session | `/practice/[setId]` | Question card, progress bar, instant feedback |
 | 8 | SRS Review | `/review` | Daily review queue, up to 25 words |
-| 9 | Hanzi Lab | `/hanzi-lab` | Character analyzer input + breakdown panel |
-| 10 | Listening Picker | `/listening` | Choose a set for listening practice |
-| 11 | Progress Dashboard | `/dashboard` | Error analytics, weak words, channel accuracy |
-| 12 | Admin CMS | `/admin` | CSV import, preview, publish (admin only) |
+| 9 | Listening Picker | `/listening` | Choose a set for listening practice |
+| 10 | Progress Dashboard | `/dashboard` | Error analytics, weak words, channel accuracy |
+| 11 | Admin CMS | `/admin` | CSV import, preview, publish (admin only) |
 
 **Word Card — 5 tabs (most important UI):**
 1. **Tổng quan** — meaning, Hán Việt, mnemonic, related words, action links
@@ -237,7 +244,7 @@ Dual-font strategy: Latin/Vietnamese UI in **Source Sans 3**, Chinese characters
 - **Hanzi display:** Noto Sans SC Black 36–48px. The visual anchor on word cards and practice questions. Always largest element on screen.
 - **Pinyin:** Source Sans 3 Bold 18px in primary vermillion. Sits directly below or beside hanzi.
 - **Hán Việt:** Source Sans 3 Semibold 14px, italic optional, foreground-secondary.
-- **Monospace inputs:** System mono for paste areas (word lists, Hanzi Lab batch input).
+- **Monospace inputs:** System mono for paste areas and structured import text.
 
 **Hierarchy rule:** On any learning screen, the Chinese character is always the visual hero. Vietnamese UI chrome stays quiet and small.
 
@@ -254,7 +261,7 @@ Dual-font strategy: Latin/Vietnamese UI in **Source Sans 3**, Chinese characters
 
 **Mobile (<1024px):**
 - Collapse sidebar into bottom tab bar (5–6 items) OR hamburger drawer.
-- Bottom nav: Home, Bộ từ, Ôn tập, Hanzi Lab, Tiến bộ.
+- Bottom nav: Home, Bộ từ, Ôn tập, Tiến bộ.
 - Word card tabs: horizontal scrollable pill tabs.
 - Practice: full-screen question with large tap targets (min 48px).
 
@@ -300,7 +307,7 @@ The shape language balances **soft study warmth** (rounded cards) with **decisiv
 
 ### Sidebar Navigation
 - Wordmark block at top with micro label + Learn**Chinese** lockup
-- 6 items: Trang chủ, Bộ từ, Hanzi Lab, Luyện nghe, Ôn tập, Tiến bộ
+- Core items: Trang chủ, Bộ từ, Ôn tập, Tiến bộ, plus contextual/admin entries as needed
 - Active: filled primary pill. Inactive: secondary text, hover surface-hover bg
 - Footer: user name (truncated) + Đăng xuất link
 - Admin CMS item (conditional): ink-black active state
@@ -335,12 +342,6 @@ The shape language balances **soft study warmth** (rounded cards) with **decisiv
 ### SRS Review
 - Similar to practice but calmer — "Ôn hôm nay" header with due count
 - Completion screen: "Ôn xong!" with celebration (subtle, not confetti overload)
-
-### Hanzi Lab
-- Monospace textarea for batch input (max 15 chars)
-- Results: character grid with breakdown cards per char
-- Radical highlighted in primary, components in muted boxes
-- Similar-character group as horizontal chip row
 
 ### Dashboard
 - Channel accuracy: horizontal bar chart (meaning, pinyin, listening, sentence, radical)
@@ -383,7 +384,7 @@ The shape language balances **soft study warmth** (rounded cards) with **decisiv
 - Don't add drop shadows or glass effects
 - Don't use multiple accent colors competing with vermillion
 - Don't use playful cartoon mascots or excessive gamification
-- Don't use English for UI labels (except brand name "Learn Chinese" and "Hanzi Lab")
+- Don't use English for UI labels (except brand name "Learn Chinese")
 - Don't make hanzi smaller than supporting text
 - Don't use red for errors AND primary actions without clear context differentiation
 - Don't design dense data tables — prefer card lists

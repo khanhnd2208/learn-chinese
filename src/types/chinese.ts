@@ -205,6 +205,31 @@ export interface CnWordSetListItemDTO {
 	updatedAt: string;
 }
 
+export interface FlashcardExampleDTO {
+	id: string;
+	hanzi: string;
+	pinyin: string;
+	meaningVi: string;
+	targetWordStart: number | null;
+	targetWordEnd: number | null;
+}
+
+export interface FlashcardCardDTO {
+	id: string;
+	itemId: string;
+	simplified: string;
+	pinyin: string;
+	meaningVi: string;
+	examples: FlashcardExampleDTO[];
+}
+
+export interface FlashcardDeckDTO {
+	setId: string;
+	title: string;
+	cards: FlashcardCardDTO[];
+	skippedCount: number;
+}
+
 export interface CnPracticeQuestionDTO {
 	id: string;
 	wordId: string;

@@ -26,6 +26,11 @@
 	--warning: #b45309;
 	--error: #ba1a1a;
 	--sidebar-width: 240px;
+	/* Motion */
+	--duration-instant: 100ms;
+	--duration-fast: 150ms;
+	--duration-standard: 220ms;
+	--duration-slow: 320ms;
 }
 
 .dark {
@@ -73,6 +78,46 @@
 	--color-success-subtle: var(--success-subtle);
 	--color-warning: var(--warning);
 	--color-error: var(--error);
+
+	/* Spacing scale */
+	--spacing-0: 0px;
+	--spacing-0_5: 2px;
+	--spacing-1: 4px;
+	--spacing-2: 8px;
+	--spacing-3: 12px;
+	--spacing-4: 16px;
+	--spacing-5: 20px;
+	--spacing-6: 24px;
+	--spacing-8: 32px;
+	--spacing-10: 40px;
+	--spacing-12: 48px;
+	--spacing-16: 64px;
+
+	/* Radius */
+	--radius-control: 8px;
+	--radius-card: 12px;
+	--radius-panel: 16px;
+	--radius-dialog: 20px;
+	--radius-pill: 9999px;
+
+	/* Elevation shadows (use sparingly) */
+	--shadow-elevated: 0 4px 12px rgb(34 26 22 / 0.08);
+	--shadow-overlay: 0 8px 24px rgb(34 26 22 / 0.12);
+
+	/* Z-index */
+	--z-index-sticky: 30;
+	--z-index-sidebar: 40;
+	--z-index-dropdown: 50;
+	--z-index-overlay: 60;
+	--z-index-dialog: 70;
+	--z-index-toast: 80;
+	--z-index-critical: 90;
+
+	/* Motion */
+	--duration-instant: var(--duration-instant);
+	--duration-fast: var(--duration-fast);
+	--duration-standard: var(--duration-standard);
+	--duration-slow: var(--duration-slow);
 }
 
 body {
@@ -93,9 +138,18 @@ body::before {
 	background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
 }
 
-.hanzi-display,
+.hanzi-display {
+	font-family: var(--font-hanzi), "PingFang SC", "Noto Sans SC", sans-serif;
+	font-size: 3rem;
+	font-weight: 900;
+	line-height: 1.1;
+}
+
 .hanzi-lg {
 	font-family: var(--font-hanzi), "PingFang SC", "Noto Sans SC", sans-serif;
+	font-size: 2.25rem;
+	font-weight: 900;
+	line-height: 1.2;
 }
 
 .material-symbols-outlined {

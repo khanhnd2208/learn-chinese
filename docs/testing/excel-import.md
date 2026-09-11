@@ -68,7 +68,7 @@ Hien trang can luu y: code hien co da doc `.xlsx/.xls` cho admin content import,
 14. Import Excel co Unicode tieng Trung, pinyin co dau, tieng Viet co dau.
     - Ky vong: giu nguyen encoding sau import/export; khong mat dau tieng Viet/pinyin.
 15. Import content word voi `chars` khong ton tai trong sheet hanzi/DB.
-    - Ky vong mong muon: tao `CnHanzi` draft placeholder hoac bao warning ro. Neu auto-create thi status theo row va phai test Hanzi Lab khong crash.
+    - Ky vong mong muon: tao `CnHanzi` draft placeholder hoac bao warning ro. Neu auto-create thi status theo row va word detail khong crash.
 16. Import content word voi example khong chua `simplified`.
     - Ky vong: preview warning vi `fill_sentence` se khong sinh cau; publish chi cho phep neu admin xac nhan.
 17. Import pattern samples sai format.

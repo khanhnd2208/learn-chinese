@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { CnImportPreview } from '@/lib/chinese/parseChineseFile';
 import type { CnWordDTO } from '@/types/chinese';
-import HanziAiAdminPanel from './HanziAiAdminPanel';
 import UserMessageAdminPanel from '@/components/admin/UserMessageAdminPanel';
 
 export default function AdminChinesePage() {
@@ -132,7 +131,6 @@ export default function AdminChinesePage() {
 				</div>
 			</div>
 
-			<HanziAiAdminPanel />
 			<UserMessageAdminPanel />
 		</div>
 	);

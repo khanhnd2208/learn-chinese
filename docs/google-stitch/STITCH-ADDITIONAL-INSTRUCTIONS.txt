@@ -29,7 +29,7 @@ LAYOUT:
 LANGUAGE:
 - ALL UI labels in Vietnamese (Trang chủ, Bộ từ, Ôn tập, Luyện nghe, Tiến bộ, etc.)
 - Chinese content only for vocabulary (simplified characters)
-- Keep "Learn Chinese", "Hanzi Lab", "Vocabulary Mastery" in English as brand terms
+- Keep "Learn Chinese", "legacy character analysis", "Vocabulary Mastery" in English as brand terms
 
 INTERACTION PATTERNS:
 - One primary vermillion CTA per screen maximum

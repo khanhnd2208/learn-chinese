@@ -1,0 +1,45 @@
+---
+description: UI/UX design system workflow for Learn Chinese
+globs: src/components/**,src/app/**/*.tsx,docs/design/**,docs/ux/**
+alwaysApply: false
+---
+
+# UI/UX workflow
+
+Entry: `DESIGN.md` → task-specific docs in `docs/design/`, `docs/ux/`, `docs/product/`.
+
+## Before changing UI
+
+1. Read `DESIGN.md` (brand, do/don't)
+2. Read relevant flow in `docs/ux/flows/`
+3. Read `docs/design/FOUNDATIONS.md` + `COMPONENT_STANDARDS.md`
+4. Inspect `src/components/ui/` and `/dev/ui` UI Lab
+5. List all states: loading, empty, error, success, disabled
+6. Propose plan — do not redesign unrelated screens
+
+## Design requirements
+
+- Use semantic tokens from `globals.css` `@theme` — no arbitrary values
+- Reuse `src/components/ui/` components (`Button`, `Card`, `Dialog`, etc.)
+- One primary (accent) CTA per view
+- Vietnamese UI copy; hanzi is visual hero on learning screens
+- Mobile + desktop behavior intentional
+- Support `prefers-reduced-motion`
+- All states designed — not just happy path
+
+## Engineering requirements
+
+- Preserve business logic and API contracts
+- No new UI dependencies without justification
+- Semantic HTML, keyboard navigation, visible focus
+- Run `npm run quality` before finishing
+
+## Agent roles (multi-turn)
+
+1. Auditor — read only, no code changes
+2. Implementer — follow specs, no new visual direction
+3. QA Reviewer — compare code vs `docs/qa/VISUAL_QA.md`
+
+## Golden slice reference
+
+Practice + SRS + Inferno + Dashboard — complete these to ≥80 scorecard before scaling.

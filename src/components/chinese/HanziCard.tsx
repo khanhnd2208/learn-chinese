@@ -113,11 +113,8 @@ export default function HanziCard({ word, setId }: Props) {
 								</div>
 							</div>
 						)}
-						<div className="flex flex-wrap gap-2 pt-2">
-							<Link href={`/hanzi-lab?term=${encodeURIComponent(word.simplified)}`} className="btn-secondary">
-								Phân tích chữ
-							</Link>
-							{setId && (
+							<div className="flex flex-wrap gap-2 pt-2">
+								{setId && (
 								<Link href={practiceHref('smart_mixed')} className="btn-primary">
 									Luyện từ này
 								</Link>

@@ -2,7 +2,7 @@
 
 > **Mục đích:** Tài liệu này dành cho Google Stitch thiết kế lại **Dashboard tiến bộ** (`/dashboard`, `/review/stats`) và **giao diện SRS ôn tập** (`/review`) cho app **Learn Chinese** — ưu tiên trải nghiệm mobile.
 >
-> **Ngôn ngữ UI:** Tiếng Việt. Brand terms giữ tiếng Anh: *Learn Chinese*, *Vocabulary Mastery*, *Hanzi Lab*, *SRS*.
+> **Ngôn ngữ UI:** Tiếng Việt. Brand terms giữ tiếng Anh: *Learn Chinese*, *Vocabulary Mastery*, *SRS*.
 
 ---
 
@@ -518,7 +518,6 @@ Badge trạng thái bộ:
 | Bộ từ | `menu_book` | `/sets` |
 | Ôn tập | `replay` | `/review` — badge số due |
 | Tiến độ | `query_stats` | `/review/stats` |
-| Hanzi Lab | `science` | `/hanzi-lab` |
 
 > **Lưu ý:** `/dashboard` không cần tab riêng — truy cập từ Home hoặc link trong Stats.
 

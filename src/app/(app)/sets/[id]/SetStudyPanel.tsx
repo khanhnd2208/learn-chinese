@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import MaterialIcon from '@/components/ui/MaterialIcon';
+import Button from '@/components/ui/Button';
 import PracticeModePicker from '@/components/chinese/PracticeModePicker';
 import SetSrsToggle from '@/app/(app)/sets/SetSrsToggle';
 import SetSrsStatusBanner from '@/app/(app)/sets/SetSrsStatusBanner';
@@ -49,6 +50,20 @@ export default function SetStudyPanel({ set }: Props) {
 				{hasResolvedWords && set.itemCount > 0 ? (
 					<div className="mt-6">
 						<h2 className="mb-3 text-sm font-bold text-foreground">Luyện tập</h2>
+						<div className="mb-4">
+							<Link href={`/sets/${set.id}/flashcards`}>
+								<Button
+									size="lg"
+									leftIcon={<MaterialIcon name="style" size={18} />}
+									className="w-full sm:w-auto"
+								>
+									Học Flashcard
+								</Button>
+							</Link>
+							<p className="mt-2 text-xs text-muted">
+								Lật thẻ để xem nghĩa và câu ví dụ. Không ảnh hưởng lịch ôn SRS.
+							</p>
+						</div>
 						<p className="mb-3 text-xs text-muted">
 							Tổng hợp xen 3 kênh theo tiến độ SRS, hoặc Chỉ MCQ (trắc nghiệm). Không ảnh hưởng lịch ôn.
 						</p>
