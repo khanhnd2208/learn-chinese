@@ -6,23 +6,35 @@ alwaysApply: false
 
 # UI components
 
-Full spec: `DESIGN.md` (load only for visual/design work).
+Full spec: `DESIGN.md` + `docs/design/FOUNDATIONS.md` + `docs/design/COMPONENT_STANDARDS.md`.
 
 ## Tailwind tokens (summary)
 
-- Surfaces: `bg-surface`, `bg-surface-hover`, `border-border`
-- Text: `text-foreground`, `text-muted-foreground`, `text-accent`
-- Chinese text: `hanzi-lg`, `hanzi-xl` utility classes
-- Accent: warm gold/amber theme — use `text-accent`, `border-accent`, `hover:text-accent`
+- Surfaces: `bg-surface`, `bg-surface-hover`, `bg-surface-container`, `border-border`
+- Text: `text-foreground`, `text-foreground-secondary`, `text-muted`, `text-accent`
+- Chinese text: `hanzi-display`, `hanzi-lg` utility classes
+- Accent (primary action): `bg-accent`, `text-accent`, `border-accent`, `hover:bg-accent-hover`
+- Semantic: `text-success`, `text-warning`, `text-error`
+- Spacing: use scale only — `p-4`, `gap-6`, `space-y-8` (see FOUNDATIONS.md)
+- Radius: `rounded-control`, `rounded-card`, `rounded-pill`
+- Z-index: `z-sticky`, `z-dropdown`, `z-overlay`, `z-dialog`, `z-toast`
+
+## Components (`src/components/ui/`)
+
+Use before creating new primitives: `Button`, `Input`, `Card`, `Dialog`, `Sheet`, `Toast`, `EmptyState`, `ErrorState`, `Badge`, `FormField`, `Tabs`, `Skeleton`, `Spinner`.
+
+Showcase: `/dev/ui`
 
 ## Patterns
 
 - Functional components; extract hooks for reusable client logic
 - Vietnamese UI copy for user-facing strings
-- Use existing components in `src/components/ui/` before adding new primitives
-- App Router: `'use client'` only when needed (state, effects, browser APIs)
+- Use `cn()` from `@/lib/cn` for conditional classes
+- App Router: `'use client'` only when needed
 
 ## Do not
 
-- Paste full `DESIGN.md` into changes — reference token names only
-- Add inline styles when Tailwind utilities exist in the codebase
+- Use `text-muted-foreground` (use `text-muted`)
+- Use `hanzi-xl` (use `hanzi-lg` or `hanzi-display`)
+- Add inline styles when Tailwind utilities exist
+- Use `btn-primary` / `card-paper` in new code — use `Button` / `Card` components

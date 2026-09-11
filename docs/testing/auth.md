@@ -4,7 +4,7 @@
 
 ### Auth va phan quyen
 
-1. Chua dang nhap vao `/`, `/sets`, `/review`, `/dashboard`, `/hanzi-lab`, `/practice/{setId}`, `/words/{id}`.
+1. Chua dang nhap vao `/`, `/sets`, `/review`, `/dashboard`, `/practice/{setId}`, `/words/{id}`.
    - Ky vong: bi chuyen ve `/login`.
 2. Chua dang nhap goi API `/api/sets`, `/api/dashboard`, `/api/review`, `/api/lookup`.
    - Ky vong: JSON `{ ok: false, error: "Unauthorized" }`, HTTP 401.

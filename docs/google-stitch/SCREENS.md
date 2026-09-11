@@ -29,7 +29,7 @@ Danh sách đầy đủ màn hình cần thiết kế. Upload kèm DESIGN.md đ�
 
 **Quick actions (pill buttons):**
 - Primary: "Tạo bộ từ mới"
-- Secondary: Hanzi Lab, Luyện nghe, Dashboard lỗi
+- Secondary: Luyện nghe, Dashboard lỗi
 
 **Section:** "Bộ từ của tôi" — grid 2 cột, mỗi card: tên bộ, "X từ · Y cần ôn · Z yếu"
 
@@ -114,17 +114,7 @@ làm khổ, hành hạ  ← nghĩa tiếng Việt
 
 ---
 
-## 9. Hanzi Lab (`/hanzi-lab`)
-
-- Input area: paste 1-15 ký tự
-- Results panel:
-  - Thông tin từ (nếu nhiều ký tự)
-  - Per-character card: radical highlighted, components, Hán Việt, mnemonic
-  - Similar characters row (chips)
-
----
-
-## 10. Listening Picker (`/listening`)
+## 9. Listening Picker (`/listening`)
 
 - Header: "Luyện nghe"
 - List bộ từ để chọn
@@ -156,7 +146,7 @@ làm khổ, hành hạ  ← nghĩa tiếng Việt
 
 ## Mobile Variants (thiết kế thêm)
 
-- Bottom nav: Trang chủ | Bộ từ | Ôn tập | Hanzi Lab | Tiến bộ
+- Bottom nav: Trang chủ | Bộ từ | Ôn tập | Tiến bộ
 - Word card: tabs scroll ngang
 - Practice: full-screen, nút lớn 48px+
 - Sidebar → drawer khi tap hamburger

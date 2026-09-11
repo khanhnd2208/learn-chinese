@@ -4,6 +4,10 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
+import Badge from '@/components/ui/Badge';
+import Button from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import SetInfoPopover from '@/app/(app)/sets/SetInfoPopover';
 
 interface Props {
 	setId: string;
@@ -51,117 +55,75 @@ export default function SetSharePanel({ setId, title, itemCount, shared: initial
 		}
 	};
 
+	const statusBadge = (
+		<Badge variant={shared ? 'success' : 'default'}>
+			{shared ? 'Đang chia sẻ' : 'Riêng tư'}
+		</Badge>
+	);
+
+	const actionButton = (
+		<Button
+			variant={shared ? 'secondary' : 'primary'}
+			size={variant === 'card' ? 'sm' : 'md'}
+			loading={loading}
+			onClick={toggleShare}
+			leftIcon={
+				variant === 'hero'
+					? <MaterialIcon name={shared ? 'link_off' : 'share'} size={16} />
+					: undefined
+			}
+		>
+			{shared ? 'Bỏ chia sẻ' : variant === 'hero' ? 'Chia sẻ lên thư viện' : 'Chia sẻ'}
+		</Button>
+	);
+
+	const messageLine = message ? (
+		<p
+			role="status"
+			className={`text-xs ${message.type === 'success' ? 'text-success' : 'text-error'}`}
+		>
+			{message.text}
+		</p>
+	) : null;
+
 	if (variant === 'card') {
 		return (
-			<div className="space-y-2 border-t border-border pt-3">
+			<div className="space-y-1">
 				<div className="flex items-center justify-between gap-2">
-					<div className="flex items-center gap-2 text-xs">
-						<MaterialIcon name="share" size={14} className="text-accent" />
-						<span className="font-bold text-foreground">Thư viện chia sẻ</span>
-						<span
-							className={`rounded-full px-2 py-0.5 text-[10px] font-black ${
-								shared ? 'bg-success/15 text-success' : 'bg-surface-hover text-muted'
-							}`}
-						>
-							{shared ? 'Đang chia sẻ' : 'Riêng tư'}
-						</span>
-					</div>
-					<button
-						type="button"
-						onClick={toggleShare}
-						disabled={loading}
-						className={shared ? 'btn-secondary !py-1 !text-xs' : 'btn-primary !py-1 !text-xs'}
-					>
-						{loading ? '...' : shared ? 'Bỏ chia sẻ' : 'Chia sẻ'}
-					</button>
+					{statusBadge}
+					{actionButton}
 				</div>
-				{message && (
-					<p className={`text-xs ${message.type === 'success' ? 'text-success' : 'text-accent'}`}>
-						{message.text}
-					</p>
-				)}
+				{messageLine}
 			</div>
 		);
 	}
 
 	return (
-		<section className="card-paper space-y-4 border-l-4 border-l-accent p-5">
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div className="space-y-1">
-					<div className="flex flex-wrap items-center gap-2">
-						<span className="label-caps rounded-full bg-accent-subtle px-2.5 py-1 !text-[10px] text-accent">
-							Admin
-						</span>
-						<span
-							className={`label-caps rounded-full px-2.5 py-1 !text-[10px] ${
-								shared ? 'bg-success/15 text-success' : 'bg-surface-hover text-muted'
-							}`}
-						>
-							{shared ? 'Đang chia sẻ công khai' : 'Chưa chia sẻ'}
-						</span>
-					</div>
-					<h2 className="text-lg font-extrabold text-foreground">Chia sẻ bộ từ cho người dùng</h2>
-					<p className="max-w-2xl text-sm text-muted">
-						Bật chia sẻ để bộ <strong className="text-foreground">{title}</strong> xuất hiện trong mục{' '}
-						<Link href="/shared-sets" className="font-bold text-accent hover:underline">
-							Chia sẻ bộ từ
-						</Link>
-						. Người học có thể nhân bản về tài khoản và học độc lập.
-					</p>
+		<Card className="px-4 py-3">
+			<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+				<div className="flex flex-wrap items-center gap-2">
+					<Badge variant="accent">Admin</Badge>
+					{statusBadge}
+					<SetInfoPopover title="Cách chia sẻ bộ từ" label="Hướng dẫn chia sẻ bộ từ">
+						<p>
+							Bật chia sẻ để bộ <strong className="text-foreground">{title}</strong> xuất hiện trong mục{' '}
+							<Link href="/shared-sets" className="font-bold text-accent hover:underline">
+								Chia sẻ bộ từ
+							</Link>
+							. Người học có thể nhân bản về tài khoản và học độc lập.
+						</p>
+						<ol className="list-decimal space-y-1 pl-5">
+							<li>Thêm đủ từ vào bộ ({itemCount} từ hiện tại)</li>
+							<li>
+								Bấm <strong className="text-foreground">Chia sẻ lên thư viện</strong>
+							</li>
+							<li>Người dùng nhân bản tại sidebar → Chia sẻ bộ từ</li>
+						</ol>
+					</SetInfoPopover>
 				</div>
-				<button
-					type="button"
-					onClick={toggleShare}
-					disabled={loading}
-					className={`shrink-0 ${shared ? 'btn-secondary' : 'btn-primary'}`}
-				>
-					<MaterialIcon name={shared ? 'link_off' : 'share'} size={18} />
-					{loading ? 'Đang xử lý...' : shared ? 'Bỏ chia sẻ' : 'Chia sẻ lên thư viện'}
-				</button>
+				<div className="sm:shrink-0">{actionButton}</div>
 			</div>
-
-			<ol className="grid gap-2 text-sm text-foreground-secondary sm:grid-cols-3">
-				<li className="flex gap-2 rounded-lg border border-border bg-surface-container/40 p-3">
-					<span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-xs font-black text-accent">
-						1
-					</span>
-					<span>Thêm đủ từ vào bộ ({itemCount} từ hiện tại)</span>
-				</li>
-				<li className="flex gap-2 rounded-lg border border-border bg-surface-container/40 p-3">
-					<span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-xs font-black text-accent">
-						2
-					</span>
-					<span>Bấm <strong className="text-foreground">Chia sẻ lên thư viện</strong></span>
-				</li>
-				<li className="flex gap-2 rounded-lg border border-border bg-surface-container/40 p-3">
-					<span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-subtle text-xs font-black text-accent">
-						3
-					</span>
-					<span>Người dùng nhân bản tại sidebar → Chia sẻ bộ từ</span>
-				</li>
-			</ol>
-
-			{shared && (
-				<p className="flex items-center gap-2 text-sm text-success">
-					<MaterialIcon name="check_circle" size={18} />
-					Đang hiển thị trên thư viện.{' '}
-					<Link href="/shared-sets" className="font-bold underline underline-offset-2">
-						Xem trang Chia sẻ bộ từ
-					</Link>
-				</p>
-			)}
-
-			{message && (
-				<p
-					className={`rounded-lg p-3 text-sm ${
-						message.type === 'success'
-							? 'border border-success/30 bg-success/10 text-foreground-secondary'
-							: 'text-accent'
-					}`}
-				>
-					{message.text}
-				</p>
-			)}
-		</section>
+			{messageLine ? <div className="mt-2">{messageLine}</div> : null}
+		</Card>
 	);
 }

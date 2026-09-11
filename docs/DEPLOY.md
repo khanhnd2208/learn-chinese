@@ -138,8 +138,6 @@ npx prisma migrate deploy   # kỳ vọng: already up to date
 | `PG_POOL_MAX` | Tuỳ chọn; mặc định prod `5`, dev `10` |
 | `PG_IDLE_TIMEOUT_MS` | Tuỳ chọn; mặc định `30000` |
 | `MONGODB_URI` | MongoDB cho NextAuth |
-| `DEEPSEEK_API_KEY` | API key server-side cho Hanzi Lab |
-| `HANZI_AI_MODEL` | Mặc định `deepseek-v4-flash` |
 
 ## Kiểm tra sau deploy
 

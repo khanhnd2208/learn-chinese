@@ -6,8 +6,6 @@ import { splitHanzi } from '@/lib/chinese/hanziUtils';
 import { enrichExampleForFill } from '@/lib/chinese/fillExampleValidator';
 import type { CnImportHanziRow, CnImportPreview, CnImportWordRow } from '@/lib/chinese/parseChineseFile';
 import type { Prisma } from '@prisma/client';
-import type { HanziAiReconcileTrigger } from '@/services/chinese/hanziAi/hanziAiAdminService';
-import { reconcileHanziAiInTransaction } from '@/services/chinese/hanziAi/hanziAiAdminService';
 
 type DbClient = typeof prisma | Prisma.TransactionClient;
 
@@ -37,12 +35,11 @@ async function ensureSimilarGroup(db: DbClient, key: string) {
 export async function publishHanziRows(
 	rows: CnImportHanziRow[],
 	db: DbClient = prisma,
-): Promise<{ count: number; triggers: HanziAiReconcileTrigger[] }> {
+): Promise<{ count: number }> {
 	let count = 0;
-	const triggers: HanziAiReconcileTrigger[] = [];
 	for (const row of rows) {
 		const group = row.similarGroupKey ? await ensureSimilarGroup(db, row.similarGroupKey) : null;
-		const hanzi = await db.cnHanzi.upsert({
+		await db.cnHanzi.upsert({
 			where: { char: row.char },
 			create: {
 				char: row.char,
@@ -66,18 +63,16 @@ export async function publishHanziRows(
 				status: row.status,
 			},
 		});
-		triggers.push({ type: 'hanzi', id: hanzi.id, chars: [row.char] });
 		count++;
 	}
-	return { count, triggers };
+	return { count };
 }
 
 export async function publishWordRows(
 	rows: CnImportWordRow[],
 	db: DbClient = prisma,
-): Promise<{ count: number; triggers: HanziAiReconcileTrigger[] }> {
+): Promise<{ count: number }> {
 	let count = 0;
-	const triggers: HanziAiReconcileTrigger[] = [];
 	for (const row of rows) {
 		const word = await db.cnWord.upsert({
 			where: { simplified: row.simplified },
@@ -148,10 +143,9 @@ export async function publishWordRows(
 			});
 		}
 
-		triggers.push({ type: 'word', id: word.id, term: word.simplified, chars: charList });
 		count++;
 	}
-	return { count, triggers };
+	return { count };
 }
 
 export async function publishImportPreview(preview: CnImportPreview, type: 'words' | 'hanzi') {
@@ -160,12 +154,10 @@ export async function publishImportPreview(preview: CnImportPreview, type: 'word
 	}
 	const result = await prisma.$transaction(async (tx) => {
 		if (type === 'hanzi') {
-			const { count, triggers } = await publishHanziRows(preview.hanzi, tx);
-			await reconcileHanziAiInTransaction(tx, triggers);
+			const { count } = await publishHanziRows(preview.hanzi, tx);
 			return { type, count, warnings: preview.warnings };
 		}
-		const { count, triggers } = await publishWordRows(preview.words, tx);
-		await reconcileHanziAiInTransaction(tx, triggers);
+		const { count } = await publishWordRows(preview.words, tx);
 		return { type, count, warnings: preview.warnings };
 	});
 	return result;

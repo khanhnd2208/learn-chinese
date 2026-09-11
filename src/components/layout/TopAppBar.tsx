@@ -69,14 +69,6 @@ export default function TopAppBar() {
 										{session.user.name}
 									</p>
 								)}
-								<Link
-									href="/hanzi-lab"
-									className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-accent"
-									onClick={() => setMenuOpen(false)}
-								>
-									<MaterialIcon name="science" size={18} />
-									Hanzi Lab
-								</Link>
 								{isAdmin && (
 									<Link
 										href="/admin"

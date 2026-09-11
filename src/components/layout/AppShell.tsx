@@ -12,7 +12,11 @@ interface Props {
 
 /** Full-focus routes: hide mobile chrome but keep sidebar navigable */
 function isFocusSession(pathname: string): boolean {
-	return pathname.startsWith('/practice/') || pathname === '/review' || pathname === '/hht' || pathname === '/inferno';
+	return pathname.startsWith('/practice/')
+		|| pathname === '/review'
+		|| pathname === '/hht'
+		|| pathname === '/inferno'
+		|| /\/sets\/[^/]+\/flashcards$/.test(pathname);
 }
 
 export default function AppShell({ children }: Props) {

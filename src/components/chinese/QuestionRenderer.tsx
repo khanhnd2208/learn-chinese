@@ -294,7 +294,7 @@ export default function QuestionRenderer({
 	return (
 		<div className="flex w-full max-w-2xl flex-col">
 			{isReviewSession ? (
-				<header className="sticky top-0 z-40 -mx-4 mb-4 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur-sm animate-slide-down">
+				<header className="sticky top-0 z-sticky -mx-4 mb-4 border-b border-border bg-background/95 px-4 py-2.5 backdrop-blur-sm animate-slide-down">
 					<div className="flex items-center justify-between gap-2">
 						<div className="flex min-w-0 items-center gap-2">
 							{onExit ? (
@@ -308,19 +308,33 @@ export default function QuestionRenderer({
 									<span>{isExiting ? 'Đang lưu...' : resolvedExitLabel}</span>
 								</button>
 							) : null}
-							<ChannelPill type={q.type} />
 						</div>
 						<div className="flex shrink-0 items-center gap-2">
 							<SessionCountersPill
 								correctCount={correctCount}
 								wrongCount={wrongCount}
 							/>
+							{dueRemaining > 0 && (
+								<span className="rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] font-bold text-muted">
+									~{dueRemaining}
+								</span>
+							)}
 							{headerAction}
 						</div>
 					</div>
-					<div className="mt-2.5 flex items-center gap-2">
+					<div className="mt-2 flex justify-center">
+						<ChannelPill type={q.type} large />
+					</div>
+					<div className="mt-2.5 space-y-1">
+						<div className="flex items-center justify-between text-xs font-bold text-foreground-secondary">
+							<span>
+								Đã ôn {reviewedCount}
+								{dueRemaining > 0 && <> · Còn ~{dueRemaining}</>}
+							</span>
+							<span className="tabular-nums">{progressPct}%</span>
+						</div>
 						<div
-							className="h-2 min-w-0 flex-1 overflow-hidden rounded-full border border-border/50 bg-accent-subtle"
+							className="h-2 w-full overflow-hidden rounded-full border border-border/50 bg-accent-subtle"
 							role="progressbar"
 							aria-valuenow={reviewedCount}
 							aria-valuemin={0}
@@ -332,9 +346,6 @@ export default function QuestionRenderer({
 								style={{ width: `${progressPct}%` }}
 							/>
 						</div>
-						<span className="shrink-0 text-sm font-bold tabular-nums text-foreground-secondary">
-							{progressPct}%
-						</span>
 					</div>
 				</header>
 			) : (

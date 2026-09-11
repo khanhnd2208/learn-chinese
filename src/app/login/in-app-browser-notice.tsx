@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
 	detectInAppBrowser,
 	getExternalBrowserUrl,
@@ -38,8 +38,17 @@ function readInAppBrowserState(): {
 }
 
 export default function InAppBrowserNotice() {
-	const [{ kind, pageUrl, externalUrl }] = useState(readInAppBrowserState);
+	const [{ kind, pageUrl, externalUrl }, setBrowserState] = useState({
+		kind: null as InAppBrowserKind | null,
+		pageUrl: '',
+		externalUrl: null as string | null,
+	});
 	const [copied, setCopied] = useState(false);
+
+	useEffect(() => {
+		const timer = window.setTimeout(() => setBrowserState(readInAppBrowserState()), 0);
+		return () => window.clearTimeout(timer);
+	}, []);
 
 	if (!kind) return null;
 
@@ -84,8 +93,12 @@ export default function InAppBrowserNotice() {
 }
 
 export function useInAppBrowserBlocked(): boolean {
-	const [blocked] = useState(
-		() => typeof window !== 'undefined' && detectInAppBrowser() !== null,
-	);
+	const [blocked, setBlocked] = useState(false);
+
+	useEffect(() => {
+		const timer = window.setTimeout(() => setBlocked(detectInAppBrowser() !== null), 0);
+		return () => window.clearTimeout(timer);
+	}, []);
+
 	return blocked;
 }

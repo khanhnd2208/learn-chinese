@@ -9,7 +9,6 @@ export const MAIN_NAV: NavLink[] = [
 	{ href: '/', label: 'Trang chủ', icon: 'home', shortLabel: 'Home' },
 	{ href: '/sets', label: 'Bộ từ', icon: 'library_books', shortLabel: 'Sets' },
 	{ href: '/shared-sets', label: 'Chia sẻ bộ từ', icon: 'share', shortLabel: 'Chia sẻ' },
-	{ href: '/hanzi-lab', label: 'Hanzi Lab', icon: 'science', shortLabel: 'Lab' },
 	{ href: '/review', label: 'Luyện SRS', icon: 'history', shortLabel: 'SRS' },
 	{ href: '/hht', label: 'HHT Mode', icon: 'quiz', shortLabel: 'HHT' },
 	{ href: '/inferno', label: 'Địa Ngục', icon: 'local_fire_department', shortLabel: 'Inferno' },

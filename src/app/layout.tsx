@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Noto_Sans_SC, Source_Sans_3 } from 'next/font/google';
 import Providers from '@/components/Providers';
+import PwaRegister from '@/components/PwaRegister';
 import './globals.css';
 
 /* eslint-disable @next/next/no-page-custom-font */
@@ -51,7 +52,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 				/>
 			</head>
 			<body className={`${sans.variable} ${hanzi.variable} antialiased selection:bg-accent-subtle selection:text-accent`}>
-				<Providers>{children}</Providers>
+				<Providers>
+					<PwaRegister />
+					{children}
+				</Providers>
 			</body>
 		</html>
 	);

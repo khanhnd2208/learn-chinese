@@ -16,14 +16,11 @@ export default function StickingPointCard({ wordId, simplified }: Props) {
 				Từ này khó với nhiều người{simplified ? ` — ${simplified}` : ''}
 			</p>
 			<p className="mt-2 text-sm text-foreground-secondary">
-				Thử cách học khác: xem thẻ từ, phân tích chữ ở Hanzi Lab, hoặc luyện nghe trước khi ôn lại.
+				Thử cách học khác: xem thẻ từ hoặc luyện nghe trước khi ôn lại.
 			</p>
 			<div className="mt-3 flex flex-wrap gap-2">
 				<Link href={`/words/${wordId}`} className="btn-secondary text-xs">
 					Xem thẻ từ
-				</Link>
-				<Link href={`/hanzi-lab?term=${encodeURIComponent(simplified ?? '')}`} className="btn-secondary text-xs">
-					Hanzi Lab
 				</Link>
 			</div>
 		</div>

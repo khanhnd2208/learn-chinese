@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
+import Skeleton from '@/components/ui/Skeleton';
+import EmptyState from '@/components/ui/EmptyState';
 import QuestionRenderer from '@/components/chinese/QuestionRenderer';
 import SessionBriefingCard from '@/components/chinese/SessionBriefingCard';
 import SessionSummaryCard from '@/components/chinese/SessionSummaryCard';
@@ -250,8 +251,9 @@ export default function ReviewSessionClient() {
 	if (phase === 'briefing') {
 		if (!briefing) {
 			return (
-				<div className="mx-auto flex min-h-[50vh] max-w-2xl items-center justify-center px-4 text-muted">
-					Đang tải báo cáo SRS...
+				<div className="mx-auto max-w-2xl space-y-4 px-4 py-12">
+					<Skeleton className="h-48 w-full rounded-card" />
+					<Skeleton className="h-8 w-2/3" />
 				</div>
 			);
 		}
@@ -312,11 +314,9 @@ export default function ReviewSessionClient() {
 	if (phase === 'loading') {
 		return (
 			<>
-				<div className="mx-auto max-w-2xl px-4 pt-6">
+				<div className="mx-auto max-w-2xl space-y-4 px-4 pt-6">
 					<div className="flex justify-end">{managerButton}</div>
-				</div>
-				<div className="mx-auto flex min-h-[50vh] max-w-2xl items-center justify-center px-4 text-muted">
-					Đang tải phiên ôn...
+					<Skeleton className="h-64 w-full rounded-card" />
 				</div>
 				{managerModal}
 			</>
@@ -329,52 +329,23 @@ export default function ReviewSessionClient() {
 			<>
 				<div className="mx-auto max-w-2xl px-4 py-8">
 					<div className="mb-4 flex justify-end">{managerButton}</div>
-					<div className="card-paper w-full p-8 text-center">
-					<MaterialIcon
-						name={hasDueButNoQuestions ? 'error_outline' : 'celebration'}
-						className={`mx-auto ${hasDueButNoQuestions ? 'text-warning' : 'text-success'}`}
-						size={48}
-					/>
 					{hasDueButNoQuestions ? (
-						<>
-							<p className="mt-4 text-muted">
-								Có {dueToday} mục đến hạn nhưng không tải được câu hỏi.
-							</p>
-							<p className="mt-2 text-sm text-foreground-secondary">
-								{skippedUnpublished > 0
-									? `${skippedUnpublished} từ chưa được xuất bản trong hệ thống. `
-									: ''}
-								Thử tải lại sau hoặc kiểm tra bộ từ trong{' '}
-								<Link href="/sets" className="font-bold text-accent hover:underline">Danh sách bộ từ</Link>.
-							</p>
-							<div className="mt-6 flex flex-wrap justify-center gap-3">
-								<button type="button" onClick={() => { setPhase('loading'); void loadInitial(); }} className="btn-primary">
-									<MaterialIcon name="refresh" size={16} />
-									Thử lại
-								</button>
-							</div>
-						</>
+						<EmptyState
+							icon="error_outline"
+							title="Không tải được câu hỏi"
+							description={`Có ${dueToday} mục đến hạn nhưng không tải được câu hỏi.${skippedUnpublished > 0 ? ` ${skippedUnpublished} từ chưa được xuất bản.` : ''}`}
+							action={{ label: 'Thử lại', onClick: () => { setPhase('loading'); void loadInitial(); } }}
+							secondaryAction={{ label: 'Bộ từ', href: '/sets' }}
+						/>
 					) : (
-						<>
-							<p className="mt-4 text-muted">Không có mục cần ôn hôm nay.</p>
-							<p className="mt-2 text-sm text-foreground-secondary">
-								Bật <strong>Ôn SRS</strong> trên bộ từ trong{' '}
-								<Link href="/sets" className="font-bold text-accent hover:underline">Danh sách bộ từ</Link>{' '}
-								để đưa từ vào hàng đợi ôn.
-							</p>
-							<div className="mt-6 flex flex-wrap justify-center gap-3">
-								<Link href="/dashboard" className="btn-primary">
-									<MaterialIcon name="query_stats" size={16} />
-									Báo cáo học tập
-								</Link>
-								<Link href="/sets" className="btn-secondary">
-									<MaterialIcon name="menu_book" size={16} />
-									Chọn bộ từ
-								</Link>
-							</div>
-						</>
+						<EmptyState
+							icon="celebration"
+							title="Không có mục cần ôn hôm nay"
+							description="Bật Ôn SRS trên bộ từ để đưa từ vào hàng đợi ôn."
+							action={{ label: 'Báo cáo học tập', href: '/dashboard' }}
+							secondaryAction={{ label: 'Chọn bộ từ', href: '/sets' }}
+						/>
 					)}
-					</div>
 				</div>
 				{managerModal}
 			</>
