@@ -137,4 +137,4 @@ Không deploy cùng bundle với my-teaching-platform.
 4. **Xác nhận schema:** `npx prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code` (kỳ vọng: no diff; cần shadow DB — tự tạo `prisma_migrate_shadow` hoặc đặt `SHADOW_DATABASE_URL`)
 5. **Quality:** `npm run quality` (hoặc tách `npm test`, `npm run lint`, `npm run build`)
 6. **Hanzi harness (nếu đổi trust policy):** `npm run harness:hanzi`
-7. **Chạy:** `npm start` hoặc `./scripts/deploy.sh` + PM2
+7. **Chạy:** merge vào `main` (tự deploy, xem [docs/DEPLOY.md](docs/DEPLOY.md))
