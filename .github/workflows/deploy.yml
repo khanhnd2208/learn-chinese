@@ -1,16 +1,16 @@
-# Production deploy to VPS (rsync over SSH — no git pull on server).
+# Deploy lên VPS qua app-deploy (repo the-private-infra-repo, docs/APP-STANDARD.md).
+# Tự chạy sau khi workflow Quality xanh trên main; hoặc Run workflow / `vps deploy learn-chinese`.
+# Bản mới build trong releases/ trong khi bản cũ vẫn chạy; health check lỗi thì tự quay lại.
 #
-# Required GitHub secrets (repo or production environment):
-#   VPS_HOST    — VPS IP or hostname
-#   VPS_USER    — SSH user, e.g. root or deploy
-#   VPS_SSH_KEY — full private key (PEM/OpenSSH), including BEGIN/END lines
-# Optional:
-#   VPS_SSH_PORT — SSH port (default 22)
+# Secrets trong environment "production": VPS_HOST, VPS_SSH_KEY, VPS_KNOWN_HOSTS.
 
 name: Deploy to VPS
 
 on:
-  push:
+  # Tự deploy sau khi workflow kiểm tra chất lượng xanh trên main.
+  workflow_run:
+    workflows: [Quality]
+    types: [completed]
     branches: [main]
   workflow_dispatch:
 
@@ -18,92 +18,38 @@ concurrency:
   group: deploy-production
   cancel-in-progress: false
 
+env:
+  APP_ID: learn-chinese
+
 jobs:
   deploy:
-    name: Build & Deploy on VPS
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
-    environment:
-      name: production
-
+    environment: production
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-
-      - name: Validate deploy secrets
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-        run: |
-          set -euo pipefail
-          missing=""
-          [ -z "${VPS_HOST:-}" ] && missing="$missing VPS_HOST"
-          [ -z "${VPS_USER:-}" ] && missing="$missing VPS_USER"
-          [ -z "${VPS_SSH_KEY:-}" ] && missing="$missing VPS_SSH_KEY"
-          if [ -n "$missing" ]; then
-            echo "::error::Missing GitHub secrets:$missing"
-            echo "Add them under Settings → Secrets and variables → Actions,"
-            echo "or under Environments → production (this workflow uses that environment)."
-            exit 1
-          fi
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Configure SSH
         env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          port="${VPS_SSH_PORT:-22}"
-          ssh-keyscan -p "$port" -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 600 ~/.ssh/known_hosts
 
-      - name: Sync code to VPS
+      - name: Deploy with app-deploy
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
         run: |
           set -euo pipefail
-          port="${VPS_SSH_PORT:-22}"
-          ssh_opts="-i ~/.ssh/deploy_key -p $port -o StrictHostKeyChecking=accept-new"
-          rsync -avz --delete \
-            --exclude node_modules \
-            --exclude .next \
-            --exclude .git \
-            --exclude .env \
-            --exclude .env.local \
-            -e "ssh $ssh_opts" \
-            ./ "${VPS_USER}@${VPS_HOST}:/var/www/learn-chinese/"
-
-      - name: Build & restart on VPS
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          VPS_USER: ${{ secrets.VPS_USER }}
-          VPS_SSH_PORT: ${{ secrets.VPS_SSH_PORT }}
-        run: |
-          set -euo pipefail
-          port="${VPS_SSH_PORT:-22}"
-          ssh -i ~/.ssh/deploy_key -p "$port" -o StrictHostKeyChecking=accept-new \
-            "${VPS_USER}@${VPS_HOST}" 'set -e
-            cd /var/www/learn-chinese
-            chmod +x scripts/deploy.sh
-            ./scripts/deploy.sh
-            if pm2 describe learn-chinese >/dev/null 2>&1; then
-              pm2 restart learn-chinese --update-env
-            else
-              pm2 start ecosystem.config.cjs
-            fi
-            pm2 save
-            pm2 status learn-chinese --no-color
-            for i in 1 2 3 4 5 6 7 8 9 10; do
-              code=$(curl -sf -o /dev/null -w "%{http_code}" http://127.0.0.1:3001/api/health || echo 000)
-              echo "health /api/health attempt $i -> $code"
-              [ "$code" = "200" ] && exit 0
-              sleep 3
-            done
-            echo "::error::App did not respond on port 3001 after pm2 restart"
-            pm2 logs learn-chinese --lines 30 --nostream
-            exit 1'
+          sha="$(git rev-parse --short=12 HEAD)"
+          git archive --format=tar.gz HEAD |
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "deploy@${VPS_HOST}" \
+              "/opt/vps/bin/app-deploy ${APP_ID} - ${sha}"

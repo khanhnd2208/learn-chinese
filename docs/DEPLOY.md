@@ -1,31 +1,29 @@
 # Deploy lên VPS
 
-## CI/CD (GitHub Actions)
+## Cách deploy
 
-Workflow `.github/workflows/deploy.yml` chạy khi push `main` hoặc **Run workflow** thủ công. Code được **rsync qua SSH** — VPS **không cần** `git pull` hay quyền đọc repo private.
+App chạy theo chuẩn chung của VPS, quản lý trong repo **the-private-infra-repo**
+(`docs/APP-STANDARD.md`, `docs/RUNBOOK.md`). Repo này không chứa cấu hình PM2 hay script deploy.
 
-### Secrets bắt buộc
+- Merge vào `main` → workflow **Quality** chạy → xanh thì **Deploy to VPS** tự chạy.
+- Deploy tay: Actions → Deploy to VPS → Run workflow, hoặc `vps deploy learn-chinese` trên máy Mac.
+- Workflow gửi `git archive` của commit lên VPS và gọi `/opt/vps/bin/app-deploy learn-chinese`:
+  build trong `/var/www/learn-chinese/releases/<mới>` trong khi bản cũ vẫn chạy, `pg_dump` trước khi migrate,
+  đổi `current`, gọi `GET /api/health`; không ra 200 thì tự quay về bản cũ.
+- Các bước build riêng của app (prisma, migrate, purge demo sets, verify sample, build) nằm ở
+  `infra/server/apps/learn-chinese/build.sh`. Test, lint, typecheck, audit chạy ở workflow Quality.
+- Quay lại bản trước: `vps rollback learn-chinese`. Xem log: `vps logs learn-chinese`.
 
-Vào **Settings → Secrets and variables → Actions** (hoặc **Environments → production**, vì workflow dùng environment `production`):
+Trên VPS:
 
-| Secret | Mô tả |
-|--------|--------|
-| `VPS_HOST` | IP hoặc domain VPS |
-| `VPS_USER` | User SSH (`root`, `deploy`, …) |
-| `VPS_SSH_KEY` | Private key đầy đủ (cả dòng `-----BEGIN … KEY-----`) |
+| Thứ | Đường dẫn |
+|-----|-----------|
+| Bản đang chạy | `/var/www/learn-chinese/current` → `releases/<ngày-giờ>-<sha>` |
+| Biến môi trường | `/var/www/learn-chinese/shared/.env` (mode 600, user deploy) |
+| Sao lưu DB trước deploy | `/var/www/learn-chinese/shared/db-backups/` |
+| PM2 | `learn-chinese`, user `deploy`, chỉ nghe `127.0.0.1:3001` |
 
-Tuỳ chọn: `VPS_SSH_PORT` (mặc định 22).
-
-Tạo cặp key trên máy local, gắn **public key** vào VPS `~/.ssh/authorized_keys`, dán **private key** vào secret `VPS_SSH_KEY`:
-
-```bash
-ssh-keygen -t ed25519 -C "github-actions-deploy" -f ~/.ssh/learn-chinese-deploy -N ""
-ssh -i ~/.ssh/learn-chinese-deploy VPS_USER@VPS_HOST "echo OK"
-```
-
-Nếu thiếu secret, job fail sớm với message rõ ràng thay vì lỗi mơ hồ từ SCP.
-
-`.env.local` trên VPS **không** bị ghi đè (rsync exclude).
+Secrets trong environment `production`: `VPS_HOST`, `VPS_SSH_KEY` (khoá CI có `restrict`), `VPS_KNOWN_HOSTS`.
 
 ## Yêu cầu server
 
@@ -36,29 +34,14 @@ Nếu thiếu secret, job fail sớm với message rõ ràng thay vì lỗi mơ 
 - Domain trỏ về VPS (cập nhật Google OAuth redirect URI)
 - PM2 chạy **1 process fork** cho bản beta hiện tại
 
-## Lần đầu trên VPS
+## Lần đầu trên một VPS mới
 
-```bash
-git clone <repo-url> /var/www/learn-chinese
-cd /var/www/learn-chinese
-cp .env.example .env.local
-# Chỉnh DATABASE_URL, MONGODB_URI, AUTH_SECRET, NEXTAUTH_URL, Google OAuth, ADMIN_EMAILS
+Làm theo `infra/docs/RUNBOOK.md` › "Thêm một app mới": tạo database, đặt
+`/var/www/learn-chinese/shared/.env` (DATABASE_URL, MONGODB_URI, AUTH_SECRET, NEXTAUTH_URL,
+Google OAuth, ADMIN_EMAILS), rồi `vps deploy learn-chinese --local`. Seed nội dung lần đầu:
+`npm run db:seed` trong `current/`.
 
-npm ci
-npx prisma migrate deploy
-npm run db:seed
-npm run build
-```
-
-Chạy production:
-
-```bash
-npm start   # port 3001
-# hoặc PM2 (bắt buộc instances=1, fork — xem ecosystem.config.cjs):
-pm2 start ecosystem.config.cjs
-pm2 save
-```
-
+PM2 chạy **một process fork** (cấu hình ở `infra/server/apps/learn-chinese/ecosystem.config.cjs`).
 Không bật PM2 cluster mode cho phiên bản này. Giữ `instances=1`, `exec_mode=fork`; trước khi scale nhiều process phải chuyển rate limiter theo phút sang Redis/PostgreSQL.
 
 Reverse proxy cần cho phép request Hanzi AI chạy tối đa 90 giây. Với Nginx đặt `proxy_read_timeout 90s;` và `proxy_send_timeout 90s;`.
@@ -89,20 +72,15 @@ Hoặc gọi `POST /api/admin/hanzi-ai` với `{ "action": "purge_attempts" }` (
 
 ## Cập nhật (mỗi lần deploy)
 
-```bash
-cd /var/www/learn-chinese
-git pull
-./scripts/deploy.sh
-pm2 restart learn-chinese
-```
+Merge vào `main`. Không `git pull` hay sửa code trực tiếp trên VPS.
 
-Migration `20260622111541_add_ghi_chu_and_question_types` thêm cột `CnWord.ghiChu` và enum câu hỏi typed. `deploy.sh` chạy `prisma migrate deploy` + `prisma generate` tự động.
+Migration `20260622111541_add_ghi_chu_and_question_types` thêm cột `CnWord.ghiChu` và enum câu hỏi typed. Deploy chạy `prisma generate` + `prisma migrate deploy` tự động.
 
 Sau deploy lần đầu có feature sample sets, script cũng chạy `provision-global-sample-sets.ts` để backfill 3 bộ HSK1 cho user cũ.
 
 ## Database — migrations bắt buộc (2026-06-18)
 
-Sau khi pull, `deploy.sh` chạy `prisma migrate deploy`. Cần có trên prod:
+Mỗi lần deploy chạy `prisma migrate deploy`. Cần có trên prod:
 
 - `20260618200000_srs_pedagogy_improvements` — channel intro, mark-known, sticking point, answer source
 - `20260618300000_srs_set_activation` — `CnWordSet.srsActive` + backfill bộ có progress
