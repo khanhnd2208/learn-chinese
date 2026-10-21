@@ -39,7 +39,7 @@ interface Props {
 	revealUsed: boolean;
 	/** Parent already revealed the target pinyin, for example after a first miss. */
 	forceTargetPinyin?: boolean;
-	onReveal: () => void;
+	onReveal: (kind: 'audio' | 'pinyin') => void;
 	/** Return false when playback did not start, so a hint is not counted. */
 	onPlay: (text: string) => void | boolean;
 }
@@ -87,12 +87,12 @@ export default function SentencePromptCard({
 		if (!sentenceAudioText) return;
 		const played = onPlay(sentenceAudioText);
 		if (played === false || revealUsed) return;
-		onReveal();
+		onReveal('audio');
 	};
 
 	const revealTargetPinyin = () => {
 		setShowTargetPinyin(true);
-		if (!revealUsed) onReveal();
+		if (!revealUsed) onReveal('pinyin');
 	};
 
 	return (

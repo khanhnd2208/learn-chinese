@@ -131,6 +131,7 @@ export default function QuestionRenderer({
 	const [pendingAdvance, setPendingAdvance] = useState(false);
 	const [showHint, setShowHint] = useState(false);
 	const [hintUsed, setHintUsed] = useState(false);
+	const [sentenceHintKind, setSentenceHintKind] = useState<'audio' | 'pinyin' | null>(null);
 	const [retryArmed, setRetryArmed] = useState(false);
 	const [retryNotice, setRetryNotice] = useState<string | null>(null);
 	const [rejectedOption, setRejectedOption] = useState<string | null>(null);
@@ -189,6 +190,7 @@ export default function QuestionRenderer({
 		setPendingAdvance(false);
 		setShowHint(false);
 		setHintUsed(false);
+		setSentenceHintKind(null);
 		setRetryArmed(false);
 		setRetryNotice(null);
 		setRejectedOption(null);
@@ -269,6 +271,7 @@ export default function QuestionRenderer({
 			setSelected(null);
 			if (q.options) setRejectedOption(answer);
 			const played = ttsReady ? speak(q.sentenceAudioText!) : false;
+			setSentenceHintKind((current) => (current === 'audio' || played ? 'audio' : 'pinyin'));
 			if (played) {
 				setRetryNotice('Chưa khớp — nghe cả câu rồi thử lại nhé');
 			} else {
@@ -284,7 +287,7 @@ export default function QuestionRenderer({
 			return true;
 		}
 
-		const feedbackText = correct ? (hintUsed ? 'Đúng (có gợi ý)' : 'Đúng!') : 'Sai';
+		const feedbackText = correct ? 'Đúng!' : 'Sai';
 		const shownAt = questionShownAtRef.current || Date.now();
 		const responseMs = Math.min(600_000, Math.max(0, Date.now() - shownAt));
 
@@ -443,7 +446,10 @@ export default function QuestionRenderer({
 							audioAvailable={!speechReady || supported}
 							revealUsed={hintUsed}
 							forceTargetPinyin={forceTargetPinyin}
-							onReveal={() => setHintUsed(true)}
+							onReveal={(kind) => {
+								setHintUsed(true);
+								setSentenceHintKind((current) => (current === 'audio' ? 'audio' : kind));
+							}}
 							onPlay={speak}
 						/>
 					</div>
@@ -622,9 +628,18 @@ export default function QuestionRenderer({
 										filled
 									/>
 									<span className={`text-base font-black sm:text-lg ${isFeedbackCorrect ? 'text-success' : 'text-accent'}`}>
-										{isFeedbackCorrect ? (hintUsed ? 'Đúng (có gợi ý)' : 'Đúng!') : 'Chưa đúng'}
+										{isFeedbackCorrect ? 'Đúng!' : 'Chưa đúng'}
 									</span>
 								</div>
+								{isFeedbackCorrect && hintUsed && (
+									<p className="mt-1 pl-2 text-sm text-foreground-secondary">
+										{isFillSentenceQuestion(q.type)
+											? sentenceHintKind === 'pinyin'
+												? 'Bạn đã xem pinyin từ cần điền, nên từ này giữ nguyên bậc. Lần sau thử không xem nhé.'
+												: 'Bạn đã nghe câu, nên từ này giữ nguyên bậc. Lần sau thử không nghe nhé.'
+											: 'Có dùng gợi ý, nên từ này giữ nguyên bậc.'}
+									</p>
+								)}
 								{isFeedbackWrong && <AnswerRevealCard question={q} />}
 								{isFeedbackWrong && (q.mnemonicVi || q.usageNoteVi) && (
 									<p className="mt-2 pl-2 text-sm italic text-foreground-secondary">
@@ -734,7 +749,7 @@ function QuestionHeroCard({
 	audioAvailable: boolean;
 	revealUsed: boolean;
 	forceTargetPinyin: boolean;
-	onReveal: () => void;
+	onReveal: (kind: 'audio' | 'pinyin') => void;
 	onPlay: (text: string) => void | boolean;
 }) {
 	if (isSound) {
