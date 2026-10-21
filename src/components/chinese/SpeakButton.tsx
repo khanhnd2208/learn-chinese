@@ -8,9 +8,10 @@ interface Props {
 	label?: string;
 	className?: string;
 	iconOnly?: boolean;
+	large?: boolean;
 }
 
-export default function SpeakButton({ text, label = 'Nghe', className = '', iconOnly = false }: Props) {
+export default function SpeakButton({ text, label = 'Nghe', className = '', iconOnly = false, large = false }: Props) {
 	const { supported, speaking, speak } = useSpeech();
 
 	if (!supported) {
@@ -28,9 +29,9 @@ export default function SpeakButton({ text, label = 'Nghe', className = '', icon
 				onClick={() => speak(text)}
 				disabled={speaking}
 				aria-label="Phát âm"
-				className={`flex h-10 w-10 items-center justify-center rounded-full border border-accent/20 bg-accent-subtle text-accent transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 ${className}`}
+				className={`flex items-center justify-center rounded-full border border-accent/20 bg-accent-subtle text-accent transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 ${large ? 'h-16 w-16' : 'h-10 w-10'} ${className}`}
 			>
-				<MaterialIcon name="volume_up" size={20} />
+				<MaterialIcon name="volume_up" size={large ? 32 : 20} />
 			</button>
 		);
 	}

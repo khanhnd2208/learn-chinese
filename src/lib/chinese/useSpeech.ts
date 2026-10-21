@@ -4,13 +4,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 export function useSpeech() {
 	const [supported, setSupported] = useState(false);
+	const [ready, setReady] = useState(false);
 	const [speaking, setSpeaking] = useState(false);
 	const [failed, setFailed] = useState(false);
 	const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
 
 	useEffect(() => {
-		if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
-		const supportTimer = window.setTimeout(() => setSupported(true), 0);
+		const hasSpeech = typeof window !== 'undefined' && 'speechSynthesis' in window;
+		const supportTimer = window.setTimeout(() => {
+			setSupported(hasSpeech);
+			setReady(true);
+		}, 0);
+		if (!hasSpeech) {
+			return () => window.clearTimeout(supportTimer);
+		}
 
 		const loadVoices = () => {
 			voicesRef.current = window.speechSynthesis.getVoices();
@@ -58,5 +65,5 @@ export function useSpeech() {
 		}
 	}, [supported]);
 
-	return { supported, speaking, failed, speak, stop };
+	return { supported, ready, speaking, failed, speak, stop };
 }

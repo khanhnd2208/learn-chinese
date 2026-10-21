@@ -25,7 +25,7 @@ alwaysApply: false
 ## Practice
 
 - **7 core question types** — `coreQuestionTypes.ts` (includes `fill_sentence`, `fill_sentence_typed`, `sound_to_hanzi`, `sound_to_hanzi_typed`)
-- Sound channel always shows audio + visible pinyin; never audio-only
+- Sound channel plays audio without showing pinyin; "Hiện pinyin" counts as a hint. Devices without TTS show pinyin immediately and do not count a hint
 - Sentence ladder: mcq1/mcq2 → `fill_sentence` MCQ; recall/maintain → `fill_sentence_typed`
 - Examples: 5 `vi_du_1…5` per word in `tu_vung` import (`parseFillExample.ts`)
 - Question generation: `generateQuestions.ts` + `verifiedExample.ts`

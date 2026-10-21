@@ -129,8 +129,9 @@ export default function QuestionRenderer({
 	const [feedback, setFeedback] = useState<string | null>(null);
 	const [pendingAdvance, setPendingAdvance] = useState(false);
 	const [showHint, setShowHint] = useState(false);
+	const [hintUsed, setHintUsed] = useState(false);
 	const [sessionHeavyLapses, setSessionHeavyLapses] = useState<Record<string, number>>({});
-	const { speak, supported } = useSpeech();
+	const { speak, supported, ready: speechReady } = useSpeech();
 	const autoPlayedRef = useRef<string | null>(null);
 	const typedInputRef = useRef<HTMLInputElement>(null);
 	const resultsRef = useRef(results);
@@ -181,6 +182,7 @@ export default function QuestionRenderer({
 		setTypedAnswer('');
 		setPendingAdvance(false);
 		setShowHint(false);
+		setHintUsed(false);
 		setIdx((currentIdx) => {
 			if (currentIdx + 1 >= questions.length) {
 				onComplete?.(nextResults);
@@ -381,7 +383,13 @@ export default function QuestionRenderer({
 						{q.prompt}
 					</p>
 					<div className="animate-fade-slide-up opacity-0" style={{ animationDelay: '0.1s' }}>
-						<QuestionHeroCard key={q.id} question={q} isSound={isSound} />
+						<QuestionHeroCard
+							key={q.id}
+							question={q}
+							isSound={isSound}
+							showSoundPinyin={hintUsed || !!feedback || (speechReady && !supported)}
+							onRevealPinyin={speechReady && supported ? () => setHintUsed(true) : undefined}
+						/>
 					</div>
 					{hasHint && (
 						<button
@@ -640,12 +648,34 @@ function HintPanel({ question: q }: { question: CnPracticeQuestionDTO }) {
 	);
 }
 
-function QuestionHeroCard({ question: q, isSound }: { question: CnPracticeQuestionDTO; isSound: boolean }) {
-	if (isSound && q.pinyin) {
+function QuestionHeroCard({
+	question: q,
+	isSound,
+	showSoundPinyin,
+	onRevealPinyin,
+}: {
+	question: CnPracticeQuestionDTO;
+	isSound: boolean;
+	showSoundPinyin: boolean;
+	onRevealPinyin?: () => void;
+}) {
+	if (isSound) {
+		const caption = q.type === 'sound_to_hanzi_typed' ? 'Nghe và gõ chữ đúng' : 'Nghe và chọn chữ đúng';
 		return (
 			<div className="card-paper animate-float mx-auto flex min-h-[200px] w-full max-w-md flex-col items-center justify-center gap-4 p-8">
-				<p className="text-2xl font-bold text-accent">{q.pinyin}</p>
-				{q.audioText && <SpeakButton text={q.audioText} label="Phát âm" />}
+				{q.audioText && <SpeakButton text={q.audioText} label="Nghe" iconOnly large />}
+				<p className="text-sm font-medium text-muted">{caption}</p>
+				{showSoundPinyin && q.pinyin ? (
+					<p className="text-2xl font-bold text-accent">{q.pinyin}</p>
+				) : q.pinyin && onRevealPinyin ? (
+					<button
+						type="button"
+						onClick={onRevealPinyin}
+						className="label-caps text-muted transition-colors hover:text-accent"
+					>
+						Hiện pinyin
+					</button>
+				) : null}
 			</div>
 		);
 	}
