@@ -53,6 +53,7 @@ function anyChannelDue(p: CnWordProgress, at: Date): boolean {
 describe('cnSrsDueQuery superset safety', () => {
 	const fixtures: CnWordProgress[] = [
 		progressFixture(),
+		progressFixture({ introducedAt: now }),
 		progressFixture({
 			meaningTotal: 2,
 			meaningCorrect: 2,

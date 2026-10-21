@@ -38,6 +38,7 @@ function makeProgress(overrides: Partial<ProgressForMetrics> = {}): ProgressForM
 		soundTotal: 1,
 		sentenceTotal: 0,
 		dueAt: now,
+		introducedAt: now,
 		...overrides,
 	};
 }
@@ -61,7 +62,7 @@ describe('reviewMetrics', () => {
 
 	it('excludes sentence channel without fill examples from metrics', () => {
 		const now = new Date('2026-06-23T12:00:00');
-		const progress = [makeProgress({ sentenceTotal: 0, sentenceDueAt: now })];
+		const progress = [makeProgress({ sentenceTotal: 0, sentenceDueAt: now, meaningIntervalIdx: 2 })];
 		const withExamples = new Set<string>();
 		expect(countDueChannelsForMetrics(progress, now, withExamples)).toBe(2);
 		expect(countDueChannelsForMetrics(progress, now, new Set(['w1']))).toBe(3);
@@ -71,7 +72,7 @@ describe('reviewMetrics', () => {
 		const now = new Date('2026-06-23T12:00:00');
 		const future = addLocalDays(now, 1);
 		const progress = [
-			makeProgress({ wordId: 'w1' }),
+			makeProgress({ wordId: 'w1', meaningIntervalIdx: 2 }),
 			makeProgress({
 				wordId: 'w2',
 				meaningTotal: 2,

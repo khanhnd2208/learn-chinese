@@ -11,7 +11,7 @@ alwaysApply: false
 - **Not** SM-2/Anki — multi-track Leitner per `(word, channel)`
 - **3 channels**: meaning, sound (audio + pinyin together), sentence
 - Intervals in `src/config/constants.ts`: `CN_SRS_INTERVAL_DAYS` (1d → 30d ladder)
-- All channels active from enrollment (`channelRamp.ts` stub returns true)
+- Meaning opens after introduction. Sound opens at meaning idx 1. Sentence opens at meaning idx 2. A practiced channel stays open. Unintroduced words are not due.
 - First wrong on MCQ stages: 30m cooldown (`CN_WRONG_FIRST_RETRY_MINUTES`)
 - Sentence channel due only when word has fill-ready `CnExample` rows (`loadWordIdsWithFillExamples`)
 - Due eligibility: schedule only — **no** lifetime-rate weak bypass in `isChannelDue`

@@ -119,14 +119,20 @@ describe('practiceTaxonomy (7 core types, 3 channels)', () => {
 		expect(types).toEqual(['hanzi_to_meaning']);
 	});
 
-	it('all channels always unlocked', () => {
+	it('keeps every channel available when practice has no progress row', () => {
 		expect(isChannelUnlocked(null, 'meaning')).toBe(true);
 		expect(isChannelUnlocked(null, 'sound')).toBe(true);
 		expect(isChannelUnlocked(null, 'sentence')).toBe(true);
+		expect(getUnlockedGroups(null)).toEqual(['core_vocab', 'sound', 'sentence']);
 	});
 
-	it('getUnlockedGroups returns core, sound, and sentence', () => {
-		expect(getUnlockedGroups(null)).toEqual(['core_vocab', 'sound', 'sentence']);
+	it('unlocks practice groups from the meaning interval', () => {
+		const early = mkProgress({ meaningIntervalIdx: 0, meaningTotal: 0, soundTotal: 0, sentenceTotal: 0 });
+		expect(getUnlockedGroups(early)).toEqual(['core_vocab']);
+		const sound = mkProgress({ meaningIntervalIdx: 1, meaningTotal: 1, soundTotal: 0, sentenceTotal: 0 });
+		expect(getUnlockedGroups(sound)).toEqual(['core_vocab', 'sound']);
+		const sentence = mkProgress({ meaningIntervalIdx: 2, meaningTotal: 2, soundTotal: 0, sentenceTotal: 0 });
+		expect(getUnlockedGroups(sentence)).toEqual(['core_vocab', 'sound', 'sentence']);
 	});
 
 	it('reviewQuestionTypeForChannel maps stage to question type', () => {
@@ -229,7 +235,7 @@ describe('practiceTaxonomy (7 core types, 3 channels)', () => {
 					naturalnessStatus: 'auto',
 				}],
 			});
-			const progress = mkProgress({ sentenceIntervalIdx: 2 });
+			const progress = mkProgress({ sentenceIntervalIdx: 2, meaningIntervalIdx: 2, sentenceTotal: 1 });
 			const types = selectQuestionTypesForWord(word, progress, { group: 'sentence', count: 3 });
 			expect(types).toEqual(['fill_sentence_typed']);
 		});

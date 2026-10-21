@@ -43,10 +43,24 @@ function baseProgress(overrides: Partial<CnWordProgress> = {}): CnWordProgress {
 }
 
 describe('channelRamp', () => {
-	it('all channels are always ramp eligible', () => {
+	it('closes every channel until the word is introduced', () => {
 		const p = baseProgress();
-		expect(isChannelRampEligible(p, 'meaning')).toBe(true);
+		expect(isChannelRampEligible(p, 'meaning')).toBe(false);
+		expect(isChannelRampEligible(p, 'sound')).toBe(false);
+		expect(isChannelRampEligible(p, 'sentence')).toBe(false);
+	});
+
+	it('opens meaning immediately, sound at idx 1, and sentence at idx 2', () => {
+		const introduced = baseProgress({ introducedAt: new Date('2026-06-17T10:00:00Z') });
+		expect(isChannelRampEligible(introduced, 'meaning')).toBe(true);
+		expect(isChannelRampEligible(introduced, 'sound')).toBe(false);
+		expect(isChannelRampEligible(introduced, 'sentence')).toBe(false);
+		expect(isChannelRampEligible(baseProgress({ introducedAt: introduced.introducedAt, meaningIntervalIdx: 1 }), 'sound')).toBe(true);
+		expect(isChannelRampEligible(baseProgress({ introducedAt: introduced.introducedAt, meaningIntervalIdx: 2 }), 'sentence')).toBe(true);
+	});
+
+	it('does not close a channel the learner has already practiced', () => {
+		const p = baseProgress({ meaningIntervalIdx: 0, soundTotal: 3 });
 		expect(isChannelRampEligible(p, 'sound')).toBe(true);
-		expect(isChannelRampEligible(p, 'sentence')).toBe(true);
 	});
 });

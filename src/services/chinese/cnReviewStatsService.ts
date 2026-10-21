@@ -44,6 +44,7 @@ function progressToMetrics(p: {
 	soundTotal: number;
 	sentenceTotal: number;
 	dueAt: Date;
+	introducedAt: Date | null;
 }): ProgressForMetrics {
 	return {
 		wordId: p.wordId,
@@ -58,6 +59,7 @@ function progressToMetrics(p: {
 		soundTotal: p.soundTotal,
 		sentenceTotal: p.sentenceTotal,
 		dueAt: p.dueAt,
+		introducedAt: p.introducedAt,
 	};
 }
 
@@ -98,6 +100,7 @@ async function loadProgressMetrics(
 				soundTotal: true,
 				sentenceTotal: true,
 				dueAt: true,
+				introducedAt: true,
 			},
 		}),
 		loadWordIdsWithFillExamples(activeIds),

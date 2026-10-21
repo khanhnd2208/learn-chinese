@@ -4,6 +4,7 @@
 import {
 	CN_STATE_THRESHOLDS,
 } from '@/config/constants';
+import { isChannelRampEligible } from '@/lib/chinese/channelRamp';
 import { computeNextReview } from '@/lib/chinese/srsSchedule';
 import { ALL_SKILL_CHANNELS, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
 import { isTypedQuestion } from '@/lib/chinese/questionLabels';
@@ -52,6 +53,7 @@ export interface ProgressForMetrics {
 	soundTotal: number;
 	sentenceTotal: number;
 	dueAt: Date;
+	introducedAt: Date | null;
 }
 
 export interface RecallSplit {
@@ -141,6 +143,7 @@ export function isChannelDueForMetrics(
 	if (channel === 'sentence' && !isSentenceChannelEligible(progress, wordsWithFillExamples)) {
 		return false;
 	}
+	if (!isChannelRampEligible(progress, channel)) return false;
 	const total = progress[CHANNEL_TOTAL_FIELDS[channel]] as number;
 	if (total === 0) return true;
 	return channelDueAt(progress, channel) <= now;

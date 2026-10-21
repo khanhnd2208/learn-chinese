@@ -13,6 +13,7 @@ export function buildDueCandidateWhere(
 	return {
 		userId,
 		wordId: { in: wordIds },
+		introducedAt: { not: null },
 		OR: [
 			{ meaningTotal: 0 },
 			{ meaningDueAt: { lte: now } },
@@ -27,6 +28,7 @@ export function buildDueCandidateWhere(
 
 /** Mirror of buildDueCandidateWhere OR clauses for unit tests (no Prisma) */
 export function progressMatchesDueCandidateSuperset(p: CnWordProgress, now: Date): boolean {
+	if (p.introducedAt == null) return false;
 	return (
 		p.meaningTotal === 0
 		|| (p.meaningDueAt instanceof Date && p.meaningDueAt <= now)

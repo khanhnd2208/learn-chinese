@@ -9,6 +9,7 @@ import {
 	clampSrsIntervalIdx,
 } from '@/config/constants';
 import { reconcileSubmitItems } from '@/lib/chinese/answerGrading';
+import { isChannelRampEligible } from '@/lib/chinese/channelRamp';
 import { buildDueCandidateWhere } from '@/lib/chinese/cnSrsDueQuery';
 import { isCoreQuestionType, questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
 import { ensureEnrollmentForActiveWords, resolveSrsPoolWordIds } from '@/services/chinese/cnSrsEnrollmentService';
@@ -92,6 +93,7 @@ export function isChannelDue(
 	channel: SkillChannel,
 	now: Date,
 ): boolean {
+	if (!isChannelRampEligible(p, channel)) return false;
 	const total = p[CHANNEL_FIELDS[channel].total] as number;
 	if (total === 0) return true;
 

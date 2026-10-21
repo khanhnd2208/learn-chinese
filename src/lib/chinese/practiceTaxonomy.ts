@@ -2,6 +2,7 @@
    practiceTaxonomy.ts — Skill groups, channel unlock, smart question selection
    ════════════════════════════════════════════════════════════════════════ */
 import { stageFromIntervalIdx } from '@/config/constants';
+import { isChannelOpenForLevel } from '@/lib/chinese/channelRamp';
 import {
 	ALL_SKILL_CHANNELS,
 	questionChannel,
@@ -174,19 +175,21 @@ function channelIntervalIdx(progress: CnWordProgressDTO | null, channel: SkillCh
 	}
 }
 
-/** All channels are always active in the minimal SRS model */
+/** Practice is not gated by introducedAt. A missing progress row keeps every channel available. */
 export function isChannelUnlocked(
 	progress: CnWordProgressDTO | null,
 	channel: SkillChannel,
 ): boolean {
-	void progress;
-	void channel;
-	return true;
+	if (!progress) return true;
+	return isChannelOpenForLevel(progress, channel);
 }
 
 export function getUnlockedGroups(progress: CnWordProgressDTO | null): PracticeGroup[] {
-	void progress;
-	return ['core_vocab', 'sound', 'sentence'];
+	const groups: PracticeGroup[] = [];
+	if (isChannelUnlocked(progress, 'meaning')) groups.push('core_vocab');
+	if (isChannelUnlocked(progress, 'sound')) groups.push('sound');
+	if (isChannelUnlocked(progress, 'sentence')) groups.push('sentence');
+	return groups;
 }
 
 /** Pick a mixed question type for maintain stage (Lv6+) */

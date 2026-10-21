@@ -117,9 +117,54 @@ describe('cnSrsService', () => {
 		expect(at7.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[0]).getTime());
 	});
 
-	it('all channels due for new enrolled word', () => {
+	it('keeps an unintroduced word out of review', () => {
 		const p = progressFixture({ id: 'p1', userId: 'u1', wordId: 'w-new' });
-		expect(isChannelDue(p, 'meaning', now)).toBe(true);
+		expect(isChannelDue(p, 'meaning', now)).toBe(false);
+		expect(isChannelDue(p, 'sound', now)).toBe(false);
+		expect(isChannelDue(p, 'sentence', now)).toBe(false);
+	});
+
+	it('opens meaning first, then sound, then sentence', () => {
+		const introduced = progressFixture({
+			id: 'p1',
+			userId: 'u1',
+			wordId: 'w1',
+			introducedAt: now,
+		});
+		expect(isChannelDue(introduced, 'meaning', now)).toBe(true);
+		expect(isChannelDue(introduced, 'sound', now)).toBe(false);
+		expect(isChannelDue(introduced, 'sentence', now)).toBe(false);
+
+		const soundOpen = progressFixture({
+			id: 'p2',
+			userId: 'u1',
+			wordId: 'w2',
+			introducedAt: now,
+			meaningIntervalIdx: 1,
+		});
+		expect(isChannelDue(soundOpen, 'sound', now)).toBe(true);
+		expect(isChannelDue(soundOpen, 'sentence', now)).toBe(false);
+
+		const sentenceOpen = progressFixture({
+			id: 'p3',
+			userId: 'u1',
+			wordId: 'w3',
+			introducedAt: now,
+			meaningIntervalIdx: 2,
+		});
+		expect(isChannelDue(sentenceOpen, 'sentence', now)).toBe(true);
+	});
+
+	it('keeps a practiced sound channel open after meaning drops', () => {
+		const p = progressFixture({
+			id: 'p1',
+			userId: 'u1',
+			wordId: 'w1',
+			introducedAt: now,
+			meaningIntervalIdx: 0,
+			soundTotal: 2,
+			soundDueAt: now,
+		});
 		expect(isChannelDue(p, 'sound', now)).toBe(true);
 	});
 
@@ -138,9 +183,21 @@ describe('cnSrsService', () => {
 	});
 
 	it('excludes sentence channel without fill examples from due counts', () => {
-		const p = progressFixture({ id: 'p1', userId: 'u1', wordId: 'w-no-fill' });
+		const p = progressFixture({
+			id: 'p1',
+			userId: 'u1',
+			wordId: 'w-no-fill',
+			introducedAt: now,
+			meaningIntervalIdx: 2,
+		});
 		const withFill = new Set(['w-has-fill']);
-		const withExample = progressFixture({ id: 'p2', userId: 'u1', wordId: 'w-has-fill' });
+		const withExample = progressFixture({
+			id: 'p2',
+			userId: 'u1',
+			wordId: 'w-has-fill',
+			introducedAt: now,
+			meaningIntervalIdx: 2,
+		});
 		const list = [p, withExample];
 
 		expect(countDueChannelsForProgressList(list, now)).toBe(6);
