@@ -5,6 +5,9 @@ on:
     branches: [main, master]
   pull_request:
 
+permissions:
+  contents: read
+
 env:
   MONGODB_URI: mongodb://127.0.0.1:27017/ci_build
   DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/ci_build

@@ -3,8 +3,6 @@
    ════════════════════════════════════════════════════════════════════════ */
 import { MongoClient } from 'mongodb';
 
-const FALLBACK_AUTH_DB = 'my_teaching_platform';
-
 async function findUserIdByEmail(client: MongoClient, dbName: string, email: string): Promise<string | null> {
 	const user = await client.db(dbName).collection('users').findOne({ email });
 	return user?._id?.toString() ?? null;
@@ -27,8 +25,11 @@ export async function resolveSeedUserId(): Promise<string | null> {
 		const fromPrimary = await findUserIdByEmail(client, primaryDb, email);
 		if (fromPrimary) return fromPrimary;
 
+		const fallbackDb = process.env.SEED_AUTH_DB?.trim();
+		if (!fallbackDb || fallbackDb === primaryDb) return null;
+
 		try {
-			return await findUserIdByEmail(client, FALLBACK_AUTH_DB, email);
+			return await findUserIdByEmail(client, fallbackDb, email);
 		} catch {
 			return null;
 		}

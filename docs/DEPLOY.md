@@ -2,8 +2,8 @@
 
 ## Cách deploy
 
-App chạy theo chuẩn chung của VPS, quản lý trong repo **the-private-infra-repo**
-(`docs/APP-STANDARD.md`, `docs/RUNBOOK.md`). Repo này không chứa cấu hình PM2 hay script deploy.
+App chạy theo chuẩn chung của VPS, quản lý trong repo hạ tầng riêng (không public).
+Repo này không chứa cấu hình PM2 hay script deploy.
 
 - Merge vào `main` → workflow **Quality** chạy → xanh thì **Deploy to VPS** tự chạy.
 - Deploy tay: Actions → Deploy to VPS → Run workflow, hoặc `vps deploy learn-chinese` trên máy Mac.
@@ -11,7 +11,7 @@ App chạy theo chuẩn chung của VPS, quản lý trong repo **the-private-inf
   build trong `/var/www/learn-chinese/releases/<mới>` trong khi bản cũ vẫn chạy, `pg_dump` trước khi migrate,
   đổi `current`, gọi `GET /api/health`; không ra 200 thì tự quay về bản cũ.
 - Các bước build riêng của app (prisma, migrate, purge demo sets, verify sample, build) nằm ở
-  `infra/server/apps/learn-chinese/build.sh`. Test, lint, typecheck, audit chạy ở workflow Quality.
+  script build của app trên server. Test, lint, typecheck, audit chạy ở workflow Quality.
 - Quay lại bản trước: `vps rollback learn-chinese`. Xem log: `vps logs learn-chinese`.
 
 Trên VPS:
@@ -36,12 +36,12 @@ Secrets trong environment `production`: `VPS_HOST`, `VPS_SSH_KEY` (khoá CI có 
 
 ## Lần đầu trên một VPS mới
 
-Làm theo `infra/docs/RUNBOOK.md` › "Thêm một app mới": tạo database, đặt
+Làm theo runbook hạ tầng › "Thêm một app mới": tạo database, đặt
 `/var/www/learn-chinese/shared/.env` (DATABASE_URL, MONGODB_URI, AUTH_SECRET, NEXTAUTH_URL,
 Google OAuth, ADMIN_EMAILS), rồi `vps deploy learn-chinese --local`. Seed nội dung lần đầu:
 `npm run db:seed` trong `current/`.
 
-PM2 chạy **một process fork** (cấu hình ở `infra/server/apps/learn-chinese/ecosystem.config.cjs`).
+PM2 chạy **một process fork** (cấu hình nằm ở repo hạ tầng, không nằm trong repo này).
 Không bật PM2 cluster mode cho phiên bản này. Giữ `instances=1`, `exec_mode=fork`; trước khi scale nhiều process phải chuyển rate limiter theo phút sang Redis/PostgreSQL.
 
 Health check public: `GET /api/health` trả `200` khi app, PostgreSQL và MongoDB đều sẵn sàng; trả `503` khi dependency lỗi. Endpoint không trả secret hoặc stack trace.

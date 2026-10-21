@@ -14,8 +14,12 @@ async function main() {
 	const { prisma } = await import('../src/lib/prisma.js');
 	const { findMongoUserByEmail } = await import('../src/lib/chinese/mongoUsers.js');
 
-	const recipientEmail = process.env.SEED_MSG_EMAIL ?? 'admin@example.com';
-	const content = process.env.SEED_MSG_CONTENT ?? 'Test đi';
+	const recipientEmail = process.env.SEED_MSG_EMAIL?.trim();
+	const content = process.env.SEED_MSG_CONTENT?.trim();
+	if (!recipientEmail || !content) {
+		console.error('Cần SEED_MSG_EMAIL và SEED_MSG_CONTENT trong môi trường. Không ghi email thật vào source.');
+		process.exit(1);
+	}
 
 	const recipient = await findMongoUserByEmail(recipientEmail);
 	if (!recipient) {
