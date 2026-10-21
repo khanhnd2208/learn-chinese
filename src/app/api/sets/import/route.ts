@@ -1,8 +1,8 @@
-import { withAuth, apiSuccess, apiError } from '@/lib/apiUtils';
+import { withAdmin, apiSuccess, apiError } from '@/lib/apiUtils';
 import { validateImportFile } from '@/lib/apiValidation';
 import { importUserWorkbook, previewUserWorkbook } from '@/services/chinese/cnExcelService';
 
-export const POST = withAuth(async (request, user) => {
+export const POST = withAdmin(async (request, user) => {
 	const contentType = request.headers.get('content-type') ?? '';
 	if (!contentType.includes('multipart/form-data')) {
 		return apiError('multipart/form-data required', 400);

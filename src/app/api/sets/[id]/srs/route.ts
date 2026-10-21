@@ -5,7 +5,7 @@ import {
 	previewDeactivateSet,
 	purgeSrsProgressForSet,
 } from '@/services/chinese/cnSrsEnrollmentService';
-import { getUserSet } from '@/services/chinese/cnSetService';
+import { getViewableSet } from '@/services/chinese/cnSetService';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -15,7 +15,7 @@ export const GET = withAuth(async (request, user, ctx) => {
 	if (searchParams.get('preview') !== 'deactivate') {
 		return apiError('preview không hợp lệ', 400);
 	}
-	const set = await getUserSet(user.id, id);
+	const set = await getViewableSet(user.id, id);
 	if (!set) return apiError('Set not found', 404);
 	const preview = await previewDeactivateSet(user.id, id);
 	return apiSuccess({
@@ -32,7 +32,7 @@ export const PATCH = withAuth(async (request, user, ctx) => {
 		return apiError('Cần active: boolean', 400);
 	}
 
-	const set = await getUserSet(user.id, id);
+	const set = await getViewableSet(user.id, id);
 	if (!set) return apiError('Set not found', 404);
 
 	if (body.active) {
@@ -41,17 +41,17 @@ export const PATCH = withAuth(async (request, user, ctx) => {
 		await deactivateSetFromSrs(user.id, id);
 	}
 
-	const updated = await getUserSet(user.id, id);
+	const updated = await getViewableSet(user.id, id);
 	return apiSuccess({ srsActive: body.active, set: updated });
 });
 
 /** Explicit purge of SRS progress for words exclusive to this set */
 export const DELETE = withAuth(async (_request, user, ctx) => {
 	const { id } = await (ctx as Ctx).params;
-	const set = await getUserSet(user.id, id);
+	const set = await getViewableSet(user.id, id);
 	if (!set) return apiError('Set not found', 404);
 
 	const { purgedWordCount } = await purgeSrsProgressForSet(user.id, id);
-	const updated = await getUserSet(user.id, id);
+	const updated = await getViewableSet(user.id, id);
 	return apiSuccess({ purgedWordCount, set: updated });
 });

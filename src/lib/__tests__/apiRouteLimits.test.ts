@@ -96,6 +96,12 @@ describe('API route request limits', () => {
 	});
 
 	it('rejects oversized bulk item delete payload before mutating a set', async () => {
+		mockGetApiUser.mockResolvedValueOnce({
+			id: 'admin-1',
+			email: 'admin@example.com',
+			name: 'Admin',
+			role: 'admin',
+		});
 		const itemIds = Array.from({ length: CN_MAX_BULK_ITEM_IDS + 1 }, (_, i) => `item-${i}`);
 		const request = new NextRequest('http://localhost/api/sets/set-1/items', {
 			method: 'DELETE',

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { withAuth, apiSuccess, apiError } from '@/lib/apiUtils';
+import { withAdmin, apiSuccess, apiError } from '@/lib/apiUtils';
 import {
 	CN_MAX_SMART_IMPORT_TEXT_CHARS,
 	validateJsonContentLength,
@@ -16,7 +16,7 @@ const bodySchema = z.object({
 
 type Ctx = { params: Promise<{ id: string }> };
 
-export const POST = withAuth(async (request, user, ctx) => {
+export const POST = withAdmin(async (request, user, ctx) => {
 	const contentLengthError = validateJsonContentLength(request.headers);
 	if (contentLengthError) return apiError(contentLengthError, 400);
 

@@ -339,7 +339,7 @@ export async function createUserSet(
 export async function updateUserSet(
 	userId: string,
 	setId: string,
-	data: { title?: string; description?: string },
+	data: { title?: string; description?: string; level?: number | null; sortOrder?: number },
 ): Promise<CnWordSetDTO | null> {
 	const existing = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
 	if (!existing) return null;
@@ -349,6 +349,8 @@ export async function updateUserSet(
 		data: {
 			...(data.title !== undefined && { title: data.title.trim() }),
 			...(data.description !== undefined && { description: data.description.trim() }),
+			...(data.level !== undefined && { level: data.level }),
+			...(data.sortOrder !== undefined && { sortOrder: data.sortOrder }),
 		},
 	});
 	return getUserSet(userId, setId);

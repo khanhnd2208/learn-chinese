@@ -1,4 +1,4 @@
-import { withAuth, apiSuccess, apiError } from '@/lib/apiUtils';
+import { withAdmin, withAuth, apiSuccess, apiError } from '@/lib/apiUtils';
 import { CN_MAX_BULK_ITEM_IDS, validateBulkItemIds } from '@/lib/apiValidation';
 import {
 	moveItemToSet,
@@ -23,7 +23,7 @@ export const GET = withAuth(async (request, user, ctx) => {
 	return apiSuccess(preview);
 });
 
-export const POST = withAuth(async (request, _user, ctx) => {
+export const POST = withAdmin(async (request, _user, ctx) => {
 	await (ctx as Ctx).params;
 	const body = await request.json() as { terms?: string[] };
 	if (body.terms) {
@@ -35,7 +35,7 @@ export const POST = withAuth(async (request, _user, ctx) => {
 	return apiError('terms không hợp lệ', 400);
 });
 
-export const PATCH = withAuth(async (request, user, ctx) => {
+export const PATCH = withAdmin(async (request, user, ctx) => {
 	const { id: fromSetId } = await (ctx as Ctx).params;
 	const body = await request.json() as {
 		itemId?: string;
@@ -81,7 +81,7 @@ export const PATCH = withAuth(async (request, user, ctx) => {
 	return apiSuccess({ ok: true });
 });
 
-export const DELETE = withAuth(async (request, user, ctx) => {
+export const DELETE = withAdmin(async (request, user, ctx) => {
 	const { id } = await (ctx as Ctx).params;
 	const body = await request.json() as { itemId?: string; itemIds?: string[] };
 
