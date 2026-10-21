@@ -18,7 +18,8 @@ interface Props {
 export default function LearningReportTabs({ srsPanel }: Props) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const tab: TabId = searchParams.get('tab') === 'inferno' ? 'inferno' : 'srs';
+	const infernoOpen = searchParams.get('tab') === 'inferno';
+	const tab: TabId = infernoOpen ? 'inferno' : 'srs';
 
 	const selectTab = useCallback((next: TabId) => {
 		router.replace(next === 'inferno' ? '/dashboard?tab=inferno' : '/dashboard', { scroll: false });
@@ -32,26 +33,28 @@ export default function LearningReportTabs({ srsPanel }: Props) {
 					Báo cáo học tập
 				</h1>
 				<p className="mt-1 text-sm text-foreground-secondary">
-					Theo dõi tiến độ SRS và thành tích Địa Ngục
+					{infernoOpen ? 'Thành tích Địa Ngục — chế độ thử nghiệm' : 'Theo dõi tiến độ SRS'}
 				</p>
 			</section>
 
-			<nav className="hide-scrollbar flex gap-2 overflow-x-auto border-b border-border pb-px snap-x">
-				{TABS.map((t) => (
-					<button
-						key={t.id}
-						type="button"
-						onClick={() => selectTab(t.id)}
-						className={`snap-start whitespace-nowrap rounded-t-lg px-4 py-2.5 text-sm font-bold transition-colors ${
-							tab === t.id
-								? 'border border-b-0 border-border bg-surface text-accent'
-								: 'text-muted hover:text-foreground'
-						}`}
-					>
-						{t.label}
-					</button>
-				))}
-			</nav>
+			{infernoOpen && (
+				<nav className="hide-scrollbar flex gap-2 overflow-x-auto border-b border-border pb-px snap-x">
+					{TABS.map((t) => (
+						<button
+							key={t.id}
+							type="button"
+							onClick={() => selectTab(t.id)}
+							className={`snap-start whitespace-nowrap rounded-t-lg px-4 py-2.5 text-sm font-bold transition-colors ${
+								tab === t.id
+									? 'border border-b-0 border-border bg-surface text-accent'
+									: 'text-muted hover:text-foreground'
+							}`}
+						>
+							{t.label}
+						</button>
+					))}
+				</nav>
+			)}
 
 			{tab === 'srs' ? srsPanel : <InfernoReportPanel />}
 		</div>

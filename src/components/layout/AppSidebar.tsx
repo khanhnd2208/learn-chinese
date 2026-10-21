@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ThemeToggle from '@/components/ui/ThemeToggle';
-import { MAIN_NAV, isNavActive } from '@/config/navigation';
+import { EXPERIMENTAL_NAV, MAIN_NAV, experimentalModesVisible, isNavActive } from '@/config/navigation';
 import { reviewBadgePressureClass, useReviewStatus } from '@/lib/chinese/useDueTodayCount';
 
 interface Props {
@@ -64,6 +64,21 @@ export default function AppSidebar({ dimmed = false }: Props) {
 						</Link>
 					);
 				})}
+				{experimentalModesVisible() && (
+					<div className="mt-3 border-t border-border pt-3">
+						<Link
+							href={EXPERIMENTAL_NAV.href}
+							className={isNavActive(pathname, EXPERIMENTAL_NAV.href) ? 'nav-pill-active' : 'nav-pill'}
+						>
+							<MaterialIcon
+								name={EXPERIMENTAL_NAV.icon}
+								filled={isNavActive(pathname, EXPERIMENTAL_NAV.href)}
+								size={20}
+							/>
+							<span className="text-foreground-secondary">{EXPERIMENTAL_NAV.label}</span>
+						</Link>
+					</div>
+				)}
 				{session?.user?.role === 'admin' && (
 					<Link
 						href="/admin"

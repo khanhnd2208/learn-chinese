@@ -313,7 +313,7 @@ export default function ReviewSessionClient() {
 							highlight: true,
 						}] : []),
 						...(briefing.maturePct > 0 ? [{
-							label: 'Độ chín',
+							label: 'Đã nắm',
 							value: `${briefing.maturePct}%`,
 						}] : []),
 					]}
