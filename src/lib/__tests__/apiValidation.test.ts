@@ -40,6 +40,21 @@ describe('apiValidation', () => {
 		])).toBe(false);
 	});
 
+	it('accepts attempts of 1 or 2 and rejects anything else', () => {
+		expect(validatePracticeSubmitItems([
+			{ wordId: 'w1', questionType: 'fill_sentence_typed', correct: true, attempts: 1 },
+		])).toBe(true);
+		expect(validatePracticeSubmitItems([
+			{ wordId: 'w1', questionType: 'fill_sentence_typed', correct: false, attempts: 2 },
+		])).toBe(true);
+		expect(validatePracticeSubmitItems([
+			{ wordId: 'w1', questionType: 'fill_sentence_typed', correct: false, attempts: 3 },
+		])).toBe(false);
+		expect(validatePracticeSubmitItems([
+			{ wordId: 'w1', questionType: 'fill_sentence_typed', correct: false, attempts: '1' },
+		])).toBe(false);
+	});
+
 	it('rejects invalid errorType on incorrect answers', () => {
 		expect(validatePracticeSubmitItems([
 			{ wordId: 'w1', questionType: 'hanzi_to_meaning', correct: false, errorType: 'not_real' },

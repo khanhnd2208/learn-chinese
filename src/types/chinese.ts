@@ -295,6 +295,8 @@ export interface CnPracticeSubmitItem {
 	answer?: string;
 	/** One id per answer, so a retried request is not counted twice. */
 	clientAnswerId?: string;
+	/** How many times the learner submitted this fill sentence. Statistics only. */
+	attempts?: 1 | 2;
 }
 
 export interface CnPracticeSessionResultDTO {

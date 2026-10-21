@@ -38,6 +38,8 @@ export function validatePracticeSubmitItems(items: unknown): items is CnPractice
 				&& Number.isInteger(row.responseMs)
 				&& row.responseMs >= 0
 				&& row.responseMs <= 600_000);
+		const attemptsOk = row.attempts === undefined
+			|| (typeof row.attempts === 'number' && (row.attempts === 1 || row.attempts === 2));
 		return typeof row.wordId === 'string'
 			&& row.wordId.length > 0
 			&& typeof row.correct === 'boolean'
@@ -47,6 +49,7 @@ export function validatePracticeSubmitItems(items: unknown): items is CnPractice
 			&& responseOk
 			&& answerOk
 			&& clientAnswerOk
+			&& attemptsOk
 			&& (row.errorType === undefined
 				|| row.errorType === null
 				|| (typeof row.errorType === 'string' && VALID_ERROR_TYPES.has(row.errorType as CnErrorType)));

@@ -10,6 +10,7 @@ import { questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTy
 import { isSoundQuestion, isFillSentenceQuestion, isTypedQuestion, learnerSessionLabel } from '@/lib/chinese/questionLabels';
 import { gradeAnswer } from '@/lib/chinese/answerGrade';
 import { formatReviewScheduleLabel } from '@/lib/chinese/reviewMetrics';
+import { decideSentenceAttempt } from '@/lib/chinese/sentenceAttempt';
 import { useSpeech } from '@/lib/chinese/useSpeech';
 import type { CnPracticeSubmitItem, CnPracticeQuestionDTO, CnQuestionType } from '@/types/chinese';
 
@@ -130,6 +131,10 @@ export default function QuestionRenderer({
 	const [pendingAdvance, setPendingAdvance] = useState(false);
 	const [showHint, setShowHint] = useState(false);
 	const [hintUsed, setHintUsed] = useState(false);
+	const [retryArmed, setRetryArmed] = useState(false);
+	const [retryNotice, setRetryNotice] = useState<string | null>(null);
+	const [rejectedOption, setRejectedOption] = useState<string | null>(null);
+	const [forceTargetPinyin, setForceTargetPinyin] = useState(false);
 	const [sessionHeavyLapses, setSessionHeavyLapses] = useState<Record<string, number>>({});
 	const { speak, supported, ready: speechReady } = useSpeech();
 	const autoPlayedRef = useRef<string | null>(null);
@@ -184,6 +189,10 @@ export default function QuestionRenderer({
 		setPendingAdvance(false);
 		setShowHint(false);
 		setHintUsed(false);
+		setRetryArmed(false);
+		setRetryNotice(null);
+		setRejectedOption(null);
+		setForceTargetPinyin(false);
 		setIdx((currentIdx) => {
 			if (currentIdx + 1 >= questions.length) {
 				onComplete?.(nextResults);
@@ -243,10 +252,38 @@ export default function QuestionRenderer({
 		void onExit?.();
 	};
 
-	const submitAnswer = (answer: string) => {
-		if (pendingAdvanceRef.current) return;
+	const submitAnswer = (answer: string): boolean => {
+		if (pendingAdvanceRef.current) return false;
 
 		const correct = gradeCurrentAnswer(answer);
+		const fillSentence = isFillSentenceQuestion(q.type);
+		const ttsReady = speechReady && supported && !!q.sentenceAudioText;
+		const pinyinReady = !!(q.wordPinyin || q.pinyin);
+		if (
+			fillSentence
+			&& decideSentenceAttempt({ correct, hintUsed, retryArmed }) === 'retry'
+			&& (ttsReady || pinyinReady)
+		) {
+			setHintUsed(true);
+			setRetryArmed(true);
+			setSelected(null);
+			if (q.options) setRejectedOption(answer);
+			const played = ttsReady ? speak(q.sentenceAudioText!) : false;
+			if (played) {
+				setRetryNotice('Chưa khớp — nghe cả câu rồi thử lại nhé');
+			} else {
+				setForceTargetPinyin(true);
+				setRetryNotice('Chưa khớp — xem pinyin rồi thử lại nhé');
+			}
+			if (!q.options) {
+				window.setTimeout(() => {
+					typedInputRef.current?.focus();
+					typedInputRef.current?.select();
+				}, 0);
+			}
+			return true;
+		}
+
 		const feedbackText = correct ? (hintUsed ? 'Đúng (có gợi ý)' : 'Đúng!') : 'Sai';
 		const shownAt = questionShownAtRef.current || Date.now();
 		const responseMs = Math.min(600_000, Math.max(0, Date.now() - shownAt));
@@ -260,6 +297,7 @@ export default function QuestionRenderer({
 			hintUsed,
 			responseMs,
 			...(q.exampleId ? { exampleId: q.exampleId } : {}),
+			...(fillSentence ? { attempts: (retryArmed ? 2 : 1) as 1 | 2 } : {}),
 		};
 		const next = [...results, item];
 		setResults(next);
@@ -275,6 +313,7 @@ export default function QuestionRenderer({
 
 		pendingAdvanceRef.current = true;
 		setPendingAdvance(true);
+		return false;
 	};
 
 	const handleNext = () => {
@@ -403,6 +442,7 @@ export default function QuestionRenderer({
 							onRevealPinyin={() => setHintUsed(true)}
 							audioAvailable={!speechReady || supported}
 							revealUsed={hintUsed}
+							forceTargetPinyin={forceTargetPinyin}
 							onReveal={() => setHintUsed(true)}
 							onPlay={speak}
 						/>
@@ -425,6 +465,12 @@ export default function QuestionRenderer({
 					)}
 				</div>
 
+				{retryNotice && (
+					<p className="mx-auto mb-3 w-full max-w-md text-center text-sm text-foreground-secondary" role="status">
+						{retryNotice}
+					</p>
+				)}
+
 				{q.options ? (
 					<div className="mx-auto flex w-full max-w-md flex-col gap-2">
 						{q.options.map((opt, optIdx) => {
@@ -432,7 +478,8 @@ export default function QuestionRenderer({
 							const isWrong = feedback && opt === selected && opt !== q.correctAnswer;
 							const isChosen = selected === opt && !feedback;
 							const isHanzi = /[\u4e00-\u9fff]/.test(opt);
-							const isDimmed = !!feedback && !isCorrect && !isWrong;
+							const isRejected = opt === rejectedOption && !feedback;
+							const isDimmed = (!!feedback && !isCorrect && !isWrong) || isRejected;
 							const letter = OPTION_LETTERS[optIdx] ?? String(optIdx + 1);
 							const delayClass = OPTION_DELAY_CLASSES[Math.min(optIdx, OPTION_DELAY_CLASSES.length - 1)];
 
@@ -440,7 +487,7 @@ export default function QuestionRenderer({
 								<button
 									key={`${q.id}-opt-${optIdx}`}
 									type="button"
-									disabled={waiting || !!feedback}
+									disabled={waiting || !!feedback || isRejected}
 									onClick={() => { setSelected(opt); submitAnswer(opt); }}
 									className={`${delayClass} group relative flex min-h-[52px] w-full items-center gap-3 rounded-xl border px-4 py-4 text-left transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-background ${
 										isCorrect
@@ -501,8 +548,8 @@ export default function QuestionRenderer({
 								e.preventDefault();
 								e.stopPropagation();
 								armAdvanceKeyGuard();
-								submitAnswer(typedAnswer);
-								typedInputRef.current?.blur();
+								const retried = submitAnswer(typedAnswer);
+								if (!retried) typedInputRef.current?.blur();
 							}}
 							disabled={waiting || !!feedback}
 							placeholder={
@@ -675,6 +722,7 @@ function QuestionHeroCard({
 	onRevealPinyin,
 	audioAvailable,
 	revealUsed,
+	forceTargetPinyin,
 	onReveal,
 	onPlay,
 }: {
@@ -685,6 +733,7 @@ function QuestionHeroCard({
 	onRevealPinyin: () => void;
 	audioAvailable: boolean;
 	revealUsed: boolean;
+	forceTargetPinyin: boolean;
 	onReveal: () => void;
 	onPlay: (text: string) => void | boolean;
 }) {
@@ -719,6 +768,7 @@ function QuestionHeroCard({
 				sentenceAudioText={q.sentenceAudioText}
 				audioAvailable={audioAvailable}
 				revealUsed={revealUsed}
+				forceTargetPinyin={forceTargetPinyin}
 				onReveal={onReveal}
 				onPlay={onPlay}
 			/>

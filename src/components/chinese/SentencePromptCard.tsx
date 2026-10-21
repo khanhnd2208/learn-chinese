@@ -37,6 +37,8 @@ interface Props {
 	sentenceAudioText?: string;
 	audioAvailable: boolean;
 	revealUsed: boolean;
+	/** Parent already revealed the target pinyin, for example after a first miss. */
+	forceTargetPinyin?: boolean;
 	onReveal: () => void;
 	/** Return false when playback did not start, so a hint is not counted. */
 	onPlay: (text: string) => void | boolean;
@@ -50,6 +52,7 @@ export default function SentencePromptCard({
 	sentenceAudioText,
 	audioAvailable,
 	revealUsed,
+	forceTargetPinyin = false,
 	onReveal,
 	onPlay,
 }: Props) {
@@ -67,6 +70,10 @@ export default function SentencePromptCard({
 	useEffect(() => {
 		setShowMeaning(readShowMeaning());
 	}, []);
+
+	useEffect(() => {
+		if (forceTargetPinyin) setShowTargetPinyin(true);
+	}, [forceTargetPinyin]);
 
 	const toggleMeaning = () => {
 		setShowMeaning((current) => {
