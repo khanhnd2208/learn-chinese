@@ -69,7 +69,28 @@
 5. Sai o idx 3 tro len (ke ca bac 30 ngay).
    - Ky vong: ve idx 2 (Recall), hen 1 ngay. Khong roi ve MCQ.
 6. Mo goi y roi tra loi dung.
-   - Ky vong: giu nguyen idx, hen 1 ngay, nhan "Dung (co goi y)". So cau dung khong tang.
+   - Ky vong: giu nguyen idx, hen 1 ngay, tieu de van la "Dung!" va co dong phu giu bac. So cau dung khong tang.
+
+### Cau dien tu cong bang
+
+1. Cau `fill_sentence` / `fill_sentence_typed` hien nghia Viet day du, khong con `__`. Tat nghia, tai lai: van tat. Bat/tat khong doi ket qua cham.
+2. Mo pinyin ngu canh (da duc lo) roi tra loi dung.
+   - Ky vong: "Dung!" va len bac.
+3. Bam "Nghe ca cau" roi tra loi dung.
+   - Ky vong: "Dung!", dong "giu nguyen bac", "Gap lai sau 1 ngay", idx khong doi.
+4. Go sai lan dau khi chua nghe.
+   - Ky vong: chua cham, tu phat cau, giu o nhap. Dung lan 2: giu bac. Sai lan 2: sai that.
+5. May khong co TTS.
+   - Ky vong: co "Hien pinyin tu can dien", cu xu nhu nghe.
+6. Cau dien tu khong con nut "Goi y". Dang cau khac van co.
+7. Sai roi bam "Dap an cua toi cung dung".
+   - Ky vong: idx khong giam, heavy lapse khong tang. Admin thay nhom o `/admin/disputes`.
+8. Admin chap nhan dap an do.
+   - Ky vong: lan sau go dung hoan toan va len bac. MCQ khong dung tu do lam distractor.
+9. Cau bi gan co hien o `/admin/example-quality`. `retire` rut cau khoi vong hoi va tra bac cho nguoi bi tru vi cau do.
+10. Import lai cung file.
+    - Ky vong: id cau vi du khong doi, `acceptedAnswers` con nguyen.
+11. File Excel cu (nghia Viet co `[BLANK]`) va file moi (nghia Viet day du) deu import duoc.
 7. Cau nghe `sound_to_hanzi`.
    - Ky vong: khong hien pinyin truoc khi tra loi neu may co TTS. "Hien pinyin" tinh la goi y.
 8. Kenh rate thap nhung chua het interval.

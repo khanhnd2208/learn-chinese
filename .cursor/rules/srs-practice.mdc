@@ -27,7 +27,8 @@ alwaysApply: false
 - **7 core question types** — `coreQuestionTypes.ts` (includes `fill_sentence`, `fill_sentence_typed`, `sound_to_hanzi`, `sound_to_hanzi_typed`)
 - Sound channel plays audio without showing pinyin; "Hiện pinyin" counts as a hint. Devices without TTS show pinyin immediately and do not count a hint
 - Sentence ladder: mcq1/mcq2 → `fill_sentence` MCQ; recall/maintain → `fill_sentence_typed`
-- Examples: 5 `vi_du_1…5` per word in `tu_vung` import (`parseFillExample.ts`)
+- Fill sentence: the full Vietnamese meaning is shown by default and is not a hint. Blanked context pinyin is not a hint. Hearing the whole sentence, or revealing the target pinyin when there is no TTS, is the only hint and holds the interval (`hintUsed`). The first unhinted miss retries once and then counts as hinted. `acceptedAnswers` on the example grade as fully correct. A disputed miss holds the interval and waits for an admin.
+- Examples: 5 `vi_du_1…5` per word in `tu_vung` import (`parseFillExample.ts`). Vietnamese may be a full sentence or the older one-blank form. Re-import matches canonical examples by hanzi and keeps their ids.
 - Question generation: `generateQuestions.ts` + `verifiedExample.ts`
 - Modes: `core_vocab`, `sound`, `sentence`, `smart_mixed`
 
