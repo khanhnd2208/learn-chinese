@@ -13,6 +13,7 @@ import {
 	countOverdueChannels,
 	findNextDueAt,
 	formatNextDueLabel,
+	formatReviewScheduleLabel,
 	generateReviewInsights,
 	isChannelDueForMetrics,
 	localDayKey,
@@ -276,5 +277,13 @@ describe('reviewMetrics', () => {
 		const now = new Date('2026-06-23T12:00:00');
 		const in30m = new Date(now.getTime() + 30 * 60_000);
 		expect(formatNextDueLabel(in30m, now)).toBe('Mục tiếp theo sau ~30 phút');
+	});
+
+	it('formatReviewScheduleLabel matches the shared schedule for wrong MCQ and correct recall', () => {
+		const now = new Date('2026-06-17T10:00:00Z');
+		expect(formatReviewScheduleLabel(0, false, now)).toContain('30 phút');
+		expect(formatReviewScheduleLabel(1, false, now)).toContain('30 phút');
+		expect(formatReviewScheduleLabel(2, false, now)).toContain('1 ngày');
+		expect(formatReviewScheduleLabel(2, true, now)).toContain('7 ngày');
 	});
 });

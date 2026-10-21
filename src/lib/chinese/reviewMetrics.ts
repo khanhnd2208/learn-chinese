@@ -2,12 +2,9 @@
    reviewMetrics.ts — Pure SRS reporting metrics (no Prisma)
    ════════════════════════════════════════════════════════════════════════ */
 import {
-	addDays,
-	CN_LAPSE_RECALL_IDX,
-	CN_SRS_INTERVAL_DAYS,
 	CN_STATE_THRESHOLDS,
-	clampSrsIntervalIdx,
 } from '@/config/constants';
+import { computeNextReview } from '@/lib/chinese/srsSchedule';
 import { ALL_SKILL_CHANNELS, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
 import { isTypedQuestion } from '@/lib/chinese/questionLabels';
 import type { CnWordProgressState } from '@/types/chinese';
@@ -570,25 +567,21 @@ export function formatReviewScheduleLabel(
 	intervalIdx: number | undefined,
 	correct: boolean,
 	now = new Date(),
+	opts?: { hintUsed?: boolean },
 ): string | null {
 	if (intervalIdx === undefined) return null;
-	const idx = clampSrsIntervalIdx(intervalIdx);
-
-	let nextIdx: number;
-	let dueAt: Date;
-
-	if (!correct) {
-		if (idx <= 0) nextIdx = 0;
-		else if (idx === 1) nextIdx = 0;
-		else if (idx === 2) nextIdx = 1;
-		else nextIdx = CN_LAPSE_RECALL_IDX;
-		dueAt = addDays(now, CN_SRS_INTERVAL_DAYS[0]);
-	} else {
-		nextIdx = Math.min(idx + 1, CN_SRS_INTERVAL_DAYS.length - 1);
-		dueAt = addDays(now, CN_SRS_INTERVAL_DAYS[nextIdx]);
-	}
-
-	const days = Math.max(1, Math.round((dueAt.getTime() - now.getTime()) / 86_400_000));
-	void nextIdx;
-	return correct ? `Gặp lại sau ${days} ngày` : `Hẹn lại sau ${days} ngày`;
+	const { dueAt } = computeNextReview({
+		intervalIdx,
+		correct,
+		now,
+		hintUsed: opts?.hintUsed,
+	});
+	const prefix = correct ? 'Gặp lại sau' : 'Hẹn lại sau';
+	const diffMs = dueAt.getTime() - now.getTime();
+	const diffMinutes = Math.max(1, Math.round(diffMs / 60_000));
+	if (diffMinutes < 60) return `${prefix} ${diffMinutes} phút`;
+	const diffHours = Math.round(diffMs / 3_600_000);
+	if (diffHours < 24) return `${prefix} ${diffHours} giờ`;
+	const diffDays = Math.max(1, Math.round(diffMs / 86_400_000));
+	return `${prefix} ${diffDays} ngày`;
 }
