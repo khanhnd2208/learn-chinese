@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import { getSentenceTypography } from '@/lib/chinese/questionDisplay';
 
 const MEANING_PREF_KEY = 'cn.sentence.showMeaningVi';
+const MEANING_PREF_EVENT = 'cn-sentence-meaning';
 
 function readShowMeaning(): boolean {
 	try {
@@ -20,6 +21,16 @@ function writeShowMeaning(show: boolean): void {
 	} catch {
 		// Preference is optional; the question still works if storage is blocked.
 	}
+	window.dispatchEvent(new Event(MEANING_PREF_EVENT));
+}
+
+function subscribeShowMeaning(onStoreChange: () => void): () => void {
+	window.addEventListener(MEANING_PREF_EVENT, onStoreChange);
+	window.addEventListener('storage', onStoreChange);
+	return () => {
+		window.removeEventListener(MEANING_PREF_EVENT, onStoreChange);
+		window.removeEventListener('storage', onStoreChange);
+	};
 }
 
 function pinyinWithTarget(sentencePinyin: string | undefined, wordPinyin: string | undefined): string {
@@ -58,29 +69,18 @@ export default function SentencePromptCard({
 }: Props) {
 	const [showPinyin, setShowPinyin] = useState(false);
 	const [showTargetPinyin, setShowTargetPinyin] = useState(false);
-	const [showMeaning, setShowMeaning] = useState(true);
+	const showMeaning = useSyncExternalStore(subscribeShowMeaning, readShowMeaning, () => true);
+	const targetPinyinVisible = showTargetPinyin || forceTargetPinyin;
 	const { hanziClass, cardPadding } = getSentenceTypography(sentenceTemplate);
 	const canHearSentence = audioAvailable && !!sentenceAudioText;
-	const visiblePinyin = showTargetPinyin
+	const visiblePinyin = targetPinyinVisible
 		? pinyinWithTarget(pinyin, wordPinyin)
 		: showPinyin
 			? pinyin
 			: null;
 
-	useEffect(() => {
-		setShowMeaning(readShowMeaning());
-	}, []);
-
-	useEffect(() => {
-		if (forceTargetPinyin) setShowTargetPinyin(true);
-	}, [forceTargetPinyin]);
-
 	const toggleMeaning = () => {
-		setShowMeaning((current) => {
-			const next = !current;
-			writeShowMeaning(next);
-			return next;
-		});
+		writeShowMeaning(!showMeaning);
 	};
 
 	const playSentence = () => {
