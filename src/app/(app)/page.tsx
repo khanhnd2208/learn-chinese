@@ -10,6 +10,8 @@ import {
 	maxSrsChannelsForSet,
 } from '@/lib/chinese/setSrsProgress';
 import { countDueToday } from '@/services/chinese/cnSrsService';
+import { getLearnQueue } from '@/services/chinese/cnLearnService';
+import { CN_NEW_WORDS_PER_DAY } from '@/config/constants';
 import { listUserSets } from '@/services/chinese/cnSetService';
 
 export const dynamic = 'force-dynamic';
@@ -47,10 +49,12 @@ export default async function ChineseHomePage() {
 	if (!session?.user) redirect('/login');
 
 	const userId = session.user.id;
-	const [sets, dueToday] = await Promise.all([
+	const [sets, dueToday, learnQueue] = await Promise.all([
 		listUserSets(userId),
 		countDueToday(userId),
+		getLearnQueue(userId),
 	]);
+	const learnIsPrimary = dueToday === 0;
 
 	const isNewUser = sets.length === 0;
 
@@ -114,12 +118,14 @@ export default async function ChineseHomePage() {
 						)}
 					</div>
 					<div className="flex flex-wrap gap-2">
-						{dueToday > 0 ? (
-							<Link href="/review" className="btn-primary">
-								<MaterialIcon name="play_arrow" size={16} />
-								Luyện {dueToday} mục
-							</Link>
-						) : null}
+						<Link href="/review" className={learnIsPrimary ? 'btn-secondary' : 'btn-primary'}>
+							<MaterialIcon name="play_arrow" size={16} />
+							Ôn hôm nay ({dueToday} mục)
+						</Link>
+						<Link href="/learn" className={learnIsPrimary ? 'btn-primary' : 'btn-secondary'}>
+							<MaterialIcon name="school" size={16} />
+							Học từ mới (còn {learnQueue.remainingToday}/{CN_NEW_WORDS_PER_DAY} hôm nay)
+						</Link>
 						<Link href="/inferno" className="btn-secondary border-warning/40 bg-warning/5 text-warning hover:bg-warning/10">
 							<MaterialIcon name="local_fire_department" size={16} filled />
 							Địa Ngục

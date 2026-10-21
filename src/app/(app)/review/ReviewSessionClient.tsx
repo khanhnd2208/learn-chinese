@@ -70,6 +70,7 @@ export default function ReviewSessionClient() {
 
 	const [phase, setPhase] = useState<Phase>('briefing');
 	const [briefing, setBriefing] = useState<CnReviewBriefingDTO | null>(null);
+	const [suggestLearn, setSuggestLearn] = useState(false);
 	const [dueToday, setDueToday] = useState(0);
 	const [dueRemaining, setDueRemaining] = useState(0);
 	const [skippedUnpublished, setSkippedUnpublished] = useState(0);
@@ -127,6 +128,22 @@ export default function ReviewSessionClient() {
 		const data = await fetchReviewBriefing();
 		setBriefing(data);
 		setDueToday(data.dueChannels);
+		if (data.dueChannels > 0) {
+			setSuggestLearn(false);
+			return;
+		}
+		try {
+			const res = await fetch('/api/learn');
+			const json = await res.json() as {
+				ok: boolean;
+				data?: { totalUnintroduced: number; remainingToday: number };
+			};
+			setSuggestLearn(Boolean(
+				json.ok && json.data && json.data.totalUnintroduced > 0 && json.data.remainingToday > 0,
+			));
+		} catch {
+			setSuggestLearn(false);
+		}
 	}, []);
 
 	useEffect(() => {
@@ -259,6 +276,9 @@ export default function ReviewSessionClient() {
 		}
 
 		const hasDue = briefing.dueChannels > 0;
+		const learnLink = suggestLearn
+			? [{ href: '/learn', label: 'Học từ mới', icon: 'school' }]
+			: [];
 		const overdueSub = briefing.overdueCount > 0
 			? `${briefing.overdueCount} mục trễ${pressureLabel(briefing.pressure) ? ` · Áp lực ${pressureLabel(briefing.pressure)?.toLowerCase()}` : ''}`
 			: undefined;
@@ -302,6 +322,7 @@ export default function ReviewSessionClient() {
 					onPrimary={() => { if (hasDue) void loadInitial(); }}
 					primaryDisabled={!hasDue}
 					secondaryLinks={[
+						...learnLink,
 						{ href: '/dashboard', label: 'Báo cáo học tập', icon: 'query_stats' },
 						{ href: '/sets', label: 'Bộ từ', icon: 'menu_book' },
 					]}
@@ -341,9 +362,13 @@ export default function ReviewSessionClient() {
 						<EmptyState
 							icon="celebration"
 							title="Không có mục cần ôn hôm nay"
-							description="Bật Ôn SRS trên bộ từ để đưa từ vào hàng đợi ôn."
+							description={suggestLearn
+								? 'Bạn còn từ chưa học. Vào Học từ mới để bắt đầu.'
+								: 'Bật Ôn SRS trên bộ từ để đưa từ vào hàng đợi ôn.'}
 							action={{ label: 'Báo cáo học tập', href: '/dashboard' }}
-							secondaryAction={{ label: 'Chọn bộ từ', href: '/sets' }}
+							secondaryAction={suggestLearn
+								? { label: 'Học từ mới', href: '/learn' }
+								: { label: 'Chọn bộ từ', href: '/sets' }}
 						/>
 					)}
 				</div>
