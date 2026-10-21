@@ -40,6 +40,13 @@ vi.mock('@/lib/prisma', () => ({
 					mnemonicVi: null,
 				}])),
 		},
+		cnExample: {
+			findMany: vi.fn(async () => [{
+				id: 'ex-1',
+				wordId: 'w1',
+				acceptedAnswers: ['已'],
+			}]),
+		},
 		cnAnswerLog: {
 			findMany: vi.fn(async () => savedIds.map((id) => ({ clientAnswerId: id }))),
 			createMany: vi.fn(async ({ data }: { data: Array<{ correct: boolean; clientAnswerId: string | null }> }) => {
@@ -138,5 +145,17 @@ describe('submitReviewResults grading', () => {
 		}]);
 		expect(createdLogs[0]?.[0]?.correct).toBe(true);
 		expect(progressUpdates[0]?.meaningCorrect).toBe(1);
+	});
+
+	it('marks a sentence correct when the answer is on the example accept list', async () => {
+		await submitReviewResults('user-a', [{
+			wordId: 'w1',
+			questionType: 'fill_sentence_typed',
+			correct: false,
+			answer: '已',
+			exampleId: 'ex-1',
+			clientAnswerId: 'answer-accepted',
+		}]);
+		expect(createdLogs[0]?.[0]?.correct).toBe(true);
 	});
 });

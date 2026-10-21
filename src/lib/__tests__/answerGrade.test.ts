@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expectedAnswerFor, gradeAnswer, gradeAnswerText } from '@/lib/chinese/answerGrade';
+import { expectedAnswerFor, gradeAnswer, gradeAnswerText, gradeSentenceAnswer } from '@/lib/chinese/answerGrade';
 import type { CnPracticeQuestionDTO } from '@/types/chinese';
 
 describe('answerGrade', () => {
@@ -21,5 +21,16 @@ describe('answerGrade', () => {
 			correctAnswer: '学习',
 		} as CnPracticeQuestionDTO;
 		expect(gradeAnswer(question, '学 习')).toBe(true);
+	});
+
+	it('accepts another answer stored for the same sentence', () => {
+		const question = {
+			type: 'fill_sentence_typed',
+			correctAnswer: '学生',
+			acceptedAnswers: ['已'],
+		} as CnPracticeQuestionDTO;
+		expect(gradeAnswer(question, '已')).toBe(true);
+		expect(gradeAnswer(question, '老师')).toBe(false);
+		expect(gradeSentenceAnswer('学生', ['已'], ' 已 ')).toBe(true);
 	});
 });

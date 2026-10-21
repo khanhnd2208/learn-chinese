@@ -162,6 +162,7 @@ function buildFillSentenceQuestion(
 		sentenceTemplate,
 		sentenceMeaningVi,
 		sentenceAudioText: example.hanzi,
+		acceptedAnswers: example.acceptedAnswers ?? [],
 		pinyin: example.pinyin || undefined,
 		wordPinyin: word.pinyin || undefined,
 		meaningVi: word.meaningVi,
@@ -177,7 +178,16 @@ function buildFillSentenceQuestion(
 		};
 	}
 
-	const options = buildMcqOptionsForType('fill_sentence', word, allWords, word.simplified);
+	const options = buildMcqOptionsForType(
+		'fill_sentence',
+		word,
+		allWords,
+		word.simplified,
+		3,
+		[],
+		false,
+		example.acceptedAnswers ?? [],
+	);
 	if (!options || options.length < MIN_MCQ_OPTIONS) {
 		return buildFillSentenceQuestion(word, allWords, 'fill_sentence_typed', idx, excludeExampleId);
 	}

@@ -52,3 +52,27 @@ describe('sound_to_hanzi distractors', () => {
 		expect(hard.length).toBe(2);
 	});
 });
+
+describe('fill_sentence distractors', () => {
+	it('leaves out words that are already accepted for the sentence', () => {
+		const target = mkWord('w1', '都', 'dōu');
+		const pool = [
+			target,
+			mkWord('w2', '也', 'yě'),
+			mkWord('w3', '还', 'hái'),
+			mkWord('w4', '很', 'hěn'),
+		];
+		const distractors = pickDistractorsForType(
+			'fill_sentence',
+			target,
+			pool,
+			'都',
+			3,
+			[],
+			false,
+			['也'],
+		);
+		expect(distractors).not.toContain('也');
+		expect(distractors).toEqual(expect.arrayContaining(['还', '很']));
+	});
+});

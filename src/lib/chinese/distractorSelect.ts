@@ -1,4 +1,5 @@
 import type { CnQuestionType, CnWordCardDTO } from '@/types/chinese';
+import { normalizeGradedText } from '@/lib/chinese/answerGrade';
 import { normalizePinyinPlain } from '@/lib/chinese/pinyinNormalize';
 
 function shuffle<T>(arr: T[]): T[] {
@@ -47,6 +48,7 @@ export function pickDistractorsForType(
 	count = 3,
 	prefer: string[] = [],
 	hardMode = false,
+	exclude: string[] = [],
 ): string[] {
 	const others = pool.filter((w) => w.id !== target.id);
 	let ranked: Array<{ value: string; score: number }> = [];
@@ -91,7 +93,8 @@ export function pickDistractorsForType(
 			ranked = others.map((w) => ({ value: w.simplified, score: scoreCandidate(target, w) }));
 	}
 
-	const dedupedPool = unique(ranked.map((r) => r.value)).filter((v) => v !== correct);
+	const blocked = new Set([correct, ...exclude].map((value) => normalizeGradedText(value)));
+	const dedupedPool = unique(ranked.map((r) => r.value)).filter((value) => !blocked.has(normalizeGradedText(value)));
 	const preferred = unique(prefer).filter((v) => v !== correct && dedupedPool.includes(v));
 	const byScore = new Map<string, number>();
 	for (const row of ranked) {
@@ -125,8 +128,9 @@ export function buildMcqOptionsForType(
 	count = 3,
 	prefer: string[] = [],
 	hardMode = false,
+	exclude: string[] = [],
 ): string[] | null {
-	const distractors = pickDistractorsForType(type, target, pool, correct, count, prefer, hardMode);
+	const distractors = pickDistractorsForType(type, target, pool, correct, count, prefer, hardMode, exclude);
 	if (distractors.length < 1) return null;
 	return shuffle(unique([correct, ...distractors]));
 }

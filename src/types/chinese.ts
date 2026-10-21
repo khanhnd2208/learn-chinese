@@ -67,6 +67,8 @@ export interface CnExampleDTO {
 	targetWordStart?: number | null;
 	targetWordEnd?: number | null;
 	naturalnessStatus?: string;
+	/** Other words that are also correct in this sentence. */
+	acceptedAnswers?: string[];
 }
 
 export interface CnSentencePatternDTO {

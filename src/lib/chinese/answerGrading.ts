@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
-import { expectedAnswerFor, gradeAnswerText } from '@/lib/chinese/answerGrade';
+import { expectedAnswerFor, gradeAnswerText, gradeSentenceAnswer } from '@/lib/chinese/answerGrade';
+import { questionChannel } from '@/lib/chinese/coreQuestionTypes';
 import { loadWordViewsForUser } from '@/services/chinese/cnWordViewService';
 import type { CnPracticeSubmitItem } from '@/types/chinese';
 
@@ -27,11 +28,32 @@ export async function dropDuplicateSubmitItems(
 	return fresh;
 }
 
+async function acceptedAnswersByExample(
+	userId: string,
+	items: CnPracticeSubmitItem[],
+): Promise<Map<string, string[]>> {
+	const ids = [...new Set(items.flatMap((item) =>
+		questionChannel(item.questionType) === 'sentence' && item.exampleId ? [item.exampleId] : [],
+	))];
+	if (!ids.length) return new Map();
+	const rows = await prisma.cnExample.findMany({
+		where: {
+			id: { in: ids },
+			OR: [{ ownerUserId: null }, { ownerUserId: userId }],
+		},
+		select: { id: true, wordId: true, acceptedAnswers: true },
+	});
+	return new Map(rows.map((row) => [`${row.wordId}:${row.id}`, row.acceptedAnswers ?? []]));
+}
+
 export async function reconcileSubmitItems(
 	userId: string,
 	items: CnPracticeSubmitItem[],
 ): Promise<CnPracticeSubmitItem[]> {
-	const views = await loadWordViewsForUser(userId, items.map((item) => item.wordId));
+	const [views, acceptedByExample] = await Promise.all([
+		loadWordViewsForUser(userId, items.map((item) => item.wordId)),
+		acceptedAnswersByExample(userId, items),
+	]);
 	return items.map((item) => {
 		if (typeof item.answer !== 'string') {
 			// TODO: remove this branch after 2026-11-04. Old open tabs omit the answer text.
@@ -44,7 +66,12 @@ export async function reconcileSubmitItems(
 			return item;
 		}
 		const expected = expectedAnswerFor(item.questionType, view);
-		const correct = gradeAnswerText(item.questionType, expected, item.answer);
+		const accepted = item.exampleId
+			? acceptedByExample.get(`${item.wordId}:${item.exampleId}`) ?? []
+			: [];
+		const correct = questionChannel(item.questionType) === 'sentence'
+			? gradeSentenceAnswer(expected, accepted, item.answer)
+			: gradeAnswerText(item.questionType, expected, item.answer);
 		if (correct !== item.correct) {
 			console.warn(`server graded ${item.questionType} differently from the client`);
 		}

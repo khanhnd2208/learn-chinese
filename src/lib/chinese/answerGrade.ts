@@ -22,6 +22,14 @@ export function gradeAnswerText(_type: CnQuestionType, expected: string, answer:
 	return given === normalizeGradedText(expected);
 }
 
+export function gradeSentenceAnswer(expected: string, accepted: string[], answer: string): boolean {
+	if (gradeAnswerText('fill_sentence', expected, answer)) return true;
+	return accepted.some((candidate) => gradeAnswerText('fill_sentence', candidate, answer));
+}
+
 export function gradeAnswer(question: CnPracticeQuestionDTO, answer: string): boolean {
-	return gradeAnswerText(question.type, question.correctAnswer, answer);
+	if (gradeAnswerText(question.type, question.correctAnswer, answer)) return true;
+	return (question.acceptedAnswers ?? []).some((candidate) =>
+		gradeAnswerText(question.type, candidate, answer),
+	);
 }

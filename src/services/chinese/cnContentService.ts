@@ -182,6 +182,7 @@ type WordWithCardInclude = CnWord & {
 		targetWordEnd: number | null;
 		naturalnessStatus: string;
 		ownerUserId: string | null;
+		acceptedAnswers: string[];
 	}>;
 	patterns: CnSentencePattern[];
 	chars: Array<{ position: number; hanzi: CnHanzi; hanziId: string }>;
@@ -218,6 +219,7 @@ function wordCardDTOFromWord(
 				targetWordStart: e.targetWordStart,
 				targetWordEnd: e.targetWordEnd,
 				naturalnessStatus: e.naturalnessStatus,
+				acceptedAnswers: e.acceptedAnswers ?? [],
 			}, word.simplified),
 		),
 		patterns: word.patterns.map(patternToDTO),
