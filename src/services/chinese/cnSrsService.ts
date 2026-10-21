@@ -12,7 +12,7 @@ import { reconcileSubmitItems } from '@/lib/chinese/answerGrading';
 import { buildDueCandidateWhere } from '@/lib/chinese/cnSrsDueQuery';
 import { isCoreQuestionType, questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
 import { ensureEnrollmentForActiveWords, resolveSrsPoolWordIds } from '@/services/chinese/cnSrsEnrollmentService';
-import { errorSeverity, inferErrorType } from '@/lib/chinese/errorMapping';
+import { inferErrorType } from '@/lib/chinese/errorMapping';
 import { rate } from '@/lib/chinese/hanziUtils';
 import {
 	computeNextReview,
@@ -483,15 +483,11 @@ function applyPracticeItem(
 	isCreateBranch: boolean,
 ): void {
 	const channel = questionChannel(item.questionType);
-	const lapseSeverity = item.correct
-		? undefined
-		: errorSeverity(resolveSubmitErrorType(item) ?? inferErrorType(item.questionType));
 
 	const reviewOpts = (idx: number): ComputeNextReviewOptions => ({
 		intervalIdx: idx,
 		correct: item.correct,
 		now,
-		lapseSeverity,
 	});
 
 	progress.lastReviewedAt = now;
@@ -507,9 +503,6 @@ function applyPracticeItem(
 			(progress[fields.intervalIdx] as number) = next.intervalIdx;
 			(progress[fields.correct] as number) = item.correct ? 1 : 0;
 			(progress[fields.total] as number) = 1;
-			if (!item.correct && lapseSeverity === 'heavy') {
-				incrementHeavyLapse(progress, channel);
-			}
 		}
 		return;
 	}
@@ -522,7 +515,7 @@ function applyPracticeItem(
 		(progress[fields.intervalIdx] as number) = chNext.intervalIdx;
 		(progress[fields.correct] as number) = (progress[fields.correct] as number) + (item.correct ? 1 : 0);
 		(progress[fields.total] as number) = (progress[fields.total] as number) + 1;
-		if (!item.correct && lapseSeverity === 'heavy') {
+		if (!item.correct && chIdx >= 2) {
 			incrementHeavyLapse(progress, channel);
 		}
 	} else {

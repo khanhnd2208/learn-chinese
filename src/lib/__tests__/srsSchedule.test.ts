@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { addDays, addMinutes, CN_WRONG_FIRST_RETRY_MINUTES } from '@/config/constants';
 import { formatReviewScheduleLabel } from '@/lib/chinese/reviewMetrics';
 import { computeNextReview } from '@/lib/chinese/srsSchedule';
 
@@ -15,6 +16,21 @@ function labelFromDueAt(dueAt: Date, now: Date, correct: boolean): string {
 
 describe('srsSchedule', () => {
 	const now = new Date('2026-06-17T10:00:00Z');
+
+	it('sends a maintain miss back to Recall in one day', () => {
+		const at30 = computeNextReview({ intervalIdx: 5, correct: false, now });
+		expect(at30.intervalIdx).toBe(2);
+		expect(at30.dueAt.getTime()).toBe(addDays(now, 1).getTime());
+
+		const at7 = computeNextReview({ intervalIdx: 3, correct: false, now });
+		expect(at7.intervalIdx).toBe(2);
+	});
+
+	it('sends an MCQ2 miss back to MCQ1 in 30 minutes', () => {
+		const next = computeNextReview({ intervalIdx: 1, correct: false, now });
+		expect(next.intervalIdx).toBe(0);
+		expect(next.dueAt.getTime()).toBe(addMinutes(now, CN_WRONG_FIRST_RETRY_MINUTES).getTime());
+	});
 
 	it('keeps the UI label equal to the backend dueAt for every ladder step', () => {
 		for (let intervalIdx = 0; intervalIdx <= 5; intervalIdx++) {

@@ -9,10 +9,10 @@ import {
 import {
 	addDays,
 	addMinutes,
-	CN_LAPSE_HEAVY_IDX,
 	CN_LAPSE_RECALL_IDX,
 	CN_SRS_INTERVAL_DAYS,
 	CN_STATE_THRESHOLDS,
+	CN_STICKING_POINT_HEAVY_LAPSES,
 	CN_WRONG_FIRST_RETRY_MINUTES,
 } from '@/config/constants';
 import type { CnPracticeSubmitItem } from '@/types/chinese';
@@ -101,19 +101,19 @@ describe('cnSrsService', () => {
 	});
 
 	it('Recall wrong regresses to MCQ2 due tomorrow', () => {
-		const next = computeNextReview({ intervalIdx: 2, correct: false, now, lapseSeverity: 'light' });
+		const next = computeNextReview({ intervalIdx: 2, correct: false, now });
 		expect(next.intervalIdx).toBe(1);
 		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[0]).getTime());
 	});
 
-	it('Maintain wrong light lapse regresses to Recall', () => {
-		const next = computeNextReview({ intervalIdx: 4, correct: false, now, lapseSeverity: 'light' });
-		expect(next.intervalIdx).toBe(CN_LAPSE_RECALL_IDX);
-	});
+	it('Maintain wrong regresses to Recall due tomorrow', () => {
+		const at30 = computeNextReview({ intervalIdx: 5, correct: false, now });
+		expect(at30.intervalIdx).toBe(CN_LAPSE_RECALL_IDX);
+		expect(at30.dueAt.getTime()).toBe(addDays(now, 1).getTime());
 
-	it('Maintain wrong heavy lapse regresses to MCQ2', () => {
-		const next = computeNextReview({ intervalIdx: 4, correct: false, now, lapseSeverity: 'heavy' });
-		expect(next.intervalIdx).toBe(CN_LAPSE_HEAVY_IDX);
+		const at7 = computeNextReview({ intervalIdx: 3, correct: false, now });
+		expect(at7.intervalIdx).toBe(2);
+		expect(at7.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[0]).getTime());
 	});
 
 	it('all channels due for new enrolled word', () => {
@@ -204,7 +204,7 @@ describe('cnSrsService', () => {
 		expect(p.soundCorrect).toBe(0);
 		expect(p.soundIntervalIdx).toBe(0);
 		expect(p.soundDueAt!.getTime()).toBe(addMinutes(now, CN_WRONG_FIRST_RETRY_MINUTES).getTime());
-		expect(p.soundHeavyLapses).toBe(1);
+		expect(p.soundHeavyLapses).toBe(0);
 	});
 
 	it('mergeSubmitItemsInMemory handles two items for new wordId in one batch', () => {
@@ -218,5 +218,53 @@ describe('cnSrsService', () => {
 		expect(p.meaningTotal).toBe(2);
 		expect(p.meaningCorrect).toBe(2);
 		expect(p.meaningIntervalIdx).toBe(2);
+	});
+
+	it('does not count a heavy lapse for a wrong answer before Recall', () => {
+		const existing = progressFixture({
+			id: 'p1',
+			userId: 'u1',
+			wordId: 'w1',
+			meaningTotal: 2,
+			meaningIntervalIdx: 1,
+		});
+		const items: CnPracticeSubmitItem[] = [
+			{ wordId: 'w1', questionType: 'hanzi_to_meaning', correct: false },
+		];
+		const { progressByWordId } = mergeSubmitItemsInMemory('u1', items, [existing], now);
+		const p = progressByWordId.get('w1')!;
+		expect(p.meaningIntervalIdx).toBe(0);
+		expect(p.meaningHeavyLapses).toBe(0);
+		expect(p.isStickingPoint).toBe(false);
+	});
+
+	it('counts a heavy lapse once Recall has been reached and flags a sticking point at the threshold', () => {
+		const recalled = progressFixture({
+			id: 'p1',
+			userId: 'u1',
+			wordId: 'w1',
+			meaningTotal: 3,
+			meaningIntervalIdx: 2,
+		});
+		const once = mergeSubmitItemsInMemory('u1', [
+			{ wordId: 'w1', questionType: 'hanzi_to_meaning', correct: false },
+		], [recalled], now).progressByWordId.get('w1')!;
+		expect(once.meaningHeavyLapses).toBe(1);
+		expect(once.isStickingPoint).toBe(false);
+
+		const maintained = progressFixture({
+			id: 'p2',
+			userId: 'u1',
+			wordId: 'w2',
+			meaningTotal: 6,
+			meaningIntervalIdx: 5,
+			meaningHeavyLapses: CN_STICKING_POINT_HEAVY_LAPSES - 1,
+		});
+		const flagged = mergeSubmitItemsInMemory('u1', [
+			{ wordId: 'w2', questionType: 'hanzi_to_meaning', correct: false },
+		], [maintained], now).progressByWordId.get('w2')!;
+		expect(flagged.meaningIntervalIdx).toBe(2);
+		expect(flagged.meaningHeavyLapses).toBe(CN_STICKING_POINT_HEAVY_LAPSES);
+		expect(flagged.isStickingPoint).toBe(true);
 	});
 });

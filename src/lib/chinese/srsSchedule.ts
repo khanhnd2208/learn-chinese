@@ -4,7 +4,6 @@
 import {
 	addDays,
 	addMinutes,
-	CN_LAPSE_HEAVY_IDX,
 	CN_LAPSE_RECALL_IDX,
 	CN_SRS_INTERVAL_DAYS,
 	CN_STATE_THRESHOLDS,
@@ -17,7 +16,6 @@ export interface ComputeNextReviewOptions {
 	intervalIdx: number;
 	correct: boolean;
 	now?: Date;
-	lapseSeverity?: 'light' | 'heavy';
 	/** Passed through from the UI. Behavior is applied in a later task. */
 	hintUsed?: boolean;
 }
@@ -39,7 +37,6 @@ export function computeNextReview(options: ComputeNextReviewOptions): {
 		intervalIdx,
 		correct,
 		now = new Date(),
-		lapseSeverity = 'light',
 	} = options;
 
 	const idx = clampSrsIntervalIdx(intervalIdx);
@@ -53,7 +50,7 @@ export function computeNextReview(options: ComputeNextReviewOptions): {
 		} else if (idx === 2) {
 			nextIdx = 1;
 		} else {
-			nextIdx = lapseSeverity === 'heavy' ? CN_LAPSE_HEAVY_IDX : CN_LAPSE_RECALL_IDX;
+			nextIdx = CN_LAPSE_RECALL_IDX;
 		}
 		const dueAt = idx <= 1
 			? addMinutes(now, CN_WRONG_FIRST_RETRY_MINUTES)

@@ -32,10 +32,7 @@ export const CN_STATE_THRESHOLDS = {
 	mastered: 5,
 } as const;
 
-/** Heavy lapse on maintain regresses to MCQ2 */
-export const CN_LAPSE_HEAVY_IDX = 1;
-
-/** Light lapse on maintain regresses to Recall */
+/** Wrong answer on Maintain regresses to Recall */
 export const CN_LAPSE_RECALL_IDX = 2;
 
 export const CN_DEFAULT_PRACTICE_COUNT = 20;
