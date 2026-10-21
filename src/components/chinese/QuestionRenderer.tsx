@@ -133,7 +133,7 @@ export default function QuestionRenderer({
 	const [sessionHeavyLapses, setSessionHeavyLapses] = useState<Record<string, number>>({});
 	const { speak, supported, ready: speechReady } = useSpeech();
 	const autoPlayedRef = useRef<string | null>(null);
-	const questionShownAtRef = useRef(Date.now());
+	const questionShownAtRef = useRef(0);
 	const typedInputRef = useRef<HTMLInputElement>(null);
 	const resultsRef = useRef(results);
 	const pendingAdvanceRef = useRef(false);
@@ -248,7 +248,8 @@ export default function QuestionRenderer({
 
 		const correct = gradeCurrentAnswer(answer);
 		const feedbackText = correct ? (hintUsed ? 'Đúng (có gợi ý)' : 'Đúng!') : 'Sai';
-		const responseMs = Math.min(600_000, Math.max(0, Date.now() - questionShownAtRef.current));
+		const shownAt = questionShownAtRef.current || Date.now();
+		const responseMs = Math.min(600_000, Math.max(0, Date.now() - shownAt));
 
 		const item: QuestionAnswerResult = {
 			wordId: q.wordId,
