@@ -25,6 +25,7 @@ import {
 	loggedExampleId,
 	loggedSentenceAnswer,
 } from '@/services/chinese/cnAnswerLogContext';
+import { resolveDisputedItems } from '@/services/chinese/cnDisputeService';
 import type {
 	CnPracticeQuestionDTO,
 	CnPracticeSubmitItem,
@@ -273,6 +274,7 @@ export async function submitHhtResults(
 		userId,
 		fresh.flatMap((item) => item.exampleId ? [item.exampleId] : []),
 	);
+	const disputedIds = await resolveDisputedItems(userId, fresh, now);
 
 	for (const item of fresh) {
 		const existing = await prisma.cnHhtProgress.findUnique({
@@ -312,6 +314,7 @@ export async function submitHhtResults(
 				hintUsed: item.hintUsed === true,
 				responseMs: item.responseMs ?? null,
 				attempts: loggedAttempts(item),
+				disputed: !!item.clientAnswerId && disputedIds.has(item.clientAnswerId),
 			},
 		});
 	}

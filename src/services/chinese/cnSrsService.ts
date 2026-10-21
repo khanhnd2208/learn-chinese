@@ -14,6 +14,7 @@ import {
 	loggedExampleId,
 	loggedSentenceAnswer,
 } from '@/services/chinese/cnAnswerLogContext';
+import { resolveDisputedItems } from '@/services/chinese/cnDisputeService';
 import { isChannelRampEligible } from '@/lib/chinese/channelRamp';
 import { buildDueCandidateWhere } from '@/lib/chinese/cnSrsDueQuery';
 import { isCoreQuestionType, questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
@@ -359,20 +360,25 @@ export async function logPracticeAnswers(
 		userId,
 		reconciled.flatMap((item) => item.exampleId ? [item.exampleId] : []),
 	);
-	const answerLogs = reconciled.map((item) => ({
-		userId,
-		wordId: item.wordId,
-		questionType: item.questionType,
-		correct: item.correct,
-		errorType: resolveSubmitErrorType(item),
-		source: 'practice' as const,
-		hintUsed: item.hintUsed === true,
-		responseMs: item.responseMs,
-		clientAnswerId: item.clientAnswerId ?? null,
-		exampleId: loggedExampleId(item, exampleWordIds),
-		answer: loggedSentenceAnswer(item),
-		attempts: loggedAttempts(item),
-	}));
+	const disputedIds = await resolveDisputedItems(userId, reconciled);
+	const answerLogs = reconciled.map((item) => {
+		const disputed = !!item.clientAnswerId && disputedIds.has(item.clientAnswerId);
+		return {
+			userId,
+			wordId: item.wordId,
+			questionType: item.questionType,
+			correct: item.correct,
+			errorType: disputed ? null : resolveSubmitErrorType(item),
+			source: 'practice' as const,
+			hintUsed: item.hintUsed === true,
+			responseMs: item.responseMs,
+			clientAnswerId: item.clientAnswerId ?? null,
+			exampleId: loggedExampleId(item, exampleWordIds),
+			answer: loggedSentenceAnswer(item),
+			attempts: loggedAttempts(item),
+			disputed,
+		};
+	});
 
 	await prisma.cnAnswerLog.createMany({ data: answerLogs });
 	return { logged: reconciled.length };
@@ -413,16 +419,23 @@ export async function submitReviewResults(
 		userId,
 		fresh.flatMap((item) => item.exampleId ? [item.exampleId] : []),
 	);
+	const disputedIds = await resolveDisputedItems(userId, fresh, now);
 	const answerLogs = fresh.map((item) => {
 		const progress = progressMap.get(item.wordId)!;
 		const channelIdxBefore = getChannelIntervalIdx(progress, questionChannel(item.questionType));
-		applyPracticeItem(progress, item, now, false);
+		const disputed = !!item.clientAnswerId && disputedIds.has(item.clientAnswerId);
+		applyPracticeItem(
+			progress,
+			disputed ? { ...item, correct: true, hintUsed: true } : item,
+			now,
+			false,
+		);
 		return {
 			userId,
 			wordId: item.wordId,
 			questionType: item.questionType,
 			correct: item.correct,
-			errorType: resolveSubmitErrorType(item),
+			errorType: disputed ? null : resolveSubmitErrorType(item),
 			source: 'review' as const,
 			hintUsed: item.hintUsed === true,
 			responseMs: item.responseMs,
@@ -431,6 +444,7 @@ export async function submitReviewResults(
 			answer: loggedSentenceAnswer(item),
 			attempts: loggedAttempts(item),
 			channelIdxBefore,
+			disputed,
 		};
 	});
 

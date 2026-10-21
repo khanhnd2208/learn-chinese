@@ -40,6 +40,7 @@ export function validatePracticeSubmitItems(items: unknown): items is CnPractice
 				&& row.responseMs <= 600_000);
 		const attemptsOk = row.attempts === undefined
 			|| (typeof row.attempts === 'number' && (row.attempts === 1 || row.attempts === 2));
+		const disputedOk = row.disputed === undefined || typeof row.disputed === 'boolean';
 		return typeof row.wordId === 'string'
 			&& row.wordId.length > 0
 			&& typeof row.correct === 'boolean'
@@ -50,6 +51,7 @@ export function validatePracticeSubmitItems(items: unknown): items is CnPractice
 			&& answerOk
 			&& clientAnswerOk
 			&& attemptsOk
+			&& disputedOk
 			&& (row.errorType === undefined
 				|| row.errorType === null
 				|| (typeof row.errorType === 'string' && VALID_ERROR_TYPES.has(row.errorType as CnErrorType)));

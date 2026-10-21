@@ -299,6 +299,8 @@ export interface CnPracticeSubmitItem {
 	clientAnswerId?: string;
 	/** How many times the learner submitted this fill sentence. Statistics only. */
 	attempts?: 1 | 2;
+	/** Learner says this wrong fill-sentence answer should also be accepted. */
+	disputed?: boolean;
 }
 
 export interface CnPracticeSessionResultDTO {

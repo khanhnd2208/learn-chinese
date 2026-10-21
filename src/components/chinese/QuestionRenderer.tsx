@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import Button from '@/components/ui/Button';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import AnswerRevealCard from '@/components/chinese/AnswerRevealCard';
 import SentencePromptCard from '@/components/chinese/SentencePromptCard';
@@ -136,12 +137,15 @@ export default function QuestionRenderer({
 	const [retryNotice, setRetryNotice] = useState<string | null>(null);
 	const [rejectedOption, setRejectedOption] = useState<string | null>(null);
 	const [forceTargetPinyin, setForceTargetPinyin] = useState(false);
+	const [disputeSent, setDisputeSent] = useState(false);
 	const [sessionHeavyLapses, setSessionHeavyLapses] = useState<Record<string, number>>({});
 	const { speak, supported, ready: speechReady } = useSpeech();
 	const autoPlayedRef = useRef<string | null>(null);
 	const questionShownAtRef = useRef(0);
 	const typedInputRef = useRef<HTMLInputElement>(null);
 	const resultsRef = useRef(results);
+	const pendingWrongRef = useRef<QuestionAnswerResult | null>(null);
+	const onAnswerRef = useRef(onAnswer);
 	const pendingAdvanceRef = useRef(false);
 	const ignoreOneAdvanceKeyRef = useRef(false);
 	const advanceKeyGuardTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -181,7 +185,15 @@ export default function QuestionRenderer({
 	const waiting = pendingAdvance || isExiting;
 	const hasHint = q ? !isFillSentenceQuestion(q.type) && questionHasHint(q) : false;
 
+	const flushPendingWrong = useCallback(() => {
+		const pending = pendingWrongRef.current;
+		if (!pending) return;
+		pendingWrongRef.current = null;
+		onAnswerRef.current?.(pending);
+	}, []);
+
 	const advance = useCallback((nextResults: QuestionAnswerResult[]) => {
+		flushPendingWrong();
 		pendingAdvanceRef.current = false;
 		clearAdvanceKeyGuard();
 		setFeedback(null);
@@ -195,6 +207,7 @@ export default function QuestionRenderer({
 		setRetryNotice(null);
 		setRejectedOption(null);
 		setForceTargetPinyin(false);
+		setDisputeSent(false);
 		setIdx((currentIdx) => {
 			if (currentIdx + 1 >= questions.length) {
 				onComplete?.(nextResults);
@@ -202,7 +215,15 @@ export default function QuestionRenderer({
 			}
 			return currentIdx + 1;
 		});
-	}, [questions.length, onComplete, clearAdvanceKeyGuard]);
+	}, [questions.length, onComplete, clearAdvanceKeyGuard, flushPendingWrong]);
+
+	useEffect(() => {
+		onAnswerRef.current = onAnswer;
+	}, [onAnswer]);
+
+	useEffect(() => () => {
+		flushPendingWrong();
+	}, [flushPendingWrong]);
 
 	useEffect(() => {
 		questionShownAtRef.current = Date.now();
@@ -251,6 +272,7 @@ export default function QuestionRenderer({
 
 	const handleExit = () => {
 		if (isExiting) return;
+		flushPendingWrong();
 		void onExit?.();
 	};
 
@@ -304,7 +326,11 @@ export default function QuestionRenderer({
 		};
 		const next = [...results, item];
 		setResults(next);
-		onAnswer?.(item);
+		if (fillSentence && !correct) {
+			pendingWrongRef.current = item;
+		} else {
+			onAnswer?.(item);
+		}
 		setFeedback(feedbackText);
 
 		if (!correct) {
@@ -331,8 +357,14 @@ export default function QuestionRenderer({
 	const totalEstimate = reviewedCount + dueRemaining;
 	const progressPct = totalEstimate > 0 ? Math.min(100, Math.round((reviewedCount / totalEstimate) * 100)) : 0;
 
+	const scheduleIsCorrect = disputeSent || isFeedbackCorrect;
 	const scheduleLabel = feedback && q.channelIntervalIdx !== undefined
-		? formatReviewScheduleLabel(q.channelIntervalIdx, isFeedbackCorrect, new Date(), { hintUsed })
+		? formatReviewScheduleLabel(
+			q.channelIntervalIdx,
+			scheduleIsCorrect,
+			new Date(),
+			{ hintUsed: disputeSent || hintUsed },
+		)
 		: null;
 
 	const resolvedExitLabel = exitLabel ?? (incremental ? 'Dừng' : 'Thoát');
@@ -631,6 +663,23 @@ export default function QuestionRenderer({
 										{isFeedbackCorrect ? 'Đúng!' : 'Chưa đúng'}
 									</span>
 								</div>
+								{isFeedbackWrong && isFillSentenceQuestion(q.type) && (
+									<div className="mt-2 pl-2">
+										<Button
+											variant="secondary"
+											size="sm"
+											disabled={disputeSent}
+											onClick={() => {
+												if (pendingWrongRef.current) pendingWrongRef.current.disputed = true;
+												setDisputeSent(true);
+											}}
+										>
+											{disputeSent
+												? 'Đã gửi để kiểm tra — từ này không bị trừ bậc'
+												: 'Đáp án của tôi cũng đúng'}
+										</Button>
+									</div>
+								)}
 								{isFeedbackCorrect && hintUsed && (
 									<p className="mt-1 pl-2 text-sm text-foreground-secondary">
 										{isFillSentenceQuestion(q.type)
@@ -661,13 +710,13 @@ export default function QuestionRenderer({
 								{scheduleLabel && incremental ? (
 									<div
 										className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-bold ${
-											isFeedbackCorrect
+											scheduleIsCorrect
 												? 'bg-success/10 text-success'
 												: 'bg-warning/10 text-warning'
 										}`}
 									>
 										<MaterialIcon
-											name={isFeedbackCorrect ? 'calendar_month' : 'replay'}
+											name={scheduleIsCorrect ? 'calendar_month' : 'replay'}
 											size={16}
 										/>
 										{scheduleLabel}

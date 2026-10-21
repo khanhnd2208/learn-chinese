@@ -11,6 +11,9 @@ import {
 const answerLogHarness = vi.hoisted(() => ({
 	logs: [] as Array<Record<string, unknown>>,
 	examples: [] as Array<{ id: string; wordId: string; ownerUserId: string | null }>,
+	updates: [] as Array<Record<string, unknown>>,
+	disputeCount: 0,
+	disputes: [] as Array<Record<string, unknown>>,
 }));
 
 vi.mock('@/services/chinese/cnSrsEnrollmentService', () => ({
@@ -88,7 +91,17 @@ vi.mock('@/lib/prisma', () => ({
 				createdAt: new Date('2026-06-01T00:00:00Z'),
 				updatedAt: new Date('2026-06-01T00:00:00Z'),
 			}]),
-			update: vi.fn(async () => ({})),
+			update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+				answerLogHarness.updates.push(data);
+				return {};
+			}),
+		},
+		cnExampleDispute: {
+			count: vi.fn(async () => answerLogHarness.disputeCount),
+			createMany: vi.fn(async ({ data }: { data: Array<Record<string, unknown>> }) => {
+				answerLogHarness.disputes.push(...data);
+				return { count: data.length };
+			}),
 		},
 		$transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
 	},
@@ -439,6 +452,9 @@ describe('submitReviewResults answer log context', () => {
 	beforeEach(() => {
 		answerLogHarness.logs.length = 0;
 		answerLogHarness.examples.length = 0;
+		answerLogHarness.updates.length = 0;
+		answerLogHarness.disputes.length = 0;
+		answerLogHarness.disputeCount = 0;
 	});
 
 	it('records the sentence interval from before the answer is applied', async () => {
@@ -488,5 +504,32 @@ describe('submitReviewResults answer log context', () => {
 			answer: null,
 			channelIdxBefore: 3,
 		}));
+	});
+
+	it('keeps the sentence interval when a wrong answer is disputed', async () => {
+		answerLogHarness.examples.push({ id: 'ex-1', wordId: 'w1', ownerUserId: null });
+		await submitReviewResults('user-a', [{
+			wordId: 'w1',
+			questionType: 'fill_sentence_typed',
+			correct: false,
+			answer: '已',
+			exampleId: 'ex-1',
+			clientAnswerId: 'dispute-1',
+			disputed: true,
+		}]);
+		expect(answerLogHarness.logs[0]).toEqual(expect.objectContaining({
+			correct: false,
+			disputed: true,
+			errorType: null,
+		}));
+		expect(answerLogHarness.updates[0]).toEqual(expect.objectContaining({
+			sentenceIntervalIdx: 3,
+			sentenceHeavyLapses: 0,
+			sentenceCorrect: 1,
+			sentenceTotal: 3,
+		}));
+		const due = answerLogHarness.updates[0]?.sentenceDueAt;
+		expect(due).toBeInstanceOf(Date);
+		expect((due as Date).getTime()).toBeGreaterThan(Date.now() + 20 * 60 * 60 * 1000);
 	});
 });

@@ -30,6 +30,7 @@ import {
 	loggedExampleId,
 	loggedSentenceAnswer,
 } from '@/services/chinese/cnAnswerLogContext';
+import { resolveDisputedItems } from '@/services/chinese/cnDisputeService';
 import {
 	ensureEnrollmentForActiveWords,
 	resolveSrsPoolWordIds,
@@ -373,16 +374,18 @@ export async function submitInfernoResults(
 		userId,
 		fresh.flatMap((item) => item.exampleId ? [item.exampleId] : []),
 	);
+	const disputedIds = await resolveDisputedItems(userId, fresh, now);
 
 	for (const item of fresh) {
+		const disputed = !!item.clientAnswerId && disputedIds.has(item.clientAnswerId);
 		const existing = await prisma.cnInfernoProgress.findUnique({
 			where: { userId_wordId: { userId, wordId: item.wordId } },
 		});
 		const prevScore = existing?.masteryScore ?? 0;
-		const delta = infernoScoreDelta(item.questionType, item.correct, prevScore);
-		const newScore = applyScoreFloor(prevScore, delta);
+		const delta = disputed ? 0 : infernoScoreDelta(item.questionType, item.correct, prevScore);
+		const newScore = disputed ? prevScore : applyScoreFloor(prevScore, delta);
 
-		await prisma.cnInfernoProgress.upsert({
+		if (!disputed) await prisma.cnInfernoProgress.upsert({
 			where: { userId_wordId: { userId, wordId: item.wordId } },
 			create: {
 				userId,
@@ -419,6 +422,7 @@ export async function submitInfernoResults(
 				hintUsed: item.hintUsed === true,
 				responseMs: item.responseMs ?? null,
 				attempts: loggedAttempts(item),
+				disputed,
 			},
 		});
 
