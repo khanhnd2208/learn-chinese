@@ -4,12 +4,13 @@
 import { prisma } from '@/lib/prisma';
 import { CN_LEARN_BATCH_SIZE, CN_NEW_WORDS_PER_DAY } from '@/config/constants';
 import { addLocalDays, startOfLocalDay } from '@/lib/chinese/reviewMetrics';
+import { generateQuestionForWord } from '@/lib/chinese/generateQuestions';
 import { getWordCardsForSrsPool } from '@/services/chinese/cnContentService';
 import {
 	ensureEnrollmentForActiveWords,
 	resolveSrsPoolWordIds,
 } from '@/services/chinese/cnSrsEnrollmentService';
-import type { CnWordCardDTO } from '@/types/chinese';
+import type { CnPracticeQuestionDTO, CnWordCardDTO } from '@/types/chinese';
 
 export interface LearnQueue {
 	words: CnWordCardDTO[];
@@ -127,4 +128,22 @@ export async function markIntroduced(
 		marked: result.count,
 		remainingToday: Math.max(0, remainingToday - result.count),
 	};
+}
+
+/** One meaning MCQ per word just introduced. Distractors come from the rest of the SRS pool. */
+export async function getLearnQuiz(userId: string, wordIds: string[]): Promise<{ questions: CnPracticeQuestionDTO[] }> {
+	const pool = await resolveSrsPoolWordIds(userId);
+	const requested = [...new Set(wordIds.filter((id) => pool.has(id)))].slice(0, CN_LEARN_BATCH_SIZE);
+	if (!requested.length) return { questions: [] };
+
+	const extra = [...pool].filter((id) => !requested.includes(id)).slice(0, 30);
+	const cards = await getWordCardsForSrsPool(userId, [...requested, ...extra]);
+	const allWords = [...cards.values()];
+	const questions = requested.flatMap((id, idx) => {
+		const word = cards.get(id);
+		if (!word) return [];
+		const question = generateQuestionForWord(word, allWords, 'hanzi_to_meaning', idx);
+		return question ? [question] : [];
+	});
+	return { questions };
 }

@@ -14,6 +14,7 @@ interface Props {
 function isFocusSession(pathname: string): boolean {
 	return pathname.startsWith('/practice/')
 		|| pathname === '/review'
+		|| pathname === '/learn'
 		|| pathname === '/hht'
 		|| pathname === '/inferno'
 		|| /\/sets\/[^/]+\/flashcards$/.test(pathname);

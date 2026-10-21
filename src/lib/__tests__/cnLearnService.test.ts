@@ -24,7 +24,7 @@ vi.mock('@/services/chinese/cnContentService', () => ({
 import { prisma } from '@/lib/prisma';
 import { getWordCardsForSrsPool } from '@/services/chinese/cnContentService';
 import { resolveSrsPoolWordIds } from '@/services/chinese/cnSrsEnrollmentService';
-import { getLearnQueue, markIntroduced } from '@/services/chinese/cnLearnService';
+import { getLearnQueue, getLearnQuiz, markIntroduced } from '@/services/chinese/cnLearnService';
 
 const mockCount = vi.mocked(prisma.cnWordProgress.count);
 const mockFindMany = vi.mocked(prisma.cnWordProgress.findMany);
@@ -111,6 +111,19 @@ describe('cnLearnService', () => {
 			where: { userId: 'user-a', wordId: { in: ['w1'] }, introducedAt: null },
 			data: { introducedAt: now, meaningDueAt: now },
 		});
+	});
+
+	it('builds a meaning quiz only for words in this pool', async () => {
+		mockPool.mockResolvedValue(new Set(['w1', 'w2']));
+		mockCards.mockImplementation(async (_userId, ids) => new Map(ids.map((id) => [id, {
+			...card(id),
+			meaningVi: id === 'w1' ? 'học' : 'ăn',
+		}])));
+
+		const quiz = await getLearnQuiz('user-a', ['w1', 'not-in-pool']);
+
+		expect(quiz.questions.map((question) => question.wordId)).toEqual(['w1']);
+		expect(quiz.questions[0]?.type).toBe('hanzi_to_meaning');
 	});
 
 	it('does not update progress outside this user pool', async () => {
