@@ -11,6 +11,8 @@ const store = vi.hoisted(() => ({
 		createdAt: Date;
 	}>,
 	examples: [] as Array<{ id: string; wordId: string; ownerUserId: string | null }>,
+	acceptedAnswers: [] as string[],
+	pending: [] as Array<{ exampleId: string; answer: string; status: string }>,
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -20,7 +22,13 @@ vi.mock('@/lib/prisma', () => ({
 				const owners = new Set(where.OR.map((clause) => clause.ownerUserId));
 				return store.examples.filter((row) => where.id.in.includes(row.id) && owners.has(row.ownerUserId));
 			}),
+			findUnique: vi.fn(async () => ({ acceptedAnswers: store.acceptedAnswers })),
+			update: vi.fn(async ({ data }: { data: { acceptedAnswers: string[] } }) => {
+				store.acceptedAnswers = data.acceptedAnswers;
+				return { id: 'ex-1' };
+			}),
 		},
+		$transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
 		cnExampleDispute: {
 			count: vi.fn(async ({ where }: { where: { userId: string; createdAt: { gte: Date; lt: Date } } }) => {
 				return store.disputes.filter((row) =>
@@ -41,11 +49,21 @@ vi.mock('@/lib/prisma', () => ({
 				}
 				return { count };
 			}),
+			updateMany: vi.fn(async ({ where, data }: { where: { exampleId: string; answer: string; status: string }; data: { status: string } }) => {
+				let count = 0;
+				for (const row of store.pending) {
+					if (row.exampleId === where.exampleId && row.answer === where.answer && row.status === where.status) {
+						row.status = data.status;
+						count += 1;
+					}
+				}
+				return { count };
+			}),
 		},
 	},
 }));
 
-import { resolveDisputedItems } from '@/services/chinese/cnDisputeService';
+import { groupPendingDisputes, resolveDisputeGroup, resolveDisputedItems } from '@/services/chinese/cnDisputeService';
 
 const now = new Date('2026-10-21T10:00:00');
 
@@ -110,5 +128,56 @@ describe('resolveDisputedItems', () => {
 		const second = await resolveDisputedItems('user-a', [item()], now);
 		expect(second).toEqual(new Set(['c1']));
 		expect(store.disputes).toHaveLength(1);
+	});
+});
+
+describe('dispute groups', () => {
+	beforeEach(() => {
+		store.acceptedAnswers = ['已'];
+		store.pending = [
+			{ exampleId: 'ex-1', answer: '也', status: 'pending' },
+			{ exampleId: 'ex-1', answer: '也', status: 'pending' },
+			{ exampleId: 'ex-1', answer: '还', status: 'pending' },
+		];
+	});
+
+	it('counts distinct learners and keeps the latest report', () => {
+		const groups = groupPendingDisputes([
+			{
+				exampleId: 'ex-1',
+				answer: '也',
+				userId: 'u1',
+				createdAt: new Date('2026-10-21T01:00:00Z'),
+				example: { hanzi: '他们也都来了。', meaningVi: 'Họ也都 đến.', word: { simplified: '都', meaningVi: 'đều' } },
+			},
+			{
+				exampleId: 'ex-1',
+				answer: '也',
+				userId: 'u1',
+				createdAt: new Date('2026-10-21T03:00:00Z'),
+				example: { hanzi: '他们也都来了。', meaningVi: 'Họ也都 đến.', word: { simplified: '都', meaningVi: 'đều' } },
+			},
+			{
+				exampleId: 'ex-1',
+				answer: '也',
+				userId: 'u2',
+				createdAt: new Date('2026-10-21T02:00:00Z'),
+				example: { hanzi: '他们也都来了。', meaningVi: 'Họ也都 đến.', word: { simplified: '都', meaningVi: 'đều' } },
+			},
+		]);
+		expect(groups).toHaveLength(1);
+		expect(groups[0]?.userCount).toBe(2);
+		expect(groups[0]?.latestAt).toBe(new Date('2026-10-21T03:00:00Z').toISOString());
+	});
+
+	it('adds an accepted answer once and resolves every pending report in the group', async () => {
+		const first = await resolveDisputeGroup('admin-1', 'ex-1', '也', 'accept', now);
+		expect(first.acceptedAnswers).toEqual(['已', '也']);
+		expect(first.updated).toBe(2);
+		expect(store.pending.filter((row) => row.answer === '也').every((row) => row.status === 'accepted')).toBe(true);
+		expect(store.pending.find((row) => row.answer === '还')?.status).toBe('pending');
+
+		const again = await resolveDisputeGroup('admin-1', 'ex-1', '也', 'accept', now);
+		expect(again.acceptedAnswers).toEqual(['已', '也']);
 	});
 });

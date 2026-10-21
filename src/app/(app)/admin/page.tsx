@@ -54,9 +54,14 @@ export default function AdminChinesePage() {
 					<h1 className="text-2xl font-black uppercase">Quản lý nội dung Tiếng Trung</h1>
 					<p className="mt-2 text-sm text-muted">Import CSV/XLSX — validate, preview, publish. Mnemonic lưu dạng draft/published.</p>
 				</div>
-				<Link href="/admin/analytics" className="btn-secondary">
-					Theo dõi luyện tập
-				</Link>
+				<div className="flex flex-wrap gap-2">
+					<Link href="/admin/disputes" className="btn-secondary">
+						Kháng nghị
+					</Link>
+					<Link href="/admin/analytics" className="btn-secondary">
+						Theo dõi luyện tập
+					</Link>
+				</div>
 			</div>
 
 			<div className="mt-8 rounded-xl border border-border p-6">
