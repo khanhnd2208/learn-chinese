@@ -104,6 +104,23 @@ function aggregateDueAt(p: CnWordProgress, now: Date): Date {
 	return minDate <= now ? now : minDate;
 }
 
+export function syncProgressRollup(progress: CnWordProgress, now: Date): void {
+	progress.dueAt = aggregateDueAt(progress, now);
+	progress.state = aggregateState(progress);
+	const levelChannels = requiredChannels(progress.sentenceTotal > 0);
+	progress.intervalIdx = Math.min(
+		...levelChannels.map((channel) => getChannelIntervalIdx(progress, channel)),
+	);
+}
+
+/** Recompute the sticking flag from the lapse counts. Lapses only fall when a bad sentence is repaired. */
+export function refreshStickingPoint(progress: CnWordProgress): void {
+	progress.isStickingPoint = ALL_SKILL_CHANNELS.some((channel) => {
+		const field = HEAVY_LAPSE_FIELDS[channel];
+		return (progress[field] as number) >= CN_STICKING_POINT_HEAVY_LAPSES;
+	});
+}
+
 function aggregateState(p: CnWordProgress): CnWordProgressState {
 	// Callers without the fill-example set treat sentence as required only after it has been practiced.
 	return wordLevelState(p, p.sentenceTotal > 0);
@@ -573,12 +590,7 @@ function applyPracticeItem(
 		progress.state = next.state;
 	}
 
-	progress.dueAt = aggregateDueAt(progress, now);
-	progress.state = aggregateState(progress);
-	const levelChannels = requiredChannels(progress.sentenceTotal > 0);
-	progress.intervalIdx = Math.min(
-		...levelChannels.map((channel) => getChannelIntervalIdx(progress, channel)),
-	);
+	syncProgressRollup(progress, now);
 
 	if (channel === 'sentence' && item.exampleId) {
 		progress.lastExampleId = item.exampleId;

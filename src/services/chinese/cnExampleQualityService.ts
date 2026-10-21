@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma';
 import { addDays, CN_EXAMPLE_STATS_WINDOW_DAYS } from '@/config/constants';
+import { normalizeGradedText } from '@/lib/chinese/answerGrade';
 import { scoreExample, type ExampleQualityScore } from '@/lib/chinese/exampleQuality';
+import { refreshStickingPoint, syncProgressRollup } from '@/services/chinese/cnSrsService';
 
 export interface ExampleQualityRow extends ExampleQualityScore {
 	exampleId: string;
@@ -87,5 +89,127 @@ export async function computeExampleQuality(now = new Date()): Promise<ExampleQu
 			targetWord: example.word.simplified,
 			wordId: example.wordId,
 		}];
+	});
+}
+
+export interface SentenceRestoreLog {
+	id: string;
+	userId: string;
+	wordId: string;
+	exampleId: string | null;
+	createdAt: Date;
+	correct: boolean;
+	disputed: boolean;
+	source: string;
+	questionType: string;
+	channelIdxBefore: number | null;
+	answer: string | null;
+}
+
+const SENTENCE_QUESTION_TYPES = new Set(['fill_sentence', 'fill_sentence_typed']);
+
+/**
+ * Latest wrong, undisputed review of this sentence per learner.
+ * A later sentence answer on the same word means the learner has moved on.
+ * When `acceptedAnswers` is set, only those answers are repaired.
+ */
+export function selectLogsToRestore(
+	logs: SentenceRestoreLog[],
+	exampleId: string,
+	acceptedAnswers?: string[],
+): SentenceRestoreLog[] {
+	const allowed = acceptedAnswers?.map((answer) => normalizeGradedText(answer));
+	const byLearner = new Map<string, SentenceRestoreLog[]>();
+	for (const log of logs) {
+		if (!SENTENCE_QUESTION_TYPES.has(log.questionType)) continue;
+		const key = `${log.userId}\n${log.wordId}`;
+		const list = byLearner.get(key) ?? [];
+		list.push(log);
+		byLearner.set(key, list);
+	}
+
+	const chosen: SentenceRestoreLog[] = [];
+	for (const list of byLearner.values()) {
+		const candidates = list.filter((log) =>
+			log.source === 'review'
+			&& !log.correct
+			&& !log.disputed
+			&& log.exampleId === exampleId
+			&& log.channelIdxBefore != null
+			&& (allowed == null || (log.answer != null && allowed.includes(normalizeGradedText(log.answer))))
+		);
+		if (!candidates.length) continue;
+		const latest = candidates.reduce((best, log) => (log.createdAt > best.createdAt ? log : best));
+		if (list.some((log) => log.createdAt > latest.createdAt)) continue;
+		chosen.push(latest);
+	}
+	return chosen;
+}
+
+export async function restoreSentenceLevels(input: {
+	exampleId: string;
+	wordId: string;
+	now?: Date;
+	acceptedAnswers?: string[];
+}): Promise<number> {
+	const now = input.now ?? new Date();
+	const since = addDays(now, -CN_EXAMPLE_STATS_WINDOW_DAYS);
+	const logs = await prisma.cnAnswerLog.findMany({
+		where: {
+			wordId: input.wordId,
+			createdAt: { gte: since },
+			questionType: { in: [...SENTENCE_QUESTION_TYPES] as Array<'fill_sentence' | 'fill_sentence_typed'> },
+		},
+		select: {
+			id: true,
+			userId: true,
+			wordId: true,
+			exampleId: true,
+			createdAt: true,
+			correct: true,
+			disputed: true,
+			source: true,
+			questionType: true,
+			channelIdxBefore: true,
+			answer: true,
+		},
+	});
+	const chosen = selectLogsToRestore(logs, input.exampleId, input.acceptedAnswers);
+	if (!chosen.length) return 0;
+
+	return prisma.$transaction(async (tx) => {
+		let restored = 0;
+		for (const log of chosen) {
+			const before = log.channelIdxBefore;
+			if (before == null) continue;
+			const progress = await tx.cnWordProgress.findUnique({
+				where: { userId_wordId: { userId: log.userId, wordId: log.wordId } },
+			});
+			if (!progress || progress.sentenceIntervalIdx >= before) continue;
+
+			const next = { ...progress };
+			next.sentenceIntervalIdx = before;
+			const soon = addDays(now, 1);
+			const currentDue = progress.sentenceDueAt ?? soon;
+			next.sentenceDueAt = currentDue < soon ? currentDue : soon;
+			next.sentenceHeavyLapses = Math.max(0, progress.sentenceHeavyLapses - 1);
+			syncProgressRollup(next, now);
+			refreshStickingPoint(next);
+			await tx.cnWordProgress.update({
+				where: { id: progress.id },
+				data: {
+					sentenceIntervalIdx: next.sentenceIntervalIdx,
+					sentenceDueAt: next.sentenceDueAt,
+					sentenceHeavyLapses: next.sentenceHeavyLapses,
+					dueAt: next.dueAt,
+					intervalIdx: next.intervalIdx,
+					state: next.state,
+					isStickingPoint: next.isStickingPoint,
+				},
+			});
+			await tx.cnAnswerLog.update({ where: { id: log.id }, data: { disputed: true } });
+			restored += 1;
+		}
+		return restored;
 	});
 }
