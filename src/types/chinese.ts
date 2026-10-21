@@ -263,6 +263,10 @@ export interface CnPracticeQuestionDTO {
 	meaningVi?: string;
 	sentenceTemplate?: string;
 	sentenceMeaningVi?: string;
+	/** Full sentence spoken when the learner asks to hear it. That play counts as a hint. */
+	sentenceAudioText?: string;
+	/** Other answers accepted for this sentence. Graded in a later phase. */
+	acceptedAnswers?: string[];
 	components?: string[];
 	radical?: string;
 	explanation?: string;

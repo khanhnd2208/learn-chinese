@@ -129,9 +129,32 @@ describe('generateQuestions (7 core types)', () => {
 		expect(q).toBeTruthy();
 		expect(q!.sentenceTemplate).toContain('____');
 		expect(q!.correctAnswer).toBe('学生');
+		expect(q!.sentenceMeaningVi).toBe('Anh ấy là học sinh.');
+		expect(q!.sentenceMeaningVi).not.toContain('__');
+		expect(q!.sentenceAudioText).toBe('他是学生。');
 		if (q!.type === 'fill_sentence') {
 			expect(q!.options).toContain('学生');
 		}
+	});
+
+	it('fills a blanked Vietnamese template into a complete sentence meaning', () => {
+		const wordWithExamples: CnWordCardDTO = {
+			...sampleWords[0],
+			meaningVi: 'học sinh; người đi học',
+			examples: [{
+				id: 'ex1',
+				hanzi: '他是学生。',
+				pinyin: 'tā shì xuésheng.',
+				meaningVi: 'Anh ấy là __.',
+				meaningViTemplate: 'Anh ấy là __.',
+				naturalnessStatus: 'auto',
+				targetWordStart: 2,
+				targetWordEnd: 4,
+			}],
+		};
+		const q = generateQuestionForWord(wordWithExamples, sampleWords, 'fill_sentence_typed', 0);
+		expect(q?.sentenceMeaningVi).toBe('Anh ấy là học sinh.');
+		expect(q?.sentenceAudioText).toBe('他是学生。');
 	});
 
 	it('smart_mixed practice rotates all three SRS channels including sentence', () => {

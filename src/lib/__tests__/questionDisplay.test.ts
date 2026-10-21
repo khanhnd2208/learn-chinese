@@ -88,6 +88,17 @@ describe('resolveWrongAnswerReveal', () => {
 		expect(reveal.fillWord?.pinyin).toBe('xǐ huan');
 		expect(reveal.fillWord?.meaningVi).toBe('thích');
 	});
+
+	it('fill_sentence leaves a complete Vietnamese gloss unchanged', () => {
+		const reveal = resolveWrongAnswerReveal(baseQuestion({
+			type: 'fill_sentence',
+			sentenceTemplate: '我____学习中文。',
+			sentenceMeaningVi: 'Tôi thích học tiếng Trung.',
+			meaningVi: 'thích',
+			correctAnswer: '喜欢',
+		}));
+		expect(reveal.sentence?.meaningVi).toBe('Tôi thích học tiếng Trung.');
+	});
 });
 
 describe('getSentenceTypography', () => {

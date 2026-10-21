@@ -16,7 +16,7 @@ import {
 } from '@/lib/chinese/practiceTaxonomy';
 import { ALL_SKILL_CHANNELS } from '@/lib/chinese/coreQuestionTypes';
 import { buildMcqOptionsForType } from '@/lib/chinese/distractorSelect';
-import { blankMeaningViExample, blankVerifiedExample, FILL_EXAMPLE_STATUSES, pickFillExample } from '@/lib/chinese/verifiedExample';
+import { blankVerifiedExample, FILL_EXAMPLE_STATUSES, fullMeaningViForExample, pickFillExample } from '@/lib/chinese/verifiedExample';
 import type { CnPracticeQuestionDTO, CnQuestionType, CnWordCardDTO, CnWordProgressDTO } from '@/types/chinese';
 
 export const MIN_MCQ_OPTIONS = 2;
@@ -153,7 +153,7 @@ function buildFillSentenceQuestion(
 	if (!example) return null;
 	const sentenceTemplate = blankVerifiedExample(example);
 	if (!sentenceTemplate) return null;
-	const sentenceMeaningVi = blankMeaningViExample(example) ?? undefined;
+	const sentenceMeaningVi = fullMeaningViForExample(example, word.meaningVi) ?? undefined;
 	const base = {
 		id: makeId(word.id, type, idx),
 		wordId: word.id,
@@ -161,6 +161,7 @@ function buildFillSentenceQuestion(
 		prompt: 'Chọn từ điền vào chỗ trống',
 		sentenceTemplate,
 		sentenceMeaningVi,
+		sentenceAudioText: example.hanzi,
 		pinyin: example.pinyin || undefined,
 		wordPinyin: word.pinyin || undefined,
 		meaningVi: word.meaningVi,

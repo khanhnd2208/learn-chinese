@@ -3,6 +3,7 @@ import {
 	isVerifiedFillExample,
 	isFillExample,
 	blankVerifiedExample,
+	fullMeaningViForExample,
 	pickVerifiedFillExample,
 	pickFillExample,
 	enrichExampleDtoForFill,
@@ -71,6 +72,28 @@ describe('verifiedExample', () => {
 	it('blanks at verified offsets', () => {
 		expect(blankVerifiedExample(verifiedExample)).toBe('我每天____中文。');
 		expect(blankVerifiedExample(autoExample)).toBe('他是____。');
+	});
+
+	it('fullMeaningViForExample prefers a complete Vietnamese sentence', () => {
+		expect(fullMeaningViForExample(verifiedExample, 'học; học tập')).toBe('Mỗi ngày tôi học tiếng Trung.');
+	});
+
+	it('fullMeaningViForExample fills a blanked template with the primary meaning', () => {
+		const blanked: CnExampleDTO = {
+			...verifiedExample,
+			meaningVi: 'Tôi __ tiếng Trung mỗi ngày.',
+			meaningViTemplate: 'Tôi __ tiếng Trung mỗi ngày.',
+		};
+		expect(fullMeaningViForExample(blanked, 'học; học tập')).toBe('Tôi học tiếng Trung mỗi ngày.');
+	});
+
+	it('fullMeaningViForExample returns null when neither gloss is usable', () => {
+		const empty: CnExampleDTO = {
+			...verifiedExample,
+			meaningVi: '   ',
+			meaningViTemplate: 'không có chỗ trống',
+		};
+		expect(fullMeaningViForExample(empty, 'học')).toBeNull();
 	});
 
 	it('pickVerifiedFillExample returns verified only', () => {

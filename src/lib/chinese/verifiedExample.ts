@@ -93,9 +93,16 @@ export function blankVerifiedExample(example: CnExampleDTO): string | null {
 	return `${before}____${after}`;
 }
 
-export function blankMeaningViExample(example: CnExampleDTO): string | null {
+/** Full Vietnamese gloss for a fill sentence. A blanked template is filled with the word's primary meaning. */
+export function fullMeaningViForExample(example: CnExampleDTO, wordMeaningVi: string): string | null {
+	const meaningVi = example.meaningVi.trim();
+	if (meaningVi && !meaningVi.includes('__')) return meaningVi;
+
 	if (example.meaningViTemplate?.includes('__')) {
-		return example.meaningViTemplate;
+		const primaryMeaning = wordMeaningVi.split(/[;；]/)[0]?.trim() || wordMeaningVi;
+		const filled = example.meaningViTemplate.replace('__', primaryMeaning).trim();
+		return filled || null;
 	}
+
 	return null;
 }

@@ -64,7 +64,7 @@ function resolveSentenceReveal(q: CnPracticeQuestionDTO): WrongAnswerReveal {
 		: q.correctAnswer;
 
 	const wordMeaning = firstMeaningSegment(q.meaningVi);
-	const completedMeaning = q.sentenceMeaningVi && wordMeaning
+	const completedMeaning = q.sentenceMeaningVi && wordMeaning && q.sentenceMeaningVi.includes('__')
 		? q.sentenceMeaningVi.replace(/__/g, wordMeaning)
 		: q.sentenceMeaningVi;
 
