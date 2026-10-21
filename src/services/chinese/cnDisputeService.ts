@@ -122,9 +122,22 @@ export function groupPendingDisputes(rows: PendingDisputeRow[]): PendingDisputeG
 }
 
 export async function listPendingDisputeGroups(page = 1, pageSize = 50): Promise<PendingDisputeGroup[]> {
-	const rows = await prisma.cnExampleDispute.findMany({
+	// Group and page in the database so the queue stays cheap as disputes pile up.
+	const pageGroups = await prisma.cnExampleDispute.groupBy({
+		by: ['exampleId', 'answer'],
 		where: { status: 'pending' },
-		orderBy: { createdAt: 'desc' },
+		_max: { createdAt: true },
+		orderBy: [{ _max: { createdAt: 'desc' } }, { exampleId: 'asc' }, { answer: 'asc' }],
+		skip: (page - 1) * pageSize,
+		take: pageSize,
+	});
+	if (!pageGroups.length) return [];
+
+	const rows = await prisma.cnExampleDispute.findMany({
+		where: {
+			status: 'pending',
+			OR: pageGroups.map((group) => ({ exampleId: group.exampleId, answer: group.answer })),
+		},
 		include: {
 			example: {
 				select: {
@@ -135,9 +148,7 @@ export async function listPendingDisputeGroups(page = 1, pageSize = 50): Promise
 			},
 		},
 	});
-	const groups = groupPendingDisputes(rows);
-	const start = (page - 1) * pageSize;
-	return groups.slice(start, start + pageSize);
+	return groupPendingDisputes(rows);
 }
 
 function withAcceptedAnswer(existing: string[], answer: string): string[] {
