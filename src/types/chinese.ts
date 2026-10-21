@@ -271,6 +271,10 @@ export interface CnPracticeSubmitItem {
 	hintUsed?: boolean;
 	/** Milliseconds from question display to the answer. */
 	responseMs?: number;
+	/** Text the learner chose or typed. Missing only for a tab opened before server grading. */
+	answer?: string;
+	/** One id per answer, so a retried request is not counted twice. */
+	clientAnswerId?: string;
 }
 
 export interface CnPracticeSessionResultDTO {

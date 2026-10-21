@@ -255,6 +255,8 @@ export default function QuestionRenderer({
 			wordId: q.wordId,
 			questionType: q.type,
 			correct,
+			answer,
+			clientAnswerId: crypto.randomUUID(),
 			hintUsed,
 			responseMs,
 			...(q.exampleId ? { exampleId: q.exampleId } : {}),

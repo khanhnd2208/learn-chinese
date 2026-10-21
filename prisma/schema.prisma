@@ -314,8 +314,10 @@ model CnAnswerLog {
   source       CnAnswerSource @default(practice)
   hintUsed     Boolean        @default(false)
   responseMs   Int?
+  clientAnswerId String?
   createdAt    DateTime       @default(now())
   word         CnWord         @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  @@unique([userId, clientAnswerId])
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, wordId])
   @@index([userId, errorType])

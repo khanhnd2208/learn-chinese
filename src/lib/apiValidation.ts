@@ -30,6 +30,9 @@ export function validatePracticeSubmitItems(items: unknown): items is CnPractice
 		if (!item || typeof item !== 'object') return false;
 		const row = item as Record<string, unknown>;
 		const hintOk = row.hintUsed === undefined || typeof row.hintUsed === 'boolean';
+		const answerOk = row.answer === undefined || (typeof row.answer === 'string' && row.answer.length <= 200);
+		const clientAnswerOk = row.clientAnswerId === undefined
+			|| (typeof row.clientAnswerId === 'string' && row.clientAnswerId.length > 0 && row.clientAnswerId.length <= 80);
 		const responseOk = row.responseMs === undefined
 			|| (typeof row.responseMs === 'number'
 				&& Number.isInteger(row.responseMs)
@@ -42,6 +45,8 @@ export function validatePracticeSubmitItems(items: unknown): items is CnPractice
 			&& VALID_QUESTION_TYPES.has(row.questionType)
 			&& hintOk
 			&& responseOk
+			&& answerOk
+			&& clientAnswerOk
 			&& (row.errorType === undefined
 				|| row.errorType === null
 				|| (typeof row.errorType === 'string' && VALID_ERROR_TYPES.has(row.errorType as CnErrorType)));

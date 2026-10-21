@@ -23,6 +23,7 @@ import {
 } from '@/config/constants';
 import { getWordCardsForSrsPool, getUserDistractorPool } from '@/services/chinese/cnContentService';
 import { loadWordViewsForUser } from '@/services/chinese/cnWordViewService';
+import { prepareSubmitItems } from '@/lib/chinese/answerGrading';
 import {
 	ensureEnrollmentForActiveWords,
 	resolveSrsPoolWordIds,
@@ -361,8 +362,9 @@ export async function submitInfernoResults(
 ): Promise<{ updated: number; masteryDeltas: CnInfernoMasteryDeltaDTO[] }> {
 	const masteryDeltas: CnInfernoMasteryDeltaDTO[] = [];
 	const now = new Date();
+	const fresh = await prepareSubmitItems(userId, items);
 
-	for (const item of items) {
+	for (const item of fresh) {
 		const existing = await prisma.cnInfernoProgress.findUnique({
 			where: { userId_wordId: { userId, wordId: item.wordId } },
 		});
@@ -401,6 +403,7 @@ export async function submitInfernoResults(
 				questionType: item.questionType,
 				correct: item.correct,
 				source: 'inferno',
+				clientAnswerId: item.clientAnswerId ?? null,
 			},
 		});
 
@@ -411,7 +414,7 @@ export async function submitInfernoResults(
 		});
 	}
 
-	return { updated: items.length, masteryDeltas };
+	return { updated: fresh.length, masteryDeltas };
 }
 
 function scoreBucketLabel(score: number): string {

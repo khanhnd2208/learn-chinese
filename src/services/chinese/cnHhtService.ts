@@ -18,6 +18,7 @@ import {
 	resolveSrsPoolWordIds,
 } from '@/services/chinese/cnSrsEnrollmentService';
 import { progressToDTO } from '@/services/chinese/cnSrsService';
+import { prepareSubmitItems } from '@/lib/chinese/answerGrading';
 import type {
 	CnPracticeQuestionDTO,
 	CnPracticeSubmitItem,
@@ -261,8 +262,9 @@ export async function submitHhtResults(
 	items: CnPracticeSubmitItem[],
 ): Promise<{ updated: number }> {
 	const now = new Date();
+	const fresh = await prepareSubmitItems(userId, items);
 
-	for (const item of items) {
+	for (const item of fresh) {
 		const existing = await prisma.cnHhtProgress.findUnique({
 			where: { userId_wordId: { userId, wordId: item.wordId } },
 		});
@@ -294,11 +296,12 @@ export async function submitHhtResults(
 				questionType: item.questionType,
 				correct: item.correct,
 				source: 'hht',
+				clientAnswerId: item.clientAnswerId ?? null,
 			},
 		});
 	}
 
-	return { updated: items.length };
+	return { updated: fresh.length };
 }
 
 export async function getHhtGateStats(userId: string): Promise<{

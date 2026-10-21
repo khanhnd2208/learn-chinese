@@ -7,7 +7,7 @@ import {
 	CN_STICKING_POINT_HEAVY_LAPSES,
 	clampSrsIntervalIdx,
 } from '@/config/constants';
-import { reconcileSubmitItems } from '@/lib/chinese/answerGrading';
+import { prepareSubmitItems } from '@/lib/chinese/answerGrading';
 import { isChannelRampEligible } from '@/lib/chinese/channelRamp';
 import { buildDueCandidateWhere } from '@/lib/chinese/cnSrsDueQuery';
 import { isCoreQuestionType, questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
@@ -17,7 +17,6 @@ import { rate } from '@/lib/chinese/hanziUtils';
 import { requiredChannels, wordLevelState } from '@/lib/chinese/masteryModel';
 import {
 	computeNextReview,
-	nextStateFromInterval,
 	type ComputeNextReviewOptions,
 } from '@/lib/chinese/srsSchedule';
 import {
@@ -347,7 +346,8 @@ export async function logPracticeAnswers(
 	const wordIds = [...new Set(items.map((i) => i.wordId))];
 	await validateSubmitWordIds(wordIds);
 
-	const reconciled = await reconcileSubmitItems(items);
+	const reconciled = await prepareSubmitItems(userId, items);
+	if (!reconciled.length) return { logged: 0 };
 
 	const answerLogs = reconciled.map((item) => ({
 		userId,
@@ -358,6 +358,7 @@ export async function logPracticeAnswers(
 		source: 'practice' as const,
 		hintUsed: item.hintUsed === true,
 		responseMs: item.responseMs,
+		clientAnswerId: item.clientAnswerId ?? null,
 	}));
 
 	await prisma.cnAnswerLog.createMany({ data: answerLogs });
@@ -372,7 +373,10 @@ export async function submitReviewResults(
 	if (!items.length) return { updated: 0 };
 
 	const now = new Date();
-	const wordIds = [...new Set(items.map((i) => i.wordId))];
+	const fresh = await prepareSubmitItems(userId, items);
+	if (!fresh.length) return { updated: 0 };
+
+	const wordIds = [...new Set(fresh.map((i) => i.wordId))];
 	await validateSubmitWordIds(wordIds);
 
 	const activeIds = await resolveSrsPoolWordIds(userId);
@@ -392,14 +396,12 @@ export async function submitReviewResults(
 		throw new AppError('Một hoặc nhiều từ chưa có tiến độ SRS', 400);
 	}
 
-	const reconciled = await reconcileSubmitItems(items);
-
-	for (const item of reconciled) {
+	for (const item of fresh) {
 		const progress = progressMap.get(item.wordId)!;
 		applyPracticeItem(progress, item, now, false);
 	}
 
-	const answerLogs = reconciled.map((item) => ({
+	const answerLogs = fresh.map((item) => ({
 		userId,
 		wordId: item.wordId,
 		questionType: item.questionType,
@@ -408,6 +410,7 @@ export async function submitReviewResults(
 		source: 'review' as const,
 		hintUsed: item.hintUsed === true,
 		responseMs: item.responseMs,
+		clientAnswerId: item.clientAnswerId ?? null,
 	}));
 
 	const updates: Array<{ wordId: string; data: Parameters<typeof prisma.cnWordProgress.update>[0]['data'] }> = [];
@@ -425,7 +428,7 @@ export async function submitReviewResults(
 		prisma.cnAnswerLog.createMany({ data: answerLogs }),
 	]);
 
-	return { updated: items.length };
+	return { updated: fresh.length };
 }
 
 /** @deprecated Use logPracticeAnswers or submitReviewResults */
