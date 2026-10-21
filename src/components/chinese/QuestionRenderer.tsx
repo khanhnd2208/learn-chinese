@@ -173,7 +173,7 @@ export default function QuestionRenderer({
 	const isSound = q ? isSoundQuestion(q.type) : false;
 	const typedOnly = q ? isTypedQuestion(q.type) : false;
 	const waiting = pendingAdvance || isExiting;
-	const hasHint = q ? questionHasHint(q) : false;
+	const hasHint = q ? !isFillSentenceQuestion(q.type) && questionHasHint(q) : false;
 
 	const advance = useCallback((nextResults: QuestionAnswerResult[]) => {
 		pendingAdvanceRef.current = false;
@@ -401,6 +401,10 @@ export default function QuestionRenderer({
 							showSoundPinyin={hintUsed || !!feedback || (speechReady && !supported)}
 							soundHintAvailable={speechReady && supported}
 							onRevealPinyin={() => setHintUsed(true)}
+							audioAvailable={!speechReady || supported}
+							revealUsed={hintUsed}
+							onReveal={() => setHintUsed(true)}
+							onPlay={speak}
 						/>
 					</div>
 					{hasHint && (
@@ -610,10 +614,10 @@ export default function QuestionRenderer({
 									<span />
 								)}
 								<div className="ml-auto flex items-center gap-2">
-									{pendingAdvance && q.audioText && (
+									{pendingAdvance && (q.audioText ?? q.sentenceAudioText) && (
 										<button
 											type="button"
-											onClick={() => speak(q.audioText!)}
+											onClick={() => speak((q.audioText ?? q.sentenceAudioText)!)}
 											className="btn-secondary min-h-[40px]"
 										>
 											<MaterialIcon name="volume_up" size={16} />
@@ -669,12 +673,20 @@ function QuestionHeroCard({
 	showSoundPinyin,
 	soundHintAvailable,
 	onRevealPinyin,
+	audioAvailable,
+	revealUsed,
+	onReveal,
+	onPlay,
 }: {
 	question: CnPracticeQuestionDTO;
 	isSound: boolean;
 	showSoundPinyin: boolean;
 	soundHintAvailable: boolean;
 	onRevealPinyin: () => void;
+	audioAvailable: boolean;
+	revealUsed: boolean;
+	onReveal: () => void;
+	onPlay: (text: string) => void | boolean;
 }) {
 	if (isSound) {
 		const caption = q.type === 'sound_to_hanzi_typed' ? 'Nghe và gõ chữ đúng' : 'Nghe và chọn chữ đúng';
@@ -703,7 +715,12 @@ function QuestionHeroCard({
 				sentenceTemplate={q.sentenceTemplate}
 				sentenceMeaningVi={q.sentenceMeaningVi}
 				pinyin={q.pinyin}
-				onRevealPinyin={onRevealPinyin}
+				wordPinyin={q.wordPinyin}
+				sentenceAudioText={q.sentenceAudioText}
+				audioAvailable={audioAvailable}
+				revealUsed={revealUsed}
+				onReveal={onReveal}
+				onPlay={onPlay}
 			/>
 		);
 	}
