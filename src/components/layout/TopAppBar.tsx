@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { signOut, useSession } from 'next-auth/react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ThemeToggle from '@/components/ui/ThemeToggle';
-import { EXPERIMENTAL_NAV, experimentalModesVisible } from '@/config/navigation';
+import { ADMIN_NAV, EXPERIMENTAL_NAV, experimentalModesVisible } from '@/config/navigation';
 
 export default function TopAppBar() {
 	const { data: session } = useSession();
@@ -80,16 +80,17 @@ export default function TopAppBar() {
 										{EXPERIMENTAL_NAV.label}
 									</Link>
 								)}
-								{isAdmin && (
+								{isAdmin && ADMIN_NAV.map((item) => (
 									<Link
-										href="/admin"
+										key={item.href}
+										href={item.href}
 										className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-foreground-secondary transition-colors hover:bg-surface-hover hover:text-accent"
 										onClick={() => setMenuOpen(false)}
 									>
-										<MaterialIcon name="admin_panel_settings" size={18} />
-										Admin CMS
+										<MaterialIcon name={item.icon} size={18} />
+										{item.label}
 									</Link>
-								)}
+								))}
 								{session?.user ? (
 									<button
 										type="button"

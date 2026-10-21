@@ -186,6 +186,7 @@ export interface CnWordSetDTO {
 	/** Published to Khám phá. */
 	shared: boolean;
 	level: number | null;
+	sortOrder: number;
 	/** Learner-owned set that was not matched to a published original. */
 	legacy: boolean;
 	enrolled: boolean;
@@ -209,6 +210,7 @@ export interface CnWordSetListItemDTO {
 	srsActive: boolean;
 	shared: boolean;
 	level: number | null;
+	sortOrder: number;
 	legacy: boolean;
 	enrolled: boolean;
 	learnerCount: number;

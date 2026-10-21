@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ThemeToggle from '@/components/ui/ThemeToggle';
-import { EXPERIMENTAL_NAV, MAIN_NAV, experimentalModesVisible, isNavActive } from '@/config/navigation';
+import { ADMIN_NAV, EXPERIMENTAL_NAV, MAIN_NAV, experimentalModesVisible, isNavActive } from '@/config/navigation';
 import { reviewBadgePressureClass, useReviewStatus } from '@/lib/chinese/useDueTodayCount';
 
 interface Props {
@@ -80,22 +80,27 @@ export default function AppSidebar({ dimmed = false }: Props) {
 					</div>
 				)}
 				{session?.user?.role === 'admin' && (
-					<Link
-						href="/admin"
-						className={isNavActive(pathname, '/admin') ? 'nav-pill-active' : 'nav-pill'}
-					>
-						<MaterialIcon name="admin_panel_settings" filled={isNavActive(pathname, '/admin')} size={20} />
-						Admin CMS
-					</Link>
+					<div className="mt-3 border-t border-border pt-3">
+						<p className="label-caps px-6 pb-2">Quản trị</p>
+						{ADMIN_NAV.map((item) => {
+							const active = isNavActive(pathname, item.href);
+							return (
+								<Link
+									key={item.href}
+									href={item.href}
+									className={active ? 'nav-pill-active' : 'nav-pill'}
+								>
+									<MaterialIcon name={item.icon} filled={active} size={20} />
+									<span>{item.label}</span>
+								</Link>
+							);
+						})}
+					</div>
 				)}
 			</nav>
 
 			<div className="px-4 pb-8">
-				<Link href="/review" className="btn-primary w-full py-2.5">
-					Học ngay
-				</Link>
-
-				<div className="mt-4 flex items-center justify-between px-2">
+				<div className="flex items-center justify-between px-2">
 					<span className="label-caps">Giao diện</span>
 					<ThemeToggle />
 				</div>

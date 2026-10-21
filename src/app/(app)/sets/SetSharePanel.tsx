@@ -44,8 +44,8 @@ export default function SetSharePanel({ setId, title, itemCount, shared: initial
 			setMessage({
 				type: 'success',
 				text: nextShared
-					? 'Đã chia sẻ — người dùng có thể nhân bản tại mục Chia sẻ bộ từ.'
-					: 'Đã gỡ khỏi thư viện chia sẻ.',
+					? 'Đã xuất bản. Người học thấy bộ này trong Khám phá.'
+					: 'Đã chuyển về nháp.',
 			});
 			router.refresh();
 		} catch (e) {
@@ -57,7 +57,7 @@ export default function SetSharePanel({ setId, title, itemCount, shared: initial
 
 	const statusBadge = (
 		<Badge variant={shared ? 'success' : 'default'}>
-			{shared ? 'Đang chia sẻ' : 'Riêng tư'}
+			{shared ? 'Đã xuất bản' : 'Nháp'}
 		</Badge>
 	);
 
@@ -73,7 +73,7 @@ export default function SetSharePanel({ setId, title, itemCount, shared: initial
 					: undefined
 			}
 		>
-			{shared ? 'Bỏ chia sẻ' : variant === 'hero' ? 'Chia sẻ lên thư viện' : 'Chia sẻ'}
+			{shared ? 'Ngừng xuất bản' : 'Xuất bản'}
 		</Button>
 	);
 

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
-import { BOTTOM_NAV, isNavActive } from '@/config/navigation';
+import { MAIN_NAV, isNavActive } from '@/config/navigation';
 import { reviewBadgePressureClass, useReviewStatus } from '@/lib/chinese/useDueTodayCount';
 
 interface Props {
@@ -23,7 +23,7 @@ export default function BottomNavBar({ hidden = false, dimmed = false }: Props) 
 				dimmed ? 'pointer-events-none opacity-50 grayscale' : ''
 			}`}
 		>
-			{BOTTOM_NAV.map((item) => {
+			{MAIN_NAV.map((item) => {
 				const active = isNavActive(pathname, item.href);
 				const showDueBadge = item.href === '/review' && reviewStatus != null && reviewStatus.dueTotal > 0;
 				const pressureClass = reviewBadgePressureClass(reviewStatus?.pressure);

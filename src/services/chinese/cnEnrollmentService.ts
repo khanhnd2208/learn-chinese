@@ -175,6 +175,7 @@ export async function listEnrolledSets(userId: string): Promise<CnWordSetListIte
 			srsActive: enrollment.srsActive,
 			shared: set.shared,
 			level: set.level,
+			sortOrder: set.sortOrder,
 			legacy: set.userId === userId && !set.shared,
 			enrolled: true,
 			learnerCount: 0,

@@ -23,7 +23,7 @@ export default auth((req) => {
 		}
 	}
 
-	const protectedPaths = ['/', '/sets', '/shared-sets', '/review', '/learn', '/experiments', '/hht', '/inferno', '/dashboard', '/practice', '/words'];
+	const protectedPaths = ['/', '/sets', '/library', '/explore', '/shared-sets', '/review', '/learn', '/experiments', '/hht', '/inferno', '/dashboard', '/practice', '/words'];
 	const isProtected = protectedPaths.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 	if (isProtected && !req.auth?.user && pathname !== '/login') {
 		return NextResponse.redirect(new URL('/login', req.url));

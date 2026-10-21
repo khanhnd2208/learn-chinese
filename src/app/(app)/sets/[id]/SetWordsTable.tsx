@@ -3,6 +3,8 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Button from '@/components/ui/Button';
+import Dialog from '@/components/ui/Dialog';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import type { CnWordSetDTO, CnWordSetItemDTO } from '@/types/chinese';
 
@@ -45,21 +47,6 @@ function formFromItem(item: CnWordSetItemDTO): WordFormFields {
 	};
 }
 
-async function confirmBulkRemove(items: CnWordSetItemDTO[]): Promise<boolean> {
-	if (!items.length) return false;
-	if (items.length === 1) {
-		return confirm(`Xóa "${items[0]!.rawTerm}" khỏi bộ từ?`);
-	}
-	return confirm(`Xóa ${items.length} từ khỏi bộ từ?`);
-}
-
-async function confirmBulkMove(
-	toSet: { title: string },
-	count: number,
-): Promise<boolean> {
-	return confirm(`Chuyển ${count} từ sang bộ "${toSet.title}"?`);
-}
-
 function cellInput(
 	value: string,
 	onChange: (v: string) => void,
@@ -83,6 +70,7 @@ export default function SetWordsTable({ set, otherSets, canEditWords = false, on
 	const [form, setForm] = useState<WordFormFields>(emptyForm());
 	const [loading, setLoading] = useState(false);
 	const [bulkMoveTarget, setBulkMoveTarget] = useState('');
+	const [ask, setAsk] = useState<null | { title: string; body: string; run: () => Promise<void> }>(null);
 
 	const allSelected = set.items.length > 0 && selectedIds.size === set.items.length;
 	const selectedItems = useMemo(
@@ -157,9 +145,18 @@ export default function SetWordsTable({ set, otherSets, canEditWords = false, on
 		}
 	};
 
-	const removeItems = async (items: CnWordSetItemDTO[]) => {
-		const ok = await confirmBulkRemove(items);
-		if (!ok) return;
+	const removeItems = (items: CnWordSetItemDTO[]) => {
+		if (!items.length) return;
+		setAsk({
+			title: 'Xóa từ khỏi bộ',
+			body: items.length === 1
+				? `Xóa "${items[0]!.rawTerm}" khỏi bộ từ?`
+				: `Xóa ${items.length} từ khỏi bộ từ?`,
+			run: () => performRemove(items),
+		});
+	};
+
+	const performRemove = async (items: CnWordSetItemDTO[]) => {
 		setLoading(true);
 		onMessage?.({});
 		try {
@@ -196,11 +193,17 @@ export default function SetWordsTable({ set, otherSets, canEditWords = false, on
 		}
 	};
 
-	const moveItems = async (items: CnWordSetItemDTO[], toSetId: string) => {
+	const moveItems = (items: CnWordSetItemDTO[], toSetId: string) => {
 		const toSet = otherSets.find((s) => s.id === toSetId);
 		if (!toSet) return;
-		const ok = await confirmBulkMove(toSet, items.length);
-		if (!ok) return;
+		setAsk({
+			title: 'Chuyển từ',
+			body: `Chuyển ${items.length} từ sang bộ "${toSet.title}"?`,
+			run: () => performMove(items, toSetId, toSet.title),
+		});
+	};
+
+	const performMove = async (items: CnWordSetItemDTO[], toSetId: string, toTitle: string) => {
 		setLoading(true);
 		onMessage?.({});
 		try {
@@ -213,7 +216,7 @@ export default function SetWordsTable({ set, otherSets, canEditWords = false, on
 				const json = await res.json() as { ok: boolean };
 				if (!json.ok) throw new Error(`Không chuyển được "${item.rawTerm}"`);
 			}
-			onMessage?.({ success: `Đã chuyển ${items.length} từ sang bộ "${toSet.title}"` });
+			onMessage?.({ success: `Đã chuyển ${items.length} từ sang bộ "${toTitle}"` });
 			setSelectedIds(new Set());
 			setBulkMoveTarget('');
 			router.refresh();
@@ -248,6 +251,7 @@ export default function SetWordsTable({ set, otherSets, canEditWords = false, on
 	};
 
 	return (
+		<>
 		<section className="space-y-3">
 			<div className="flex flex-wrap items-center justify-between gap-3">
 				<h3 className="text-lg font-extrabold text-foreground">
@@ -420,5 +424,26 @@ export default function SetWordsTable({ set, otherSets, canEditWords = false, on
 				</table>
 			</div>
 		</section>
+			<Dialog
+				open={ask != null}
+				onClose={() => setAsk(null)}
+				title={ask?.title ?? 'Xác nhận'}
+				description={ask?.body}
+			>
+				<div className="flex justify-end gap-2">
+					<Button variant="secondary" onClick={() => setAsk(null)}>Hủy</Button>
+					<Button
+						loading={loading}
+						onClick={() => {
+							const run = ask?.run;
+							setAsk(null);
+							void run?.();
+						}}
+					>
+						Xác nhận
+					</Button>
+				</div>
+			</Dialog>
+		</>
 	);
 }

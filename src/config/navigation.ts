@@ -5,21 +5,22 @@ export interface NavLink {
 	shortLabel?: string;
 }
 
+/** Learner navigation. The sidebar and the mobile bottom bar both use this list. */
 export const MAIN_NAV: NavLink[] = [
-	{ href: '/', label: 'Trang chủ', icon: 'home', shortLabel: 'Home' },
-	{ href: '/sets', label: 'Bộ từ', icon: 'library_books', shortLabel: 'Sets' },
-	{ href: '/shared-sets', label: 'Chia sẻ bộ từ', icon: 'share', shortLabel: 'Chia sẻ' },
-	{ href: '/review', label: 'Luyện SRS', icon: 'history', shortLabel: 'SRS' },
-	{ href: '/learn', label: 'Học từ mới', icon: 'school', shortLabel: 'Học mới' },
-	{ href: '/dashboard', label: 'Báo cáo học tập', icon: 'trending_up', shortLabel: 'Báo cáo' },
+	{ href: '/', label: 'Hôm nay', icon: 'home', shortLabel: 'Hôm nay' },
+	{ href: '/review', label: 'Ôn tập', icon: 'history', shortLabel: 'Ôn tập' },
+	{ href: '/library', label: 'Thư viện', icon: 'library_books', shortLabel: 'Thư viện' },
+	{ href: '/explore', label: 'Khám phá', icon: 'explore', shortLabel: 'Khám phá' },
+	{ href: '/dashboard', label: 'Tiến độ', icon: 'trending_up', shortLabel: 'Tiến độ' },
 ];
 
-export const BOTTOM_NAV: NavLink[] = [
-	{ href: '/', label: 'Trang chủ', icon: 'home', shortLabel: 'Home' },
-	{ href: '/sets', label: 'Luyện tập', icon: 'menu_book', shortLabel: 'Luyện tập' },
-	{ href: '/review', label: 'Luyện SRS', icon: 'refresh', shortLabel: 'SRS' },
-	{ href: '/learn', label: 'Học từ mới', icon: 'school', shortLabel: 'Học mới' },
-	{ href: '/dashboard', label: 'Báo cáo học tập', icon: 'query_stats', shortLabel: 'Báo cáo' },
+/** @deprecated Use MAIN_NAV. Kept so older imports stay valid. */
+export const BOTTOM_NAV = MAIN_NAV;
+
+export const ADMIN_NAV: NavLink[] = [
+	{ href: '/admin/sets', label: 'Bộ từ', icon: 'library_books', shortLabel: 'Bộ từ' },
+	{ href: '/admin', label: 'Nội dung', icon: 'edit_note', shortLabel: 'Nội dung' },
+	{ href: '/admin/analytics', label: 'Phân tích', icon: 'analytics', shortLabel: 'Phân tích' },
 ];
 
 /** HHT và Địa Ngục. Route và dữ liệu giữ nguyên. Đặt NEXT_PUBLIC_EXPERIMENTAL_MODES=0 để ẩn cả mục này. */
@@ -35,6 +36,6 @@ export function experimentalModesVisible(): boolean {
 }
 
 export function isNavActive(pathname: string, href: string): boolean {
-	if (href === '/') return pathname === '/';
-	return pathname.startsWith(href);
+	if (href === '/' || href === '/admin') return pathname === href;
+	return pathname === href || pathname.startsWith(`${href}/`);
 }

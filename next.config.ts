@@ -18,6 +18,14 @@ const nextConfig: NextConfig = {
 			{ protocol: 'https', hostname: 'lh3.googleusercontent.com' },
 		],
 	},
+	async redirects() {
+		return [
+			{ source: '/sets', destination: '/library', permanent: false },
+			{ source: '/shared-sets', destination: '/explore', permanent: false },
+			{ source: '/sets/import', destination: '/admin/sets/new', permanent: false },
+			{ source: '/sets/create', destination: '/admin/sets/new', permanent: false },
+		];
+	},
 	async headers() {
 		return [
 			{
