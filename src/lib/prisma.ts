@@ -16,6 +16,14 @@ import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis as unknown as { _prisma?: PrismaClient };
 
+/** Drop a dev client created before `prisma generate` added new models. */
+function reusableClient(client: PrismaClient | undefined): PrismaClient | undefined {
+	if (!client) return undefined;
+	if ('enEnrollment' in client && 'cnWord' in client) return client;
+	void client.$disconnect();
+	return undefined;
+}
+
 function intEnv(name: string, fallback: number, min: number, max: number): number {
 	const value = Number(process.env[name]);
 	if (!Number.isInteger(value)) return fallback;
@@ -47,7 +55,7 @@ function createPrismaClient(): PrismaClient {
 }
 
 export const prisma: PrismaClient =
-	globalForPrisma._prisma ?? createPrismaClient();
+	reusableClient(globalForPrisma._prisma) ?? createPrismaClient();
 
 // Preserve across hot reloads in dev
 if (process.env.NODE_ENV !== 'production') {

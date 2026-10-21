@@ -46,6 +46,8 @@ vi.mock('@/lib/prisma', () => ({
 			findUnique: vi.fn(async () => ({
 				id: 'ex-1',
 				wordId: 'w1',
+				hanzi: '我喝茶',
+				sourceHanzi: null as string | null,
 				meaningViTemplate: 'tôi __',
 				acceptedAnswers: [] as string[],
 				word: { simplified: '吃' },
@@ -179,6 +181,19 @@ describe('applyExampleQualityAction', () => {
 		expect(store.exampleUpdates[0]).toMatchObject({ naturalnessStatus: 'flagged' });
 		expect(result.restored).toBe(1);
 		expect(result.noFillExamplesLeft).toBe(true);
+	});
+
+	it('remembers the original sentence when an admin rewrites it', async () => {
+		store.exampleUpdates = [];
+		await applyExampleQualityAction({
+			exampleId: 'ex-1',
+			action: 'edit',
+			hanzi: '我吃饭',
+			pinyin: 'wǒ chī fàn',
+			meaningVi: 'Tôi ăn cơm',
+			now,
+		});
+		expect(store.exampleUpdates[0]).toMatchObject({ hanzi: '我吃饭', sourceHanzi: '我喝茶' });
 	});
 
 	it('rejects an edit that does not contain the target word once', async () => {

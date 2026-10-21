@@ -199,6 +199,7 @@ model CnExample {
   ownerUserId         String?
   acceptedAnswers     String[]     @default([])
   qualityReviewedAt   DateTime?
+  sourceHanzi         String?
   word                CnWord       @relation(fields: [wordId], references: [id], onDelete: Cascade)
   disputes            CnExampleDispute[]
   sense               CnWordSense? @relation(fields: [senseId], references: [id], onDelete: SetNull)

@@ -13,6 +13,7 @@ interface StoredExample {
 	targetWordStart: number | null;
 	targetWordEnd: number | null;
 	ownerUserId: string | null;
+	sourceHanzi?: string | null;
 }
 
 function createTx(rows: StoredExample[]) {
@@ -53,6 +54,7 @@ const canonical = {
 	targetWordStart: 2,
 	targetWordEnd: 4,
 	ownerUserId: null,
+	sourceHanzi: null,
 };
 
 describe('syncCanonicalExamples', () => {
@@ -151,5 +153,32 @@ describe('syncCanonicalExamples', () => {
 			where: { id: { in: ['ex-1'] }, ownerUserId: null },
 		});
 		expect(store.map((row) => row.id)).toEqual(['user-ex']);
+	});
+
+	const incomingSame = {
+		hanzi: '他是老师。',
+		pinyin: 'tā shì lǎoshī.',
+		meaningVi: 'Nội dung mới từ file.',
+		naturalnessStatus: 'auto',
+		targetWordStart: 2,
+		targetWordEnd: 4,
+	};
+
+	it('keeps a retired sentence retired and untouched', async () => {
+		const { tx, store, update } = createTx([{ ...canonical, naturalnessStatus: 'flagged' }]);
+		await syncCanonicalExamples(tx, 'w1', [incomingSame]);
+		expect(update).not.toHaveBeenCalled();
+		expect(store[0].naturalnessStatus).toBe('flagged');
+		expect(store[0].meaningVi).toBe(canonical.meaningVi);
+	});
+
+	it('keeps an admin rewrite and does not recreate the original sentence', async () => {
+		const rewritten = { ...canonical, hanzi: '他当老师。', sourceHanzi: '他是老师。', naturalnessStatus: 'verified' };
+		const { tx, store, create, update, deleteMany } = createTx([rewritten]);
+		await syncCanonicalExamples(tx, 'w1', [incomingSame]);
+		expect(create).not.toHaveBeenCalled();
+		expect(update).not.toHaveBeenCalled();
+		expect(deleteMany).not.toHaveBeenCalled();
+		expect(store.map((row) => row.hanzi)).toEqual(['他当老师。']);
 	});
 });

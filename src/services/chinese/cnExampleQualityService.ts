@@ -276,6 +276,8 @@ export async function applyExampleQualityAction(input: {
 		select: {
 			id: true,
 			wordId: true,
+			hanzi: true,
+			sourceHanzi: true,
 			meaningViTemplate: true,
 			acceptedAnswers: true,
 			word: { select: { simplified: true } },
@@ -311,6 +313,8 @@ export async function applyExampleQualityAction(input: {
 			where: { id: example.id },
 			data: {
 				hanzi,
+				// Keep the text the file knows, so a re-import finds this row again.
+				sourceHanzi: example.sourceHanzi ?? example.hanzi,
 				pinyin,
 				meaningVi,
 				meaningViTemplate: meaningVi.includes('__') ? example.meaningViTemplate : '',

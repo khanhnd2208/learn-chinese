@@ -16,6 +16,11 @@ function exampleKey(hanzi: string): string {
 	return hanzi.normalize('NFC').trim();
 }
 
+/** An admin retired or rewrote this sentence. A re-import must not undo that. */
+function isAdminOwned(row: { naturalnessStatus: string; sourceHanzi: string | null }): boolean {
+	return row.naturalnessStatus === 'flagged' || row.sourceHanzi != null;
+}
+
 function statusAfterSync(existingStatus: string, incomingStatus: string): string {
 	if (existingStatus === 'verified' && incomingStatus === 'auto') return 'verified';
 	return incomingStatus;
@@ -38,10 +43,21 @@ export async function syncCanonicalExamples(
 		unused.set(key, pool);
 	}
 
+	// A rewritten sentence is found again by the text it started from.
+	const rewritten = new Map<string, typeof existing>();
+	for (const row of existing) {
+		if (row.sourceHanzi == null) continue;
+		const key = exampleKey(row.sourceHanzi);
+		const pool = rewritten.get(key) ?? [];
+		pool.push(row);
+		rewritten.set(key, pool);
+	}
+
 	const matchedIds = new Set<string>();
 	for (const example of incoming) {
-		const pool = unused.get(exampleKey(example.hanzi)) ?? [];
-		const current = pool.shift();
+		const key = exampleKey(example.hanzi);
+		const pool = (unused.get(key) ?? []).filter((row) => !matchedIds.has(row.id));
+		const current = pool[0] ?? (rewritten.get(key) ?? []).find((row) => !matchedIds.has(row.id));
 		const meaningViTemplate = example.meaningViTemplate ?? '';
 		const naturalnessStatus = example.naturalnessStatus ?? 'auto';
 		const content = {
@@ -53,6 +69,7 @@ export async function syncCanonicalExamples(
 		};
 		if (current) {
 			matchedIds.add(current.id);
+			if (isAdminOwned(current)) continue;
 			await tx.cnExample.update({
 				where: { id: current.id },
 				data: {
