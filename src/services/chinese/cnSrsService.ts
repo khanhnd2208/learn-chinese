@@ -4,7 +4,6 @@
 import { prisma } from '@/lib/prisma';
 import { AppError } from '@/lib/appError';
 import {
-	CN_CHANNEL_WEAK_THRESHOLD,
 	CN_STICKING_POINT_HEAVY_LAPSES,
 	clampSrsIntervalIdx,
 } from '@/config/constants';
@@ -15,6 +14,7 @@ import { isCoreQuestionType, questionChannel, type SkillChannel } from '@/lib/ch
 import { ensureEnrollmentForActiveWords, resolveSrsPoolWordIds } from '@/services/chinese/cnSrsEnrollmentService';
 import { inferErrorType } from '@/lib/chinese/errorMapping';
 import { rate } from '@/lib/chinese/hanziUtils';
+import { requiredChannels, wordLevelState } from '@/lib/chinese/masteryModel';
 import {
 	computeNextReview,
 	nextStateFromInterval,
@@ -52,15 +52,6 @@ const HEAVY_LAPSE_FIELDS: Record<SkillChannel, keyof CnWordProgress> = {
 	meaning: 'meaningHeavyLapses',
 	sound: 'soundHeavyLapses',
 	sentence: 'sentenceHeavyLapses',
-};
-
-const STATE_RANK: Record<CnWordProgressState, number> = {
-	new: 0,
-	learning: 1,
-	weak: 2,
-	familiar: 3,
-	strong: 4,
-	mastered: 5,
 };
 
 export interface DueChannelEntry {
@@ -108,20 +99,8 @@ function aggregateDueAt(p: CnWordProgress, now: Date): Date {
 }
 
 function aggregateState(p: CnWordProgress): CnWordProgressState {
-	let lowest: CnWordProgressState | null = null;
-	let hasPracticed = false;
-
-	for (const ch of ALL_SKILL_CHANNELS) {
-		const total = p[CHANNEL_FIELDS[ch].total] as number;
-		if (total === 0) continue;
-		hasPracticed = true;
-		const idx = getChannelIntervalIdx(p, ch);
-		const chState = nextStateFromInterval(idx, channelRate(p, ch) >= CN_CHANNEL_WEAK_THRESHOLD);
-		if (lowest === null || STATE_RANK[chState] < STATE_RANK[lowest]) lowest = chState;
-	}
-
-	if (!hasPracticed) return p.state;
-	return lowest ?? p.state;
+	// Callers without the fill-example set treat sentence as required only after it has been practiced.
+	return wordLevelState(p, p.sentenceTotal > 0);
 }
 
 const PRACTICE_PRIORITY_REDUCTION = 20;
@@ -537,10 +516,9 @@ function applyPracticeItem(
 
 	progress.dueAt = aggregateDueAt(progress, now);
 	progress.state = aggregateState(progress);
-	progress.intervalIdx = Math.max(
-		getChannelIntervalIdx(progress, 'meaning'),
-		getChannelIntervalIdx(progress, 'sound'),
-		getChannelIntervalIdx(progress, 'sentence'),
+	const levelChannels = requiredChannels(progress.sentenceTotal > 0);
+	progress.intervalIdx = Math.min(
+		...levelChannels.map((channel) => getChannelIntervalIdx(progress, channel)),
 	);
 
 	if (channel === 'sentence' && item.exampleId) {

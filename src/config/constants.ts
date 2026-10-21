@@ -77,6 +77,9 @@ export const CN_UNLOCK_SOUND_AT_MEANING_IDX = 1;
 /** Kênh Câu mở khi kênh Nghĩa đạt idx này */
 export const CN_UNLOCK_SENTENCE_AT_MEANING_IDX = 2;
 
+/** A channel counts as mastered once it has reached this interval index without a hint. */
+export const CN_MASTERED_MIN_IDX = 3;
+
 export function clampSrsIntervalIdx(idx: number): number {
 	return Math.min(Math.max(idx, 0), CN_SRS_INTERVAL_DAYS.length - 1);
 }
