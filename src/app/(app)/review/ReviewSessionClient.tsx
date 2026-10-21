@@ -2,15 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import MaterialIcon from '@/components/ui/MaterialIcon';
 import Skeleton from '@/components/ui/Skeleton';
 import EmptyState from '@/components/ui/EmptyState';
 import QuestionRenderer from '@/components/chinese/QuestionRenderer';
 import SessionBriefingCard from '@/components/chinese/SessionBriefingCard';
 import SessionSummaryCard from '@/components/chinese/SessionSummaryCard';
-import SrsVocabManager from '@/components/chinese/SrsVocabManager';
 import { CN_REVIEW_PREFETCH_SIZE } from '@/config/constants';
 import { questionChannel } from '@/lib/chinese/coreQuestionTypes';
+import { useFocusProgress } from '@/components/layout/FocusSession';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
 import type { CnPracticeQuestionDTO, CnPracticeSubmitItem, CnReviewBriefingDTO } from '@/types/chinese';
 
@@ -80,7 +79,9 @@ export default function ReviewSessionClient() {
 	const [isExiting, setIsExiting] = useState(false);
 	const [, setIsFetchingMore] = useState(false);
 	const [summaryReason, setSummaryReason] = useState<'exit' | 'complete'>('complete');
-	const [showManager, setShowManager] = useState(false);
+
+	const reviewTotal = reviewedCount + dueRemaining;
+	useFocusProgress(phase === 'review' && reviewTotal > 0 ? (reviewedCount / reviewTotal) * 100 : 0);
 
 	const seenIdsRef = useRef<Set<string>>(new Set());
 	const seenWordChannelsRef = useRef<Set<string>>(new Set());
@@ -232,39 +233,6 @@ export default function ReviewSessionClient() {
 		}
 	}, [isExiting, flushAndWait, showSummary, router]);
 
-	const managerButton = (
-		<button
-			type="button"
-			onClick={() => setShowManager(true)}
-			className="inline-flex items-center gap-1.5 rounded-lg border border-accent/40 bg-accent/10 px-3 py-1.5 text-xs font-bold text-accent transition-colors hover:bg-accent/20"
-		>
-			<MaterialIcon name="playlist_add_check" size={16} />
-			Quản lí từ vựng SRS
-		</button>
-	);
-
-	const managerIconButton = (
-		<button
-			type="button"
-			onClick={() => setShowManager(true)}
-			title="Quản lí từ vựng SRS"
-			className="flex h-8 w-8 items-center justify-center rounded-full text-muted transition-colors hover:bg-surface-hover hover:text-accent"
-		>
-			<MaterialIcon name="playlist_add_check" size={18} />
-		</button>
-	);
-
-	const managerModal = (
-		<SrsVocabManager
-			open={showManager}
-			onClose={() => setShowManager(false)}
-			onUpdated={() => {
-				void loadBriefing();
-				if (phase === 'review' || phase === 'loading') void loadInitial();
-			}}
-		/>
-	);
-
 	if (phase === 'briefing') {
 		if (!briefing) {
 			return (
@@ -284,9 +252,8 @@ export default function ReviewSessionClient() {
 			: undefined;
 
 		return (
-			<>
-				<SessionBriefingCard
-					title="Luyện SRS"
+			<SessionBriefingCard
+					title="Ôn tập"
 					icon="history"
 					theme="accent"
 					heroValue={hasDue ? briefing.dueChannels : '✓'}
@@ -324,66 +291,52 @@ export default function ReviewSessionClient() {
 					secondaryLinks={[
 						...learnLink,
 						{ href: '/dashboard', label: 'Báo cáo học tập', icon: 'query_stats' },
-						{ href: '/sets', label: 'Bộ từ', icon: 'menu_book' },
+						{ href: '/library', label: 'Thư viện', icon: 'menu_book' },
 					]}
 				/>
-				{managerModal}
-			</>
 		);
 	}
 
 	if (phase === 'loading') {
 		return (
-			<>
-				<div className="mx-auto max-w-2xl space-y-4 px-4 pt-6">
-					<div className="flex justify-end">{managerButton}</div>
-					<Skeleton className="h-64 w-full rounded-card" />
-				</div>
-				{managerModal}
-			</>
+			<div className="mx-auto max-w-2xl space-y-4 px-4 pt-6">
+				<Skeleton className="h-64 w-full rounded-card" />
+			</div>
 		);
 	}
 
 	if (phase === 'empty') {
 		const hasDueButNoQuestions = dueToday > 0;
 		return (
-			<>
-				<div className="mx-auto max-w-2xl px-4 py-8">
-					<div className="mb-4 flex justify-end">{managerButton}</div>
-					{hasDueButNoQuestions ? (
-						<EmptyState
-							icon="error_outline"
-							title="Không tải được câu hỏi"
-							description={`Có ${dueToday} mục đến hạn nhưng không tải được câu hỏi.${skippedUnpublished > 0 ? ` ${skippedUnpublished} từ chưa được xuất bản.` : ''}`}
-							action={{ label: 'Thử lại', onClick: () => { setPhase('loading'); void loadInitial(); } }}
-							secondaryAction={{ label: 'Bộ từ', href: '/sets' }}
-						/>
-					) : (
-						<EmptyState
-							icon="celebration"
-							title="Không có mục cần ôn hôm nay"
-							description={suggestLearn
-								? 'Bạn còn từ chưa học. Vào Học từ mới để bắt đầu.'
-								: 'Bật Ôn SRS trên bộ từ để đưa từ vào hàng đợi ôn.'}
-							action={{ label: 'Báo cáo học tập', href: '/dashboard' }}
-							secondaryAction={suggestLearn
-								? { label: 'Học từ mới', href: '/learn' }
-								: { label: 'Chọn bộ từ', href: '/sets' }}
-						/>
-					)}
-				</div>
-				{managerModal}
-			</>
+			<div className="mx-auto max-w-2xl px-4 py-8">
+				{hasDueButNoQuestions ? (
+					<EmptyState
+						icon="error_outline"
+						title="Không tải được câu hỏi"
+						description={`Có ${dueToday} mục đến hạn nhưng không tải được câu hỏi.${skippedUnpublished > 0 ? ` ${skippedUnpublished} từ chưa được xuất bản.` : ''}`}
+						action={{ label: 'Thử lại', onClick: () => { setPhase('loading'); void loadInitial(); } }}
+						secondaryAction={{ label: 'Thư viện', href: '/library' }}
+					/>
+				) : (
+					<EmptyState
+						icon="celebration"
+						title="Không có mục cần ôn hôm nay"
+						description={suggestLearn
+							? 'Bạn còn từ chưa học. Vào Học từ mới để bắt đầu.'
+							: 'Theo học một bộ từ để đưa từ vào hàng đợi ôn.'}
+						action={{ label: 'Báo cáo học tập', href: '/dashboard' }}
+						secondaryAction={suggestLearn
+							? { label: 'Học từ mới', href: '/learn' }
+							: { label: 'Khám phá', href: '/explore' }}
+					/>
+				)}
+			</div>
 		);
 	}
 
 	if (phase === 'summary') {
 		return (
-			<>
-				<div className="mx-auto max-w-2xl px-4 pt-6">
-					<div className="flex justify-end">{managerButton}</div>
-				</div>
-				<SessionSummaryCard
+			<SessionSummaryCard
 				summary={sessionResult}
 				dueRemaining={dueRemaining}
 				title={summaryReason === 'exit' ? 'Đã dừng & lưu' : 'Ôn xong!'}
@@ -393,16 +346,13 @@ export default function ReviewSessionClient() {
 				onPrimaryAction={() => {
 					void loadBriefing();
 				}}
-				primaryLabel="Luyện tiếp"
-				/>
-				{managerModal}
-			</>
+				primaryLabel="Ôn tiếp"
+			/>
 		);
 	}
 
 	return (
-		<>
-			<div className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 py-6 md:py-8">
+		<div className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 py-6 md:py-8">
 				{questions.length > 0 && (
 					<QuestionRenderer
 						key={rendererKey}
@@ -412,7 +362,6 @@ export default function ReviewSessionClient() {
 						onExit={() => { void handleExit(); }}
 						incremental
 						isExiting={isExiting || isFlushing}
-						headerAction={managerIconButton}
 						sessionProgress={{
 							reviewed: reviewedCount,
 							dueRemaining,
@@ -420,7 +369,5 @@ export default function ReviewSessionClient() {
 					/>
 				)}
 			</div>
-			{managerModal}
-		</>
 	);
 }

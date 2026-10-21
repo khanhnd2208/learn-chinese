@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import MaterialIcon from '@/components/ui/MaterialIcon';
+import { useFocusProgress } from '@/components/layout/FocusSession';
 import SpeakButton from '@/components/chinese/SpeakButton';
 import QuestionRenderer from '@/components/chinese/QuestionRenderer';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
@@ -33,6 +34,7 @@ export default function LearnSessionClient() {
 	const [remainingToday, setRemainingToday] = useState(0);
 	const [error, setError] = useState('');
 	const { enqueue, flushAndWait } = useIncrementalSubmit({ endpoint: '/api/review/submit' });
+	useFocusProgress(words.length > 0 ? (index / words.length) * 100 : 0);
 
 	const loadQueue = useCallback(async () => {
 		setPhase('loading');
@@ -136,7 +138,7 @@ export default function LearnSessionClient() {
 		return (
 			<div className="mx-auto max-w-md px-4 py-16 text-center">
 				<h1 className="text-2xl font-black text-foreground">Không còn từ mới</h1>
-				<p className="mt-2 text-sm text-muted">Hãy bật SRS cho một bộ từ khác để có thêm từ chưa học.</p>
+				<p className="mt-2 text-sm text-muted">Theo học thêm bộ từ để có từ chưa học.</p>
 				<Link href="/sets" className="btn-primary mt-6 inline-flex">Xem bộ từ</Link>
 			</div>
 		);

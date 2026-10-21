@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useFocusProgress } from '@/components/layout/FocusSession';
 import Button from '@/components/ui/Button';
 import EmptyState from '@/components/ui/EmptyState';
 import MaterialIcon from '@/components/ui/MaterialIcon';
@@ -62,6 +63,7 @@ export default function FlashcardSessionClient({ deck }: Props) {
 	const [flipped, setFlipped] = useState(false);
 	const [done, setDone] = useState(false);
 	const [exampleIndexByCardId, setExampleIndexByCardId] = useState<Record<string, number>>({});
+	useFocusProgress(cards.length > 0 ? ((done ? cards.length : index) / cards.length) * 100 : 0);
 
 	const card = cards[index];
 	const exampleIndex = card ? exampleIndexByCardId[card.id] ?? 0 : 0;

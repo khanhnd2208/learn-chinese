@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import MaterialIcon from '@/components/ui/MaterialIcon';
+import { useFocusProgress } from '@/components/layout/FocusSession';
 import QuestionRenderer from '@/components/chinese/QuestionRenderer';
 import { channelLabel, practiceModeLabel } from '@/lib/chinese/questionLabels';
 import { questionChannel } from '@/lib/chinese/coreQuestionTypes';
@@ -36,6 +37,7 @@ export default function ChinesePracticeClient() {
 	const [reviewedCount, setReviewedCount] = useState(0);
 
 	const { enqueue, flushAndWait, sessionResult, isFlushing } = useIncrementalSubmit();
+	useFocusProgress(questions.length > 0 ? (reviewedCount / questions.length) * 100 : 0);
 
 	useEffect(() => {
 		(async () => {
@@ -110,7 +112,7 @@ export default function ChinesePracticeClient() {
 						<span className="text-muted"> / {sessionResult.total}</span>
 					</p>
 					<p className="mt-1 text-sm text-muted">
-						câu đúng · luyện tập giúp app biết kênh yếu; ôn SRS vẫn là lịch chính
+						câu đúng · luyện tập giúp app biết kênh yếu; không đổi lịch ôn.
 					</p>
 					<ul className="mt-6 space-y-2 text-left text-sm text-foreground-secondary">
 						{Object.entries(summarizeByChannel(sessionResult.byType)).map(([label, s]) => (

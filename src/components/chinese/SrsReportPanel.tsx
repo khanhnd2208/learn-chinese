@@ -77,7 +77,7 @@ export default function SrsReportPanel({ dashboard }: Props) {
 		<div className="space-y-8">
 			<section className="animate-section-in flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
 				<div>
-					<h2 className="text-xl font-black text-foreground">SRS</h2>
+					<h2 className="text-xl font-black text-foreground">Ôn tập</h2>
 					<p className="mt-1 text-sm text-foreground-secondary">
 						Lịch ôn và điểm cần cải thiện
 					</p>
@@ -95,9 +95,9 @@ export default function SrsReportPanel({ dashboard }: Props) {
 							Luyện ngay
 						</Link>
 					) : (
-						<Link href="/sets" className="btn-secondary">
+						<Link href="/library" className="btn-secondary">
 							<MaterialIcon name="library_books" size={16} />
-							Bộ từ
+							Thư viện
 						</Link>
 					)}
 				</div>
@@ -105,7 +105,7 @@ export default function SrsReportPanel({ dashboard }: Props) {
 
 			<section className="animate-section-in space-y-4">
 				<SectionHeading sub="1 mục = 1 từ × 1 kỹ năng (nghĩa / âm đọc / câu)">
-					Lịch ôn SRS
+					Lịch ôn tập
 				</SectionHeading>
 				<div className="grid grid-cols-3 gap-3">
 					<MiniStat
@@ -131,14 +131,14 @@ export default function SrsReportPanel({ dashboard }: Props) {
 
 			{dashboard.stateDistribution.total > 0 && (
 				<section className="animate-section-in space-y-4">
-					<SectionHeading sub="Tiến trình từ vựng trong SRS">Kho từ</SectionHeading>
+					<SectionHeading sub="Tiến trình từ vựng đang theo học">Kho từ</SectionHeading>
 					<WordPipelineBar distribution={dashboard.stateDistribution} />
 				</section>
 			)}
 
 			<section className="animate-section-in grid gap-8 lg:grid-cols-2">
 				<div className="space-y-4">
-					<SectionHeading sub="Dựa trên lịch sử luyện SRS gần đây">Tỉ lệ chính xác</SectionHeading>
+					<SectionHeading sub="Dựa trên các lần ôn gần đây">Tỉ lệ chính xác</SectionHeading>
 					<div className="card-paper grid gap-8 p-6 md:grid-cols-2 md:items-center">
 						<div className="flex justify-center border-border md:border-r md:pr-8">
 							<OverallRateRing rate={dashboard.overallRate} />
@@ -192,7 +192,7 @@ export default function SrsReportPanel({ dashboard }: Props) {
 			</section>
 
 			<section className="animate-section-in space-y-4">
-				<SectionHeading sub="Số mục đã ôn mỗi ngày (chỉ phiên SRS)">Hoạt động</SectionHeading>
+				<SectionHeading sub="Số mục đã ôn mỗi ngày">Hoạt động</SectionHeading>
 				<ReviewActivityChart series={dashboard.dailySeries} days={14} />
 			</section>
 		</div>

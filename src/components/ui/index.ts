@@ -24,3 +24,4 @@ export { default as FormField } from './FormField';
 export { default as MaterialIcon } from './MaterialIcon';
 export { default as ProgressBar } from './ProgressBar';
 export { default as ThemeToggle } from './ThemeToggle';
+export { default as UserMessageModal } from './UserMessageModal';

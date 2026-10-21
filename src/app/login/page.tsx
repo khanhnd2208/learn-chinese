@@ -29,7 +29,7 @@ export default async function LoginPage() {
 						</div>
 					</div>
 					<p className="mt-4 text-sm text-foreground-secondary">
-						Đăng nhập để tạo bộ từ, ôn SRS, luyện nghe và phân tích chữ Hán.
+						Đăng nhập để khám phá bộ từ, ôn tập và phân tích chữ Hán.
 					</p>
 					<div className="mt-8">
 						<InAppBrowserNotice />

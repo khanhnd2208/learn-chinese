@@ -3,9 +3,10 @@
 import { useCallback, type ReactNode } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import InfernoReportPanel from '@/components/chinese/InfernoReportPanel';
+import { experimentalModesVisible } from '@/config/navigation';
 
 const TABS = [
-	{ id: 'srs' as const, label: 'SRS' },
+	{ id: 'srs' as const, label: 'Ôn tập' },
 	{ id: 'inferno' as const, label: 'Địa Ngục' },
 ];
 
@@ -18,7 +19,7 @@ interface Props {
 export default function LearningReportTabs({ srsPanel }: Props) {
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const infernoOpen = searchParams.get('tab') === 'inferno';
+	const infernoOpen = experimentalModesVisible() && searchParams.get('tab') === 'inferno';
 	const tab: TabId = infernoOpen ? 'inferno' : 'srs';
 
 	const selectTab = useCallback((next: TabId) => {
@@ -33,7 +34,7 @@ export default function LearningReportTabs({ srsPanel }: Props) {
 					Báo cáo học tập
 				</h1>
 				<p className="mt-1 text-sm text-foreground-secondary">
-					{infernoOpen ? 'Thành tích Địa Ngục — chế độ thử nghiệm' : 'Theo dõi tiến độ SRS'}
+					{infernoOpen ? 'Thành tích Địa Ngục — chế độ thử nghiệm' : 'Theo dõi tiến độ ôn tập'}
 				</p>
 			</section>
 

@@ -161,7 +161,7 @@ components:
 
 ## Overview
 
-**Learn Chinese** (Vietnamese: *Học Hán Ngữ*) is a web app that helps Vietnamese speakers master Mandarin Chinese vocabulary. Users create word sets from class notes or HSK lists, study multi-layer word cards, practice with core question types, and review with spaced repetition (SRS).
+**Learn Chinese** (Vietnamese: *Học Hán Ngữ*) is a web app that helps Vietnamese speakers master Mandarin Chinese vocabulary. Admins publish word sets. Learners discover them, follow the original set, and review on a spaced schedule (shown in the UI as Ôn tập).
 
 **Brand personality:** Scholarly yet approachable — like a well-designed study notebook with vermillion seals and warm rice-paper pages. Not childish, not corporate. Calm, focused, culturally grounded.
 
@@ -180,16 +180,16 @@ Design every screen below as a cohesive system. Desktop-first (sidebar layout), 
 | # | Screen | Route | Purpose |
 |---|--------|-------|---------|
 | 1 | Login | `/login` | Google OAuth sign-in card, centered |
-| 2 | Home | `/` | Hero, 4 stat tiles, quick actions, recent word sets |
-| 3 | Word Sets List | `/sets` | Grid/list of user's vocabulary sets |
-| 4 | Create Set | `/sets/create` | Title, description, paste terms, coverage check, HSK 1 shortcut |
-| 5 | Set Detail | `/sets/[id]` | Word list with progress badges, practice CTAs |
+| 2 | Hôm nay | `/` | One primary CTA for the current state, three stats, up to three sets to continue |
+| 3 | Thư viện | `/library` | Sets the learner follows. `/sets` redirects here |
+| 4 | Khám phá | `/explore` | Published admin sets. `/shared-sets` redirects here |
+| 5 | Set detail | `/sets/[id]` | Read-only study view. One smart CTA, other modes under "Cách học khác" |
 | 6 | Word Card | `/words/[id]` | **Core screen** — 5 tabs (see below) |
-| 7 | Practice Session | `/practice/[setId]` | Question card, progress bar, instant feedback |
-| 8 | SRS Review | `/review` | Daily review queue, up to 25 words |
-| 9 | Listening Picker | `/listening` | Choose a set for listening practice |
-| 10 | Progress Dashboard | `/dashboard` | Error analytics, weak words, channel accuracy |
-| 11 | Admin CMS | `/admin` | CSV import, preview, publish (admin only) |
+| 7 | Practice Session | `/practice/[setId]` | Free practice. Does not change the review schedule |
+| 8 | Ôn tập | `/review` | Daily review queue. "Học từ mới" lives at `/learn` and is not a nav item |
+| 9 | Tiến độ | `/dashboard` | Streak, due words, accuracy. The Địa Ngục tab is experimental only |
+| 10 | Admin sets | `/admin/sets` | Create, import, edit, and publish sets. `/sets/create` and `/sets/import` redirect to `/admin/sets/new` |
+| 11 | Admin CMS | `/admin` | Content import and analytics (`/admin/analytics`) |
 
 **Word Card — 5 tabs (most important UI):**
 1. **Tổng quan** — meaning, Hán Việt, mnemonic, related words, action links
@@ -198,7 +198,9 @@ Design every screen below as a cohesive system. Desktop-first (sidebar layout), 
 4. **Cách dùng** — sentence patterns with sample usage
 5. **Luyện tập** — shortcuts to listening / sentence / mixed practice
 
-**Layout shell:** Fixed left sidebar (240px) with 6 nav items + user footer. Main content area with page header band (`border-bottom`) and centered content (`max-width 672–1152px`).
+**Layout shell:** Fixed left sidebar (240px). One `MAIN_NAV` is used by the sidebar and the mobile bottom bar: Hôm nay, Ôn tập, Thư viện, Khám phá, Tiến độ. Admins also see Quản trị (Bộ từ, Nội dung, Phân tích). Focus sessions hide the sidebar, top bar, and bottom nav, and show a close control with a progress bar. Main content stays centered (`max-width 672–1152px`).
+
+**One primary CTA per screen.** Hôm nay, Thư viện, and set detail share the same choice: review what is due, learn new words, follow a set, or celebrate a finished day. Extra study modes sit in "Cách học khác".
 
 **Reference apps for UX patterns (not visual copy):** Duolingo (session flow), Anki (SRS), Pleco (dictionary depth), Skritter (character study). Prefer calm editorial layouts over gamified neon.
 
@@ -261,7 +263,7 @@ Dual-font strategy: Latin/Vietnamese UI in **Source Sans 3**, Chinese characters
 
 **Mobile (<1024px):**
 - Collapse sidebar into bottom tab bar (5–6 items) OR hamburger drawer.
-- Bottom nav: Home, Bộ từ, Ôn tập, Tiến bộ.
+- Bottom nav matches the sidebar: Hôm nay, Ôn tập, Thư viện, Khám phá, Tiến độ.
 - Word card tabs: horizontal scrollable pill tabs.
 - Practice: full-screen question with large tap targets (min 48px).
 
@@ -307,7 +309,7 @@ The shape language balances **soft study warmth** (rounded cards) with **decisiv
 
 ### Sidebar Navigation
 - Wordmark block at top with micro label + Learn**Chinese** lockup
-- Core items: Trang chủ, Bộ từ, Ôn tập, Tiến bộ, plus contextual/admin entries as needed
+- Core items: Hôm nay, Ôn tập, Thư viện, Khám phá, Tiến độ. Admin group: Bộ từ, Nội dung, Phân tích
 - Active: filled primary pill. Inactive: secondary text, hover surface-hover bg
 - Footer: user name (truncated) + Đăng xuất link
 - Admin CMS item (conditional): ink-black active state
@@ -339,8 +341,9 @@ The shape language balances **soft study warmth** (rounded cards) with **decisiv
 - Feedback overlay: green border + checkmark (correct) or red + explanation (wrong)
 - Session end: summary card with score, weak words list, "Ôn lại" CTA
 
-### SRS Review
-- Similar to practice but calmer — "Ôn hôm nay" header with due count
+### Ôn tập
+- Similar to practice but calmer — "Ôn tập" briefing with the due count
+- The word "SRS" does not appear in the UI. The schedule is called Ôn tập định kỳ
 - Completion screen: "Ôn xong!" with celebration (subtle, not confetti overload)
 
 ### Dashboard
@@ -357,8 +360,8 @@ The shape language balances **soft study warmth** (rounded cards) with **decisiv
 
 ### Empty States
 - Friendly Vietnamese copy, not illustrations-heavy
-- One clear primary CTA (e.g., "Tạo bộ từ mới")
-- Example: "Chưa có bộ từ. Tạo bộ từ sau buổi học để bắt đầu."
+- One clear primary CTA (e.g., "Khám phá bộ từ đầu tiên")
+- Example: "Bạn chưa theo học bộ từ nào. Khám phá bộ từ đã xuất bản để bắt đầu."
 
 ### Loading
 - Skeleton placeholders matching card shapes (not spinners)

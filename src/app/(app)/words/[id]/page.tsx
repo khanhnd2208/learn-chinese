@@ -3,6 +3,7 @@ import PageBreadcrumb from '@/components/layout/PageBreadcrumb';
 import HanziCard from '@/components/chinese/HanziCard';
 import { auth } from '@/lib/auth';
 import { getWordCard } from '@/services/chinese/cnContentService';
+import { getViewableSet } from '@/services/chinese/cnSetService';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,14 +15,19 @@ export default async function ChineseWordPage({ params, searchParams }: Props) {
 
 	const { id } = await params;
 	const { setId } = await searchParams;
-	const word = await getWordCard(id, session.user.id);
+	const [word, set] = await Promise.all([
+		getWordCard(id, session.user.id),
+		setId ? getViewableSet(session.user.id, setId) : Promise.resolve(null),
+	]);
 	if (!word) notFound();
 
 	return (
 		<div className="mx-auto max-w-2xl space-y-6 px-4 py-8 md:px-8">
 			<PageBreadcrumb
 				crumbs={[
-					{ label: setId ? 'Bộ từ' : 'Bộ từ', href: setId ? `/sets/${setId}` : '/sets' },
+					set
+						? { label: set.title, href: `/sets/${set.id}` }
+						: { label: 'Thư viện', href: '/library' },
 					{ label: 'Chi tiết từ' },
 				]}
 			/>
