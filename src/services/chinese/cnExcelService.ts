@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
+import { syncCanonicalExamples } from '@/services/chinese/cnExampleSync';
 import { AppError } from '@/lib/appError';
 import { MAX_CN_TERMS_PER_SET, MAX_IMPORT_ROWS, clampSrsIntervalIdx } from '@/config/constants';
 import {
@@ -769,22 +770,7 @@ async function upsertTuVungWordsAndExamples(
 		});
 		wordIdBySimplified.set(row.simplified, word.id);
 
-		await tx.cnExample.deleteMany({ where: { wordId: word.id, ownerUserId: null } });
-		if (row.examples.length) {
-			await tx.cnExample.createMany({
-				data: row.examples.map((ex) => ({
-					wordId: word.id,
-					hanzi: ex.hanzi,
-					pinyin: ex.pinyin,
-					meaningVi: ex.meaningVi,
-					meaningViTemplate: ex.meaningViTemplate,
-					naturalnessStatus: ex.naturalnessStatus,
-					targetWordStart: ex.targetWordStart,
-					targetWordEnd: ex.targetWordEnd,
-					ownerUserId: null,
-				})),
-			});
-		}
+		await syncCanonicalExamples(tx, word.id, row.examples);
 	}
 
 	return wordIdBySimplified;

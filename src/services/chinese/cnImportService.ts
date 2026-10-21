@@ -4,6 +4,7 @@
 import { prisma } from '@/lib/prisma';
 import { splitHanzi } from '@/lib/chinese/hanziUtils';
 import { enrichExampleForFill } from '@/lib/chinese/fillExampleValidator';
+import { syncCanonicalExamples } from '@/services/chinese/cnExampleSync';
 import type { CnImportHanziRow, CnImportPreview, CnImportWordRow } from '@/lib/chinese/parseChineseFile';
 import type { Prisma } from '@prisma/client';
 
@@ -107,30 +108,23 @@ export async function publishWordRows(
 		}
 
 		if (row.exampleHanzi || row.exampleSentences) {
-			await db.cnExample.deleteMany({ where: { wordId: word.id, ownerUserId: null } });
 			const examples = row.exampleSentences
 				? parsePatternSamples(row.exampleSentences)
 				: row.exampleHanzi
 					? [{ hanzi: row.exampleHanzi, pinyin: row.examplePinyin, meaningVi: row.exampleMeaningVi }]
 					: [];
-			if (examples.length) {
-				await db.cnExample.createMany({
-					data: examples.map((ex) => {
-						const fillMeta = enrichExampleForFill(ex.hanzi, row.simplified);
-						return {
-							wordId: word.id,
-							hanzi: ex.hanzi,
-							pinyin: ex.pinyin,
-							meaningVi: ex.meaningVi,
-							meaningViTemplate: ex.meaningVi.includes('__') ? ex.meaningVi : '',
-							naturalnessStatus: fillMeta.naturalnessStatus,
-							targetWordStart: fillMeta.targetWordStart,
-							targetWordEnd: fillMeta.targetWordEnd,
-							ownerUserId: null,
-						};
-					}),
-				});
-			}
+			await syncCanonicalExamples(db, word.id, examples.map((ex) => {
+				const fillMeta = enrichExampleForFill(ex.hanzi, row.simplified);
+				return {
+					hanzi: ex.hanzi,
+					pinyin: ex.pinyin,
+					meaningVi: ex.meaningVi,
+					meaningViTemplate: ex.meaningVi.includes('__') ? ex.meaningVi : '',
+					naturalnessStatus: fillMeta.naturalnessStatus,
+					targetWordStart: fillMeta.targetWordStart,
+					targetWordEnd: fillMeta.targetWordEnd,
+				};
+			}));
 		}
 
 		if (row.patternTemplate) {

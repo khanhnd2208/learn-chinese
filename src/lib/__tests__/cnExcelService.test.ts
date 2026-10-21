@@ -18,6 +18,8 @@ vi.mock('@/lib/prisma', () => ({
 			create: vi.fn(),
 		},
 		cnExample: {
+			findMany: vi.fn(),
+			update: vi.fn(),
 			deleteMany: vi.fn(),
 			create: vi.fn(),
 			createMany: vi.fn(),
@@ -268,6 +270,7 @@ describe('importUserWorkbook — tu_vung format', () => {
 			sets: [] as Array<{ title: string }>,
 			items: [] as Array<{ rawTerm: string; wordId: string }>,
 			wordUpserts: [] as Array<Record<string, unknown>>,
+			exampleReads: [] as Array<Record<string, unknown>>,
 			exampleDeletes: [] as Array<Record<string, unknown>>,
 			exampleCreates: [] as Array<unknown>,
 		};
@@ -284,14 +287,20 @@ describe('importUserWorkbook — tu_vung format', () => {
 				},
 				cnUserWordOverride: { upsert: vi.fn() },
 				cnExample: {
+					findMany: vi.fn().mockImplementation((args) => {
+						created.exampleReads.push(args.where);
+						return [];
+					}),
+					update: vi.fn(),
 					deleteMany: vi.fn().mockImplementation((args) => {
 						created.exampleDeletes.push(args.where);
 						return { count: 0 };
 					}),
-					createMany: vi.fn().mockImplementation((args) => {
+					create: vi.fn().mockImplementation((args) => {
 						created.exampleCreates.push(args);
-						return { count: 5 };
+						return { id: 'ex-new', ...args.data };
 					}),
+					createMany: vi.fn(),
 				},
 				cnWordSet: {
 					create: vi.fn().mockImplementation(({ data }) => {
@@ -329,7 +338,11 @@ describe('importUserWorkbook — tu_vung format', () => {
 		expect(result.errors).toHaveLength(0);
 		expect(created.sets[0]?.title).toBe('Bài 1 (import 2)');
 		expect(created.wordUpserts).toHaveLength(1);
-		expect(created.exampleDeletes[0]).toEqual({ wordId: 'word-admin', ownerUserId: null });
+		expect(created.exampleReads[0]).toEqual({ wordId: 'word-admin', ownerUserId: null });
+		expect(created.exampleCreates).toHaveLength(5);
+		expect(created.exampleCreates[0]).toEqual(expect.objectContaining({
+			data: expect.objectContaining({ wordId: 'word-admin', ownerUserId: null }),
+		}));
 		expect(created.items[0]).toEqual({ rawTerm: '学生', wordId: 'word-admin' });
 	});
 
