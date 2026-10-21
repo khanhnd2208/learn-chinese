@@ -48,6 +48,7 @@ export async function computeExampleQuality(now = new Date()): Promise<ExampleQu
 			meaningVi: true,
 			wordId: true,
 			qualityReviewedAt: true,
+			naturalnessStatus: true,
 			word: { select: { simplified: true } },
 		},
 	});
@@ -72,7 +73,8 @@ export async function computeExampleQuality(now = new Date()): Promise<ExampleQu
 
 	return exampleIds.flatMap((exampleId) => {
 		const example = byId.get(exampleId);
-		if (!example) return [];
+		// A retired sentence is out of the question pool; nothing is left to review.
+		if (!example || example.naturalnessStatus === 'flagged') return [];
 		const score = scoreExample(
 			(logsByExample.get(exampleId) ?? []).map((log) => ({
 				userId: log.userId,
@@ -280,12 +282,16 @@ export async function applyExampleQualityAction(input: {
 			sourceHanzi: true,
 			meaningViTemplate: true,
 			acceptedAnswers: true,
+			naturalnessStatus: true,
 			word: { select: { simplified: true } },
 		},
 	});
 	if (!example) throw new AppError('Không tìm thấy câu', 404);
 
 	if (input.action === 'dismiss') {
+		if (example.naturalnessStatus === 'flagged') {
+			throw new AppError('Câu đã rút, sửa câu thay vì bỏ qua', 400);
+		}
 		await prisma.cnExample.update({
 			where: { id: example.id },
 			data: { naturalnessStatus: 'verified', qualityReviewedAt: now },

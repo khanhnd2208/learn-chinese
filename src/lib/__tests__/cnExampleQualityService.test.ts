@@ -20,6 +20,7 @@ const store = vi.hoisted(() => ({
 	disputedLogIds: [] as string[],
 	exampleUpdates: [] as Array<Record<string, unknown>>,
 	fillExampleCount: 0,
+	exampleStatus: 'auto',
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -48,6 +49,7 @@ vi.mock('@/lib/prisma', () => ({
 				wordId: 'w1',
 				hanzi: '我喝茶',
 				sourceHanzi: null as string | null,
+				naturalnessStatus: store.exampleStatus,
 				meaningViTemplate: 'tôi __',
 				acceptedAnswers: [] as string[],
 				word: { simplified: '吃' },
@@ -181,6 +183,13 @@ describe('applyExampleQualityAction', () => {
 		expect(store.exampleUpdates[0]).toMatchObject({ naturalnessStatus: 'flagged' });
 		expect(result.restored).toBe(1);
 		expect(result.noFillExamplesLeft).toBe(true);
+	});
+
+	it('refuses to dismiss a sentence that is already retired', async () => {
+		store.exampleStatus = 'flagged';
+		await expect(applyExampleQualityAction({ exampleId: 'ex-1', action: 'dismiss', now }))
+			.rejects.toThrow('Câu đã rút');
+		store.exampleStatus = 'auto';
 	});
 
 	it('remembers the original sentence when an admin rewrites it', async () => {
