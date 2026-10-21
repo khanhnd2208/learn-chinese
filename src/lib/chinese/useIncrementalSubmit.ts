@@ -55,6 +55,8 @@ export function useIncrementalSubmit(options: UseIncrementalSubmitOptions = {}) 
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ items: batch }),
+					// Lets a send that starts while the page closes still finish.
+					keepalive: true,
 				});
 				const json = await res.json() as { ok: boolean; error?: string };
 				if (!json.ok) throw new Error(json.error ?? 'Không lưu được kết quả');

@@ -221,8 +221,13 @@ export default function QuestionRenderer({
 		onAnswerRef.current = onAnswer;
 	}, [onAnswer]);
 
-	useEffect(() => () => {
-		flushPendingWrong();
+	useEffect(() => {
+		// A held miss is not in the submit queue yet, so a reload would lose it.
+		window.addEventListener('pagehide', flushPendingWrong);
+		return () => {
+			window.removeEventListener('pagehide', flushPendingWrong);
+			flushPendingWrong();
+		};
 	}, [flushPendingWrong]);
 
 	useEffect(() => {
