@@ -534,7 +534,7 @@ export default function QuestionRenderer({
 					</div>
 				) : null}
 
-				{feedback?.startsWith('Sai') && (sessionHeavyLapses[q.wordId] ?? 0) >= 1 && (
+				{feedback?.startsWith('Sai') && (q.isStickingPoint === true || (sessionHeavyLapses[q.wordId] ?? 0) >= 2) && (
 					<div className="mx-auto mt-4 w-full max-w-md">
 						<StickingPointCard wordId={q.wordId} simplified={q.hanzi} />
 					</div>

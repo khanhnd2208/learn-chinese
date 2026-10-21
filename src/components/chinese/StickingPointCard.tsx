@@ -13,7 +13,7 @@ export default function StickingPointCard({ wordId, simplified }: Props) {
 		<div className="mt-4 rounded-xl border border-warning/30 bg-warning/5 p-4 text-left">
 			<p className="flex items-center gap-2 text-sm font-bold text-warning">
 				<MaterialIcon name="lightbulb" size={18} />
-				Từ này khó với nhiều người{simplified ? ` — ${simplified}` : ''}
+				Bạn đang gặp khó ở từ này{simplified ? ` — ${simplified}` : ''}
 			</p>
 			<p className="mt-2 text-sm text-foreground-secondary">
 				Thử cách học khác: xem thẻ từ hoặc luyện nghe trước khi ôn lại.
