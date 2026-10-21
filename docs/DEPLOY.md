@@ -54,6 +54,22 @@ Migration `20260622111541_add_ghi_chu_and_question_types` thêm cột `CnWord.gh
 
 App không tự tạo bộ demo khi người học mới mở danh sách bộ từ. Script `scripts/provision-global-sample-sets.ts` chỉ chạy tay.
 
+## Chuyển sang mô hình theo học bộ từ (2026-10-21)
+
+Migration `20261021170900_set_enrollments` chỉ tạo bảng `CnSetEnrollment` rỗng. Hàng ôn tập và Thư viện chỉ đọc bộ từ có bản ghi theo học, nên **phải chép dữ liệu cũ sang ngay sau khi migrate**, nếu không người học cũ thấy hàng ôn trống. Script không nằm trong pipeline deploy, chạy tay trên VPS từ thư mục `current`:
+
+```bash
+npx tsx scripts/provision-global-sample-sets.ts        # chỉ khi chưa có bộ HSK admin
+npx tsx scripts/migrate-set-enrollments.ts --dry-run   # xem enrollmentsToCreate, copiesToDelete
+npx tsx scripts/migrate-set-enrollments.ts             # chạy thật, chạy lại được
+```
+
+- Bản chạy thật **xoá** các bản sao "(từ thư viện)" và bộ HSK mẫu cá nhân trùng bộ admin; tiến độ học của từ được giữ.
+- Chạy `pg_dump` trước khi chạy bản thật nếu `app-deploy` chưa vừa làm.
+- Kiểm tra sau: đăng nhập tài khoản cũ, `/review` còn từ đến hạn, `/library` có bộ đã theo.
+
+Migration `20261021180200_answer_log_example_context`, `20261021181000_example_accepted_answers_disputes` và `20261021210000_example_source_hanzi` chỉ thêm cột có thể null, cột có mặc định hoặc bảng mới, deploy tự chạy.
+
 ## Database — migrations bắt buộc (2026-06-18)
 
 Mỗi lần deploy chạy `prisma migrate deploy`. Cần có trên prod:

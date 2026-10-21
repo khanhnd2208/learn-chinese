@@ -99,3 +99,11 @@ Code khác mô tả ở các điểm sau. Cách làm là cách gần ý định 
 - Cảnh báo câu Việt dưới 4 từ có `level: 'warning'` và không chặn import. Ô bị loại có `level: 'error'`.
 - `formatFillExampleCell` thêm đối số template. Lời gọi cũ ba đối số vẫn xuất đúng phần Việt được truyền vào.
 - Checklist tay chưa bấm được trên trình duyệt: `/review` chuyển sang `/login` (Google). Không có phiên đăng nhập trong trình duyệt của Cursor.
+
+## Sửa sau rà soát (2026-10-21)
+
+- Pinyin câu ví dụ trong DB không đục lỗ. Nút Pinyin che pinyin từ đích (`maskTargetPinyin`); nếu không che được đúng một chỗ thì xem pinyin được tính là gợi ý.
+- `CnExample.sourceHanzi` giữ câu gốc khi admin sửa chữ Hán. Import lại khớp câu theo `hanzi` hoặc `sourceHanzi`; câu `flagged` hoặc đã sửa tay không bị cập nhật, hồi sinh hay xoá.
+- Câu trả lời sai đang giữ chờ kháng nghị được gửi khi `pagehide`; `fetch` gửi kết quả dùng `keepalive`.
+- `/admin/example-quality` bỏ câu `flagged`; `dismiss` câu đã rút bị từ chối.
+- Hàng chờ kháng nghị gom và phân trang bằng `groupBy` ở DB.
