@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { AppError } from '@/lib/appError';
+import { parseFillExampleCell } from '@/lib/chinese/parseFillExample';
 import {
 	AI_IMPORT_GUIDE_TEXT,
 	AI_IMPORT_OUTPUT_SPEC,
@@ -58,7 +59,8 @@ describe('buildAiSmartImportPrompt', () => {
 		expect(prompt).toContain('KHÔNG viết cả từ mục tiêu LẪN [BLANK]');
 		expect(prompt).toContain('你好吗[BLANK]？');
 		expect(prompt).toContain('Từ mục tiêu có xuất hiện NGOÀI [BLANK]');
-		expect(prompt).toContain('Vị trí [BLANK] ở Hán / pinyin / Việt có trùng nhau');
+		expect(prompt).toContain('Che từ đích đi');
+		expect(prompt).toContain('Câu Việt là câu đầy đủ');
 	});
 
 	it('enforces strict 5-example and TSV column rules in output spec', () => {
@@ -71,6 +73,31 @@ describe('buildAiSmartImportPrompt', () => {
 		expect(AI_IMPORT_OUTPUT_SPEC).toContain('同学们都叫他[BLANK]');
 		expect(AI_IMPORT_OUTPUT_SPEC).not.toMatch(/\t\.\.\.['"]?\s*$/m);
 		expect(AI_IMPORT_OUTPUT_SPEC).not.toContain('vi_du_1 … vi_du_5');
+		expect(AI_IMPORT_OUTPUT_SPEC).toContain('không có [BLANK]');
+		expect(AI_IMPORT_GUIDE_TEXT).toContain('已经/都/也/还/就/才');
+		expect(AI_IMPORT_GUIDE_TEXT).toContain('câu tiếng Việt ĐẦY ĐỦ');
+	});
+
+	it('parses the sample sentences shipped in the guide and the prompt', () => {
+		const sampleLine = AI_IMPORT_OUTPUT_SPEC.split('\n').find((line) => line.startsWith('老师\t'));
+		expect(sampleLine).toBeTruthy();
+		for (const cell of sampleLine!.split('\t').slice(6)) {
+			const result = parseFillExampleCell(cell, '老师', 'giáo viên');
+			expect(result.ok, cell).toBe(true);
+			if (result.ok) expect(result.example.meaningVi).not.toContain('__');
+		}
+		const guideCells: Array<[string, string, string]> = [
+			['他在学校每天教学生，他是[BLANK]。|tā zài xuéxiào měitiān jiāo xuésheng, tā shì [BLANK].|Anh ấy dạy học sinh ở trường mỗi ngày, anh ấy là giáo viên.', '老师', 'giáo viên'],
+			['[BLANK]好吗？|[BLANK] hǎo ma?|Bạn có khỏe không?', '你', 'bạn'],
+			['他是[BLANK]。|tā shì [BLANK].|Anh ấy là giáo viên.', '老师', 'giáo viên'],
+			['你好[BLANK]？|nǐ hǎo [BLANK]?|Bạn có khỏe không?', '吗', 'không'],
+			['你叫[BLANK]？|nǐ jiào [BLANK]?|Bạn tên là gì?', '什么', 'cái gì'],
+			['你认识那个[BLANK]吗？|nǐ rènshi nàge [BLANK] ma?|Bạn có quen người kia không?', '人', 'người'],
+		];
+		for (const [cell, word, meaning] of guideCells) {
+			expect(AI_IMPORT_GUIDE_TEXT).toContain(cell);
+			expect(parseFillExampleCell(cell, word, meaning).ok, cell).toBe(true);
+		}
 	});
 });
 
