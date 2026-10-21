@@ -8,8 +8,8 @@ App học từ vựng tiếng Trung độc lập — tách khỏi [toiladuykhanh
 - Thẻ từ đa lớp (5 tab)
 - Hanzi Lab (phân tích chữ, bộ thủ, mẹo nhớ)
 - Luyện nghe (Web Speech zh-CN)
-- Practice Engine (12 dạng bài)
-- SRS ôn tập (Leitner đa kênh — 5 kỹ năng/từ)
+- Practice Engine (7 dạng bài)
+- SRS ôn tập (Leitner đa kênh — 3 kênh/từ: nghĩa, âm đọc, câu)
 - **Ôn tự do** — dừng bất cứ lúc nào, lưu từng câu
 - **Tiến độ SRS** (`/review/stats`) — xem mục cần ôn / đã ôn hôm nay
 - Dashboard lỗi & tiến bộ
@@ -35,7 +35,6 @@ Nếu DB dev đã có cột SRS per-channel từ `db push`, đánh dấu migrati
 
 ```bash
 npx prisma migrate resolve --applied 20260618100000_add_srs_channel_columns
-npx prisma migrate resolve --applied 20260618400000_hanzi_ai_analysis   # nếu đã db push Hanzi AI tables
 ```
 
 ## Biến môi trường
@@ -50,8 +49,6 @@ npx prisma migrate resolve --applied 20260618400000_hanzi_ai_analysis   # nếu 
 | `GOOGLE_CLIENT_SECRET` | Có | Google OAuth |
 | `ADMIN_EMAILS` | Khuyến nghị | Email admin (CSV) — role admin khi đăng nhập |
 | `AUTH_TRUST_HOST` | Prod | `true` khi deploy sau reverse proxy |
-| `DEEPSEEK_API_KEY` | Hanzi AI | API key chỉ dùng ở server |
-| `HANZI_AI_MODEL` | Hanzi AI | Mặc định `deepseek-v4-flash` |
 
 ## Cấu trúc
 
@@ -62,64 +59,35 @@ npx prisma migrate resolve --applied 20260618400000_hanzi_ai_analysis   # nếu 
 
 ## SRS — Leitner đa kênh (multi-track Leitner)
 
-Hệ thống ôn **không phải SM-2/FSRS/Anki**. Mỗi từ có 5 kênh kỹ năng độc lập (nghĩa, nghe, pinyin, câu, hán tự), mỗi kênh leo thang interval riêng.
+Hệ thống ôn **không phải SM-2/FSRS/Anki**. Mỗi từ có 3 kênh (nghĩa, âm đọc, câu). Âm đọc gộp nghe và pinyin. Có 7 dạng câu.
 
 **Đơn vị lập lịch:** `(word, channel)` — số "ôn hôm nay" = số cặp từ×kênh đến hạn.
 
-**Ramp kênh mới:** từ mới chỉ `(word, meaning)` due; `listening`/`pinyin` mở sau khi `meaningIntervalIdx ≥ 1`.
+**Thang interval (ngày):** 1, 1, 3, 7, 14, 30. Bậc 0–1 là MCQ, bậc 2 là gõ (Recall), bậc 3–5 là duy trì.
 
-**Due eligibility:** theo lịch Leitner (`*DueAt`) + ramp + cooldown 30 phút lần sai đầu trên kênh — **không** kéo due sớm vì lifetime rate thấp.
+**Khi sai:** bậc 0 hoặc 1 về bậc 0 và hẹn 30 phút. Bậc 2 về bậc 1, hẹn 1 ngày. Bậc 3 trở lên về bậc Recall (2), hẹn 1 ngày.
 
-**Priority review:** thuần theo kênh (overdue, weakness có sample weight) — không boost theo `p.state` cấp từ.
+**Gợi ý:** mở gợi ý rồi trả lời đúng thì giữ nguyên bậc và hẹn 1 ngày.
 
-**Thang interval:** 10 phút → 1d → 3d → 7d → 14d → 30d → 90d → 180d → 360d.
-
-**Khi sai:** lùi 1 bậc (lỗi nhẹ) hoặc về sàn 1 ngày (lỗi nặng) — lần sai đầu trên kênh: cooldown 30 phút.
-
-**Nhảy 2 bậc:** `translate_sentence`, `hanzi_from_meaning` (free_recall/production) khi trả lời đúng.
-
-**Mở khóa kênh:** `sentence` và `hanzi` mở khi kênh `meaning` đạt bậc familiar (idx ≥ 2).
+**Kênh câu:** chỉ đến hạn khi từ có câu ví dụ điền được. Cả 3 kênh đang được xếp lịch từ lúc ghi danh.
 
 **Perf:** `getDueChannels` / `countDueChannels` dùng SQL superset prefilter (`cnSrsDueQuery.ts`) rồi `isChannelDue` trong JS; `listUserSets` vẫn N+1 query dueCount mỗi set.
 
 **Hạn chế đã biết (chưa xử lý):**
 - Chữ đa âm/đa nghĩa: `CnWord.simplified` là unique — một chuỗi Hán = một mục từ
-- Leech handling, cài đặt số câu/ngày
-- Mastered chủ yếu từ câu nhận diện (MCQ); cần thêm câu gõ thật cho pinyin/hanzi
 - Rate limit in-memory chỉ hiệu lực trên 1 instance; scale nhiều instance cần Redis
 
-Logic: `src/services/chinese/cnSrsService.ts`, `src/lib/chinese/practiceTaxonomy.ts`.
+Logic: `src/services/chinese/cnSrsService.ts`, `src/lib/chinese/srsSchedule.ts`, `src/lib/chinese/practiceTaxonomy.ts`.
 
-## Hanzi AI
-
-Hanzi Lab gọi DeepSeek qua server, cache theo từ và lưu nội dung theo revision. Generation chạy đồng bộ với hard deadline 50 giây và lease 75 giây. Kết quả AI không được ghi vào `CnWord`, `CnHanzi` hoặc SRS.
-
-Production hiện yêu cầu một Node.js process (`PM2 instances=1`, `exec_mode=fork`) vì rate limit theo phút nằm trong memory. Daily quota, lease và circuit breaker nằm trong PostgreSQL.
-
-### Harness & chất lượng code
+### Chất lượng code
 
 ```bash
 npm run quality              # test + lint + build
-npm run harness:hanzi        # golden cases offline (trust + pedagogy)
-npm run harness:hanzi:report # báo cáo text; thêm --json cho agent/CI
-npm run hanzi:batch          # live DeepSeek (thủ công, tốn API)
-npm run hanzi:cache          # xem cache DB cho corpus 8 từ
 ```
 
 Agent context: xem **[AGENTS.md](AGENTS.md)** và `.cursor/rules/`.
 
-**Checklist khi đổi trust policy / registry version:**
-
-1. Cập nhật golden cases trong `src/lib/harness/hanziGoldenCases.ts`
-2. Chạy `npm run harness:hanzi` và `npm run harness:hanzi:report -- --json`
-3. Admin reconcile: `POST /api/admin/hanzi-ai` action `reconcile` hoặc `mark_legacy_stale`
-4. Cập nhật `AGENTS.md` nếu pipeline thay đổi
-
 Manual QA theo domain: **[docs/testing/README.md](docs/testing/README.md)** (thay cho đọc toàn bộ `TEST_SCENARIOS.md`).
-
-## Demo auto-seed
-
-User mới lần đầu mở danh sách bộ từ sẽ được tạo **bộ demo starter** (idempotent — chỉ khi user chưa có set nào). Hành vi chủ ý để có nội dung luyện ngay.
 
 ## Deploy
 
@@ -136,5 +104,4 @@ Không deploy cùng bundle với my-teaching-platform.
 3. **Seed nội dung:** `npm run db:seed` (hoặc import admin CMS)
 4. **Xác nhận schema:** `npx prisma migrate diff --from-migrations prisma/migrations --to-schema prisma/schema.prisma --exit-code` (kỳ vọng: no diff; cần shadow DB — tự tạo `prisma_migrate_shadow` hoặc đặt `SHADOW_DATABASE_URL`)
 5. **Quality:** `npm run quality` (hoặc tách `npm test`, `npm run lint`, `npm run build`)
-6. **Hanzi harness (nếu đổi trust policy):** `npm run harness:hanzi`
-7. **Chạy:** merge vào `main` (tự deploy, xem [docs/DEPLOY.md](docs/DEPLOY.md))
+6. **Chạy:** merge vào `main` (tự deploy, xem [docs/DEPLOY.md](docs/DEPLOY.md))

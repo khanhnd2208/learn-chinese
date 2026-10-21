@@ -33,8 +33,8 @@
 
 1. Vao `/practice/{setId}?mode=smart_mixed`.
    - Ky vong: co toi da 20 cau, cau hoi co prompt/options/correctAnswer dung, nut thoat quay lai set.
-2. Test tung mode: `core_vocab`, `listening`, `sentence_usage`, `smart_mixed`.
-   - Ky vong: mode chi sinh 6 loai core; sentence chi khi example verified; neu sentence chua unlock thi fallback core/listening.
+2. Test tung mode: `core_vocab`, `sound`, `sentence`, `smart_mixed`.
+   - Ky vong: 7 dang cau. `listening`/`pinyin` cu map sang kenh am. Cau chi khi tu co example dien duoc.
 3. Set chi co 1 tu nhung DB co distractor fallback.
    - Ky vong: MCQ van co it nhat 2 options.
 4. Set chi gom pending terms/word khong du du lieu.
@@ -59,33 +59,27 @@
 ### SRS va review
 
 1. Tu moi enroll vao SRS.
-   - Ky vong: chi (tu, meaning) due; listening/pinyin chua due cho den khi meaningIntervalIdx >= 1.
-2. Tu moi tra loi dung `hanzi_to_meaning`.
-   - Ky vong: meaningTotal +1, meaningIntervalIdx 1, state learning, due 1 ngay; sau do listening/pinyin co the due.
-3. Tu moi tra loi sai `audio_to_meaning` (lan dau tren kenh nghe, sau ramp).
-   - Ky vong: listeningTotal +1, listeningDueAt +30 phut, chi (tu, listening) bi cooldown.
-4. Lan sai thu 2 tren cung kenh.
-   - Ky vong: ve floor 1 ngay (heavy lapse).
-5. Kenh rate thap nhung chua het interval Leitner.
-   - Ky vong: KHONG due som (khong con weak bypass theo lifetime rate).
-6. Cau production dung `translate_sentence` voi confidence cao.
-7. Sai nhe o interval cao.
-   - Ky vong: lui 1 bac, khong reset ve 10 phut.
-8. Sai nang `sai_nghia`, `quen_hanzi`, `nghe_khong_ra` (lan 2+ tren kenh).
-   - Ky vong: ve floor 1 ngay.
-9. Meaning dat familiar.
-   - Ky vong: sentence va hanzi channels unlock trong review/practice.
+   - Ky vong: 3 kenh nghia, am doc, cau. Cau chi due khi co example dien duoc.
+2. Dung o bac MCQ1 (idx 0).
+   - Ky vong: len idx 1, hen 1 ngay.
+3. Sai o idx 0 hoac 1.
+   - Ky vong: ve idx 0, hen 30 phut. UI: "Hen lai sau 30 phut".
+4. Sai o idx 2 (Recall).
+   - Ky vong: ve idx 1, hen 1 ngay.
+5. Sai o idx 3 tro len (ke ca bac 30 ngay).
+   - Ky vong: ve idx 2 (Recall), hen 1 ngay. Khong roi ve MCQ.
+6. Mo goi y roi tra loi dung.
+   - Ky vong: giu nguyen idx, hen 1 ngay, nhan "Dung (co goi y)". So cau dung khong tang.
+7. Cau nghe `sound_to_hanzi`.
+   - Ky vong: khong hien pinyin truoc khi tra loi neu may co TTS. "Hien pinyin" tinh la goi y.
+8. Kenh rate thap nhung chua het interval.
+   - Ky vong: KHONG due som.
+9. Thang on.
+   - Ky vong: 1, 1, 3, 7, 14, 30 ngay. 7 dang cau, khong con kenh listening/pinyin/hanzi rieng.
 10. `/review` khi co due channels.
-   - Ky vong: dueToday dem theo word x channel, moi word toi da 2 channel trong mot session.
+   - Ky vong: dueToday dem theo tu x kenh.
 11. `/review` khi khong co due.
-   - Ky vong: hien "Khong co tu can on hom nay".
-12. Tu mastered.
-   - Ky vong: smart mixed uu tien listening/sentence/hanzi, khong lap lai core vocab qua nhieu.
-13. Tu intro (meaningTotal=0).
-   - Ky vong: khong gap hanzi_from_meaning, audio_to_pinyin_typed, translate_sentence trong smart mixed/review.
-14. Review khong sinh radical_pick, char_components, translate_sentence mac dinh.
-15. audio_to_pinyin_typed chap nhan xuexi (tone_missing) la dung mem.
-16. Mark-known can qua 3 cau kiem tra nhanh (>=2/3 dung).
+   - Ky vong: hien trang thai trong, khong co muc can on.
 
 ### SRS enrollment UX (bo tu)
 

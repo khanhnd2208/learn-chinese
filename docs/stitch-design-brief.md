@@ -54,10 +54,8 @@ Mỗi từ có **3 kênh kỹ năng đang hoạt động:**
 | Kênh | Tiếng Việt | Icon gợi ý |
 |------|------------|------------|
 | `meaning` | Nghĩa | `translate` |
-| `listening` | Nghe | `headphones` |
-| `pinyin` | Pinyin | `text_fields` |
-
-> **Lưu ý:** Kênh `sentence` (Dùng câu) tồn tại trong schema DB nhưng **chưa có trong hàng đợi ôn**. Không hiển thị như kênh hoạt động — hoặc gắn badge "Sắp ra mắt".
+| `sound` | Âm đọc | `headphones` |
+| `sentence` | Dùng câu | `text_fields` |
 
 ### Trạng thái từ (aggregate, theo từ)
 
@@ -99,7 +97,7 @@ Một từ có thể **yếu nhưng chưa đến hạn**, hoặc **đến hạn 
 
 | # | Vấn đề | Hiện trạng code | Hướng thiết kế đúng |
 |---|--------|-----------------|---------------------|
-| G1 | Kênh "Dùng câu" ảo | Dashboard hiển thị `sentenceRate` nhưng review không dùng kênh này | **Bỏ** hoặc badge "Sắp ra mắt" |
+| G1 | Kênh "Dùng câu" | Kênh câu đang có trong hàng đợi ôn khi từ có câu điền được | Hiện như kênh hoạt động, cùng Nghĩa và Âm đọc |
 | G2 | Progress bar bộ từ sai nghĩa | Home: `masteredChannels = max - dueCount` → nhãn "Tiến độ" gây hiểu nhầm là mastered | Đổi nhãn: **"Kênh ổn định"** hoặc **"X/Y kênh không đến hạn"** |
 | G3 | Đếm bộ từ sai | `setCount` = tất cả bộ, kể cả SRS tắt; label "Bộ từ đang học" | Đổi label **"Tổng bộ từ"** hoặc tách "Bộ SRS active" |
 | G4 | Forecast lệch dueToday | Forecast tính từ mọi progress row; `dueToday` chỉ SRS-active | Ghi chú footer: *"Dự báo theo từ đã có tiến độ"* hoặc scope badge |
@@ -180,9 +178,8 @@ interface CnDashboardDTO {
   streak: number;             // → "X ngày liên tiếp" (chỉ từ review logs)
   overallRate: number;        // → "Tỷ lệ đúng" — practice + review, 500 log gần nhất
   meaningRate: number;        // → kênh Nghĩa %
-  listeningRate: number;      // → kênh Nghe %
-  pinyinRate: number;         // → kênh Pinyin %
-  sentenceRate: number;       // → BỎ hoặc "Sắp ra mắt"
+  soundRate: number;          // → kênh Âm đọc %
+  sentenceRate: number;       // → kênh Dùng câu %
   topErrors: ErrorCount[];    // → "Lỗi phổ biến"
   weakWords: WordBrief[];     // → chip link → /words/[id]
   suggestions: string[];      // → card "Đề xuất"
@@ -200,7 +197,7 @@ interface CnReviewStatsDTO {
   accuracyToday: number;        // % đúng hôm nay
   remainingEstimate: number;
   weakCount: number;
-  meaningRate / listeningRate / pinyinRate: number;  // chỉ 3 kênh
+  meaningRate / soundRate / sentenceRate: number;  // 3 kênh: nghĩa, âm đọc, câu
   recallAccuracy / mcqAccuracy: number;  // breakdown theo loại câu
   streak / bestStreak: number;
   avgPerDay7 / avgPerDay30: number;
@@ -347,11 +344,10 @@ Báo cáo ôn tập · 1 mục = 1 từ × 1 kênh
 
 **Section F — Tỷ lệ theo kênh (CHỈ 3 kênh):**
 ```
-Nghĩa    ████████░░  78%
-Nghe     █████░░░░░  52%   ← highlight nếu < 60%
-Pinyin   ███████░░░  71%
+Nghĩa      ████████░░  78%
+Âm đọc     █████░░░░░  52%   ← highlight nếu < 60%
+Dùng câu   ███████░░░  71%
 ```
-- Không có "Dùng câu" hoặc có row disabled "Sắp ra mắt"
 
 **Section G — Cần chú ý + Lỗi phổ biến:**
 - Chip từ (hanzi) → tap mở word card

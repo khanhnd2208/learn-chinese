@@ -42,7 +42,7 @@ Understand learning health: what's due, what's weak, which channels need work.
 | setCount | Tổng bộ từ | Bộ từ đang học |
 | dueChannelsToday | Đang đến hạn | (same as weak) |
 | weakCount | Cần chú ý | (confused with due) |
-| sentenceRate | Sắp ra mắt (if channel inactive in review) | Active channel row |
+| sentenceRate | Dùng câu (kênh đang chạy) | Sắp ra mắt |
 
 ## Error paths
 

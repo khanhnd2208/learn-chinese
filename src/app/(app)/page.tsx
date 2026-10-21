@@ -30,7 +30,7 @@ const ONBOARDING_STEPS = [
 	{
 		icon: 'history',
 		title: 'Luyện SRS hàng ngày',
-		description: 'Làm phiên Luyện SRS mỗi ngày — mỗi từ qua 4 kênh: nghĩa, nghe, pinyin, câu.',
+		description: 'Làm phiên Luyện SRS mỗi ngày — mỗi từ qua 3 kênh: nghĩa, âm đọc, câu.',
 		href: '/review',
 	},
 ] as const;

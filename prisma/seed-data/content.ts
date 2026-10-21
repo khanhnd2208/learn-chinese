@@ -1,6 +1,6 @@
 /* ════════════════════════════════════════════════════════════════════════
    Sample Chinese content — HSK1 phong phú cho người mới học vài buổi đầu
-   Đủ test: 12 dạng bài, Hanzi Lab, SRS, Dashboard, Listening, Sentence
+   Đủ test: 7 dạng bài, SRS 3 kênh, Dashboard, câu điền
    ════════════════════════════════════════════════════════════════════════ */
 
 export interface SimilarGroupSeed {

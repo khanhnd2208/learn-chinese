@@ -41,18 +41,7 @@ function OverallRateRing({ rate }: { rate: number }) {
 	);
 }
 
-function ChannelSkill({ label, rate, comingSoon }: { label: string; rate: number; comingSoon?: boolean }) {
-	if (comingSoon) {
-		return (
-			<div className="flex flex-col gap-1.5 opacity-60">
-				<div className="flex items-center justify-between text-sm">
-					<span className="font-medium text-foreground">{label}</span>
-					<span className="label-caps text-muted">Sắp ra mắt</span>
-				</div>
-				<ProgressBar value={0} className="h-2" />
-			</div>
-		);
-	}
+function ChannelSkill({ label, rate }: { label: string; rate: number }) {
 	const qual = channelRateQualitative(rate);
 	return (
 		<div className="flex flex-col gap-1.5">
@@ -157,7 +146,7 @@ export default function SrsReportPanel({ dashboard }: Props) {
 						<div className="flex flex-col gap-4">
 							<ChannelSkill label="Nghĩa" rate={dashboard.meaningRate} />
 							<ChannelSkill label="Âm đọc" rate={dashboard.soundRate} />
-							<ChannelSkill label="Dùng câu" rate={dashboard.sentenceRate} comingSoon />
+							<ChannelSkill label="Dùng câu" rate={dashboard.sentenceRate} />
 						</div>
 					</div>
 				</div>

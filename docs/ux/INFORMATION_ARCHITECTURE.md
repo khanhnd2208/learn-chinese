@@ -29,7 +29,7 @@ Application (authenticated)
 └── /words/[id]               Word detail card
 
 Admin (role = admin)
-├── /admin                    CMS — import, Hanzi AI, messages
+├── /admin                    CMS — import, messages
 └── /admin/analytics          Practice analytics
 
 Dev (internal)

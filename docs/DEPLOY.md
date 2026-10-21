@@ -44,31 +44,7 @@ Google OAuth, ADMIN_EMAILS), rồi `vps deploy learn-chinese --local`. Seed nộ
 PM2 chạy **một process fork** (cấu hình ở `infra/server/apps/learn-chinese/ecosystem.config.cjs`).
 Không bật PM2 cluster mode cho phiên bản này. Giữ `instances=1`, `exec_mode=fork`; trước khi scale nhiều process phải chuyển rate limiter theo phút sang Redis/PostgreSQL.
 
-Reverse proxy cần cho phép request Hanzi AI chạy tối đa 90 giây. Với Nginx đặt `proxy_read_timeout 90s;` và `proxy_send_timeout 90s;`.
-
 Health check public: `GET /api/health` trả `200` khi app, PostgreSQL và MongoDB đều sẵn sàng; trả `503` khi dependency lỗi. Endpoint không trả secret hoặc stack trace.
-
-### Migration Hanzi AI (2026-06-18)
-
-Migration `20260618400000_hanzi_ai_analysis` thêm bảng revision/job/quota và cột verification trên `CnWord`/`CnHanzi`.
-
-```bash
-npx prisma migrate deploy
-```
-
-Nếu DB dev đã `db push` trước khi có migration này:
-
-```bash
-npx prisma migrate resolve --applied 20260618400000_hanzi_ai_analysis
-```
-
-Retention raw provider output (30 ngày):
-
-```bash
-npx tsx scripts/purge-hanzi-ai-attempts.ts
-```
-
-Hoặc gọi `POST /api/admin/hanzi-ai` với `{ "action": "purge_attempts" }` (admin).
 
 ## Cập nhật (mỗi lần deploy)
 
@@ -76,7 +52,7 @@ Merge vào `main`. Không `git pull` hay sửa code trực tiếp trên VPS.
 
 Migration `20260622111541_add_ghi_chu_and_question_types` thêm cột `CnWord.ghiChu` và enum câu hỏi typed. Deploy chạy `prisma generate` + `prisma migrate deploy` tự động.
 
-Sau deploy lần đầu có feature sample sets, script cũng chạy `provision-global-sample-sets.ts` để backfill 3 bộ HSK1 cho user cũ.
+App không tự tạo bộ demo khi người học mới mở danh sách bộ từ. Script `scripts/provision-global-sample-sets.ts` chỉ chạy tay.
 
 ## Database — migrations bắt buộc (2026-06-18)
 
@@ -85,7 +61,7 @@ Mỗi lần deploy chạy `prisma migrate deploy`. Cần có trên prod:
 - `20260618200000_srs_pedagogy_improvements` — channel intro, mark-known, sticking point, answer source
 - `20260618300000_srs_set_activation` — `CnWordSet.srsActive` + backfill bộ có progress
 
-- `20260618400000_hanzi_ai_analysis` — Hanzi AI revisions, jobs, quota, provider health, verification fields
+- `20260618400000_hanzi_ai_analysis` rồi `20260909100000_remove_hanzi_ai` — bảng Hanzi AI đã được gỡ
 
 ## Database — SRS features trước đó
 
