@@ -3,6 +3,7 @@
 import { useState, useSyncExternalStore } from 'react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import { getSentenceTypography } from '@/lib/chinese/questionDisplay';
+import { maskTargetPinyin } from '@/lib/chinese/sentencePinyinMask';
 
 const MEANING_PREF_KEY = 'cn.sentence.showMeaningVi';
 const MEANING_PREF_EVENT = 'cn-sentence-meaning';
@@ -73,11 +74,18 @@ export default function SentencePromptCard({
 	const targetPinyinVisible = showTargetPinyin || forceTargetPinyin;
 	const { hanziClass, cardPadding } = getSentenceTypography(sentenceTemplate);
 	const canHearSentence = audioAvailable && !!sentenceAudioText;
+	// Sentence pinyin is a free aid only while the target word's pinyin is hidden in it.
+	const maskedPinyin = maskTargetPinyin(pinyin, wordPinyin);
 	const visiblePinyin = targetPinyinVisible
 		? pinyinWithTarget(pinyin, wordPinyin)
 		: showPinyin
-			? pinyin
+			? maskedPinyin ?? pinyin
 			: null;
+
+	const togglePinyin = () => {
+		if (!showPinyin && !maskedPinyin && !revealUsed) onReveal('pinyin');
+		setShowPinyin((open) => !open);
+	};
 
 	const toggleMeaning = () => {
 		writeShowMeaning(!showMeaning);
@@ -120,7 +128,7 @@ export default function SentencePromptCard({
 					{pinyin && (
 						<button
 							type="button"
-							onClick={() => setShowPinyin((open) => !open)}
+							onClick={togglePinyin}
 							className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-muted transition-colors hover:border-accent hover:text-accent"
 							aria-expanded={showPinyin}
 						>

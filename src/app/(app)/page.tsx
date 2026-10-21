@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import SetCard, { type SetCardModel } from '@/components/chinese/SetCard';
 import SmartStudyButton from '@/components/chinese/SmartStudyButton';
+import LanguageSwitch from '@/components/english/LanguageSwitch';
 import { Card, CardContent } from '@/components/ui/Card';
 import { auth } from '@/lib/auth';
 import { getChineseDashboard } from '@/services/chinese/cnDashboardService';
@@ -48,9 +49,12 @@ export default async function ChineseHomePage() {
 
 	return (
 		<div className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-8">
-			<section>
-				<p className="label-caps">Hôm nay</p>
-				<h1 className="mt-2 text-3xl font-black text-foreground">Học Hán Ngữ</h1>
+			<section className="flex items-start justify-between gap-4">
+				<div>
+					<p className="label-caps">Hôm nay</p>
+					<h1 className="mt-2 text-3xl font-black text-foreground">Học Hán Ngữ</h1>
+				</div>
+				<LanguageSwitch />
 			</section>
 
 			<SmartStudyButton

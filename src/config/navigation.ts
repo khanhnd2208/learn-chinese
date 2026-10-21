@@ -35,7 +35,19 @@ export function experimentalModesVisible(): boolean {
 	return process.env.NEXT_PUBLIC_EXPERIMENTAL_MODES !== '0';
 }
 
+/** Learner navigation for the English area. Kept off the Chinese menu. */
+export const ENGLISH_NAV: NavLink[] = [
+	{ href: '/english', label: 'Hôm nay', icon: 'home', shortLabel: 'Hôm nay' },
+	{ href: '/english/review', label: 'Ôn hôm nay', icon: 'history', shortLabel: 'Ôn' },
+	{ href: '/english/sets', label: 'Bộ học', icon: 'library_books', shortLabel: 'Bộ học' },
+	{ href: '/english/progress', label: 'Tiến độ', icon: 'trending_up', shortLabel: 'Tiến độ' },
+];
+
+export const ENGLISH_ADMIN_NAV: NavLink[] = [
+	{ href: '/english/admin', label: 'Nội dung', icon: 'edit_note', shortLabel: 'Nội dung' },
+];
+
 export function isNavActive(pathname: string, href: string): boolean {
-	if (href === '/' || href === '/admin') return pathname === href;
+	if (href === '/' || href === '/admin' || href === '/english') return pathname === href;
 	return pathname === href || pathname.startsWith(`${href}/`);
 }

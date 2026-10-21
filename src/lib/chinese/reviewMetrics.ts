@@ -4,6 +4,7 @@
 import { isChannelRampEligible } from '@/lib/chinese/channelRamp';
 import { isWordMastered, wordLevelState } from '@/lib/chinese/masteryModel';
 import { computeNextReview } from '@/lib/chinese/srsSchedule';
+import { formatScheduleDistance } from '@/lib/srs/scheduleLabel';
 import { ALL_SKILL_CHANNELS, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
 import { isTypedQuestion } from '@/lib/chinese/questionLabels';
 import type { CnWordProgressState } from '@/types/chinese';
@@ -582,12 +583,5 @@ export function formatReviewScheduleLabel(
 		now,
 		hintUsed: opts?.hintUsed,
 	});
-	const prefix = correct ? 'Gặp lại sau' : 'Hẹn lại sau';
-	const diffMs = dueAt.getTime() - now.getTime();
-	const diffMinutes = Math.max(1, Math.round(diffMs / 60_000));
-	if (diffMinutes < 60) return `${prefix} ${diffMinutes} phút`;
-	const diffHours = Math.round(diffMs / 3_600_000);
-	if (diffHours < 24) return `${prefix} ${diffHours} giờ`;
-	const diffDays = Math.max(1, Math.round(diffMs / 86_400_000));
-	return `${prefix} ${diffDays} ngày`;
+	return formatScheduleDistance(dueAt, now, correct);
 }

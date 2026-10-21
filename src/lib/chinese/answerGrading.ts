@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { omitDuplicateAnswers } from '@/lib/srs/dedupe';
 import { expectedAnswerFor, gradeAnswerText, gradeSentenceAnswer } from '@/lib/chinese/answerGrade';
 import { questionChannel } from '@/lib/chinese/coreQuestionTypes';
 import { loadWordViewsForUser } from '@/services/chinese/cnWordViewService';
@@ -18,14 +19,8 @@ export async function dropDuplicateSubmitItems(
 			select: { clientAnswerId: true },
 		})
 		: [];
-	const seen = new Set(existing.map((row) => row.clientAnswerId).filter((id): id is string => !!id));
-	const fresh: CnPracticeSubmitItem[] = [];
-	for (const item of items) {
-		if (item.clientAnswerId && seen.has(item.clientAnswerId)) continue;
-		if (item.clientAnswerId) seen.add(item.clientAnswerId);
-		fresh.push(item);
-	}
-	return fresh;
+	const stored = existing.map((row) => row.clientAnswerId).filter((id): id is string => !!id);
+	return omitDuplicateAnswers(items, (item) => item.clientAnswerId, stored);
 }
 
 async function acceptedAnswersByExample(

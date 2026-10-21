@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ThemeToggle from '@/components/ui/ThemeToggle';
+import LanguageSwitch from '@/components/english/LanguageSwitch';
 import { ADMIN_NAV, EXPERIMENTAL_NAV, MAIN_NAV, experimentalModesVisible, isNavActive } from '@/config/navigation';
 import { reviewBadgePressureClass, useReviewStatus } from '@/lib/chinese/useDueTodayCount';
 
@@ -34,9 +35,12 @@ export default function AppSidebar({ dimmed = false }: Props) {
 					</Link>
 					<p className="label-caps mt-0.5">Học tập thông minh</p>
 				</div>
-			</div>
+				</div>
+				<div className="px-6">
+					<LanguageSwitch />
+				</div>
 
-			<nav className="flex flex-1 flex-col gap-1">
+			<nav className="mt-6 flex flex-1 flex-col gap-1">
 				{MAIN_NAV.map((item) => {
 					const active = isNavActive(pathname, item.href);
 					const showDueBadge = item.href === '/review' && reviewStatus != null && reviewStatus.dueTotal > 0;
