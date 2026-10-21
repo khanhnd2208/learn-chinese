@@ -34,8 +34,11 @@ function makeProgress(overrides: Partial<ProgressForMetrics> = {}): ProgressForM
 		meaningDueAt: now,
 		soundDueAt: now,
 		sentenceDueAt: null,
+		meaningCorrect: 1,
 		meaningTotal: 1,
+		soundCorrect: 1,
 		soundTotal: 1,
+		sentenceCorrect: 0,
 		sentenceTotal: 0,
 		dueAt: now,
 		introducedAt: now,
@@ -174,15 +177,26 @@ describe('reviewMetrics', () => {
 		expect(avgPerDay(series, 7)).toBe(2.3);
 	});
 
-	it('computes state distribution and mature percent', () => {
+	it('computes state distribution and mature percent from every required channel', () => {
 		const progress = [
-			makeProgress({ state: 'new', meaningIntervalIdx: 0 }),
-			makeProgress({ state: 'mastered', meaningIntervalIdx: 4, soundIntervalIdx: 3 }),
+			makeProgress({ meaningIntervalIdx: 0, soundIntervalIdx: 0 }),
+			makeProgress({
+				wordId: 'w2',
+				meaningIntervalIdx: 4,
+				meaningTotal: 5,
+				meaningCorrect: 5,
+				soundIntervalIdx: 3,
+				soundTotal: 4,
+				soundCorrect: 4,
+			}),
 		];
 		const dist = computeStateDistribution(progress);
-		expect(dist.new).toBe(1);
-		expect(dist.mastered).toBe(1);
+		expect(dist.learning).toBe(1);
+		expect(dist.familiar).toBe(1);
 		expect(computeMaturePct(progress)).toBe(50);
+		expect(computeMaturePct([
+			makeProgress({ meaningIntervalIdx: 5, meaningTotal: 6, meaningCorrect: 6, soundTotal: 0, soundCorrect: 0 }),
+		])).toBe(0);
 	});
 
 	it('splits recall vs mcq accuracy', () => {

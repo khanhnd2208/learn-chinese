@@ -12,7 +12,10 @@ import SetInfoPopover from '@/app/(app)/sets/SetInfoPopover';
 import PracticeModePicker from '@/components/chinese/PracticeModePicker';
 import { auth } from '@/lib/auth';
 import {
-	computeSetChannelProgress,
+	formatIntroducedLabel,
+	formatMasteredLabel,
+	masteredSharePct,
+	type SetLearningSnapshot,
 	formatSetDueChannelsLabel,
 } from '@/lib/chinese/setSrsProgress';
 import { listUserSets } from '@/services/chinese/cnSetService';
@@ -77,9 +80,13 @@ export default async function ChineseSetsPage() {
 			) : (
 				<div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
 					{sets.map((set) => {
-						const progress = set.srsActive
-							? computeSetChannelProgress(set.itemCount, set.dueCount)
-							: 0;
+						const snapshot: SetLearningSnapshot = {
+							introduced: set.introducedCount,
+							mastered: set.masteredCount,
+							total: set.itemCount,
+							dueChannels: set.dueCount,
+						};
+						const progress = set.srsActive ? masteredSharePct(snapshot) : 0;
 						return (
 							<Card key={set.id} className="group relative flex h-full flex-col gap-3 p-4">
 								<div className="flex items-start justify-between gap-2">
@@ -105,17 +112,16 @@ export default async function ChineseSetsPage() {
 								)}
 								<SetSrsToggle setId={set.id} srsActive={set.srsActive} title={set.title} compact />
 								<div className="mt-auto">
-									<div className="mb-1 flex justify-between text-sm text-foreground-secondary">
+									<div className="mb-1 flex justify-between gap-2 text-sm text-foreground-secondary">
 										<span>
-											{set.itemCount} từ
 											{set.srsActive
-												? ` · ${formatSetDueChannelsLabel(set.dueCount)}`
-												: ' · không trong SRS'}
+												? `${formatMasteredLabel(snapshot)} · ${formatIntroducedLabel(snapshot)}`
+												: `${set.itemCount} từ · không trong SRS`}
 										</span>
-										{set.srsActive && (
-											<span className="font-bold text-accent">{progress}%</span>
-										)}
 									</div>
+									{set.srsActive && (
+										<p className="mb-1 text-xs text-muted">{formatSetDueChannelsLabel(set.dueCount)}</p>
+									)}
 									{set.srsActive && <ProgressBar value={progress} />}
 								</div>
 								<div className="flex flex-col gap-2 pt-1">

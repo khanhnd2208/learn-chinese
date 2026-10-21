@@ -40,8 +40,11 @@ function progressToMetrics(p: {
 	meaningDueAt: Date | null;
 	soundDueAt: Date | null;
 	sentenceDueAt: Date | null;
+	meaningCorrect: number;
 	meaningTotal: number;
+	soundCorrect: number;
 	soundTotal: number;
+	sentenceCorrect: number;
 	sentenceTotal: number;
 	dueAt: Date;
 	introducedAt: Date | null;
@@ -55,8 +58,11 @@ function progressToMetrics(p: {
 		meaningDueAt: p.meaningDueAt,
 		soundDueAt: p.soundDueAt,
 		sentenceDueAt: p.sentenceDueAt,
+		meaningCorrect: p.meaningCorrect,
 		meaningTotal: p.meaningTotal,
+		soundCorrect: p.soundCorrect,
 		soundTotal: p.soundTotal,
+		sentenceCorrect: p.sentenceCorrect,
 		sentenceTotal: p.sentenceTotal,
 		dueAt: p.dueAt,
 		introducedAt: p.introducedAt,
@@ -96,8 +102,11 @@ async function loadProgressMetrics(
 				meaningDueAt: true,
 				soundDueAt: true,
 				sentenceDueAt: true,
+				meaningCorrect: true,
 				meaningTotal: true,
+				soundCorrect: true,
 				soundTotal: true,
+				sentenceCorrect: true,
 				sentenceTotal: true,
 				dueAt: true,
 				introducedAt: true,
@@ -171,7 +180,7 @@ export async function getReviewBriefing(userId: string): Promise<CnReviewBriefin
 	const { metrics: progressMetrics, wordsWithFillExamples } = await loadProgressMetrics(userId, activeIds);
 	const overdueCount = countOverdueChannels(progressMetrics, todayStart, wordsWithFillExamples);
 	const dueWords = countDueWordsForMetrics(progressMetrics, now, wordsWithFillExamples);
-	const maturePct = computeMaturePct(progressMetrics);
+	const maturePct = computeMaturePct(progressMetrics, wordsWithFillExamples);
 
 	const channelRows = hasActiveWords
 		? await prisma.cnWordProgress.findMany({
@@ -331,8 +340,8 @@ export async function getReviewStats(userId: string): Promise<CnReviewStatsDTO> 
 		.map(([errorType, count]) => ({ errorType: errorType as CnErrorType, count }));
 
 	const recentSessions = groupLogsIntoSessions(weekLogs).slice(0, 10);
-	const stateDistribution = computeStateDistribution(progressMetrics);
-	const maturePct = computeMaturePct(progressMetrics);
+	const stateDistribution = computeStateDistribution(progressMetrics, wordsWithFillExamples);
+	const maturePct = computeMaturePct(progressMetrics, wordsWithFillExamples);
 
 	const insights = generateReviewInsights({
 		dueTotal,

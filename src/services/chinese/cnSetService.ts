@@ -12,10 +12,12 @@ import {
 	onWordRemovedFromActiveSet,
 } from '@/services/chinese/cnSrsEnrollmentService';
 import { countDueChannelsForProgressList, fetchProgressDueCandidates, loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
+import { isWordMastered } from '@/lib/chinese/masteryModel';
 import { normalizeTerm, uniqueTerms } from '@/lib/chinese/hanziUtils';
 import type {
 	CnCoverageReportDTO,
 	CnSharedWordSetDTO,
+	CnWordProgressState,
 	CnWordSetDTO,
 	CnWordSetListItemDTO,
 	CreateCnWordSetInput,
@@ -37,28 +39,77 @@ function wordToBrief(w: CnWord) {
 	};
 }
 
+const EMPTY_SET_STATS = { dueCount: 0, weakCount: 0, introducedCount: 0, masteredCount: 0 };
+
+const LEVEL_SELECT = {
+	wordId: true,
+	state: true,
+	introducedAt: true,
+	meaningIntervalIdx: true,
+	soundIntervalIdx: true,
+	sentenceIntervalIdx: true,
+	meaningCorrect: true,
+	meaningTotal: true,
+	soundCorrect: true,
+	soundTotal: true,
+	sentenceCorrect: true,
+	sentenceTotal: true,
+} as const;
+
+type LevelRow = {
+	wordId: string;
+	state: CnWordProgressState;
+	introducedAt: Date | null;
+	meaningIntervalIdx: number;
+	soundIntervalIdx: number;
+	sentenceIntervalIdx: number;
+	meaningCorrect: number;
+	meaningTotal: number;
+	soundCorrect: number;
+	soundTotal: number;
+	sentenceCorrect: number;
+	sentenceTotal: number;
+};
+
+function learningCounts(wordIds: string[], progress: LevelRow[], wordsWithFillExamples: Set<string>) {
+	const byWord = new Map(progress.map((row) => [row.wordId, row]));
+	let introducedCount = 0;
+	let masteredCount = 0;
+	for (const wordId of wordIds) {
+		const row = byWord.get(wordId);
+		if (!row?.introducedAt) continue;
+		introducedCount++;
+		if (isWordMastered(row, wordsWithFillExamples.has(wordId))) masteredCount++;
+	}
+	return { introducedCount, masteredCount };
+}
+
 async function countDueAndWeak(userId: string, wordIds: string[], srsActive: boolean) {
-	if (!srsActive || !wordIds.length) return { dueCount: 0, weakCount: 0 };
+	if (!srsActive || !wordIds.length) return { ...EMPTY_SET_STATS };
 	const now = new Date();
 	const [candidates, allProgress, wordsWithFillExamples] = await Promise.all([
 		fetchProgressDueCandidates(userId, wordIds, now),
 		prisma.cnWordProgress.findMany({
 			where: { userId, wordId: { in: wordIds } },
-			select: { state: true },
+			select: LEVEL_SELECT,
 		}),
 		loadWordIdsWithFillExamples(wordIds),
 	]);
 	const dueCount = countDueChannelsForProgressList(candidates, now, wordsWithFillExamples);
 	const weakCount = allProgress.filter((p) => p.state === 'weak' || p.state === 'learning').length;
-	return { dueCount, weakCount };
+	return {
+		dueCount,
+		weakCount,
+		...learningCounts(wordIds, allProgress, wordsWithFillExamples),
+	};
 }
 
 async function countDueAndWeakForSets(
 	userId: string,
 	sets: Array<CnWordSet & { items: CnWordSetItem[] }>,
-): Promise<Map<string, { dueCount: number; weakCount: number }>> {
-	const statsBySetId = new Map<string, { dueCount: number; weakCount: number }>();
-	for (const set of sets) statsBySetId.set(set.id, { dueCount: 0, weakCount: 0 });
+): Promise<Map<string, typeof EMPTY_SET_STATS>> {
+	const statsBySetId = new Map<string, typeof EMPTY_SET_STATS>();
+	for (const set of sets) statsBySetId.set(set.id, { ...EMPTY_SET_STATS });
 
 	const activeSets = sets.filter((set) => set.srsActive);
 	const allWordIds = [...new Set(activeSets.flatMap((set) =>
@@ -71,7 +122,7 @@ async function countDueAndWeakForSets(
 		fetchProgressDueCandidates(userId, allWordIds, now),
 		prisma.cnWordProgress.findMany({
 			where: { userId, wordId: { in: allWordIds } },
-			select: { wordId: true, state: true },
+			select: LEVEL_SELECT,
 		}),
 		loadWordIdsWithFillExamples(allWordIds),
 	]);
@@ -94,6 +145,7 @@ async function countDueAndWeakForSets(
 		statsBySetId.set(set.id, {
 			dueCount: wordIds.reduce((sum, wordId) => sum + (dueCountByWordId.get(wordId) ?? 0), 0),
 			weakCount: wordIds.filter((wordId) => weakWordIds.has(wordId)).length,
+			...learningCounts(wordIds, allProgress, wordsWithFillExamples),
 		});
 	}
 
@@ -102,7 +154,7 @@ async function countDueAndWeakForSets(
 
 function setToListItem(
 	set: CnWordSet & { items: CnWordSetItem[] },
-	stats: { dueCount: number; weakCount: number },
+	stats: typeof EMPTY_SET_STATS,
 ): CnWordSetListItemDTO {
 	return {
 		id: set.id,
@@ -114,6 +166,8 @@ function setToListItem(
 		itemCount: set.items.length,
 		dueCount: stats.dueCount,
 		weakCount: stats.weakCount,
+		introducedCount: stats.introducedCount,
+		masteredCount: stats.masteredCount,
 		createdAt: set.createdAt.toISOString(),
 		updatedAt: set.updatedAt.toISOString(),
 	};
@@ -137,7 +191,7 @@ export async function listUserSets(userId: string): Promise<CnWordSetListItemDTO
 	const statsBySetId = await countDueAndWeakForSets(userId, sets);
 	return sets.map((set) => setToListItem(
 		set,
-		statsBySetId.get(set.id) ?? { dueCount: 0, weakCount: 0 },
+		statsBySetId.get(set.id) ?? { ...EMPTY_SET_STATS },
 	));
 }
 
@@ -173,6 +227,8 @@ export async function getUserSet(userId: string, setId: string): Promise<CnWordS
 		itemCount: set.items.length,
 		dueCount: stats.dueCount,
 		weakCount: stats.weakCount,
+		introducedCount: stats.introducedCount,
+		masteredCount: stats.masteredCount,
 		createdAt: set.createdAt.toISOString(),
 		updatedAt: set.updatedAt.toISOString(),
 		items: set.items.map((item) => ({

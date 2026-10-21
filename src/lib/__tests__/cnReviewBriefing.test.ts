@@ -37,7 +37,7 @@ describe('getReviewBriefing', () => {
 		mockAnswerLogFindMany.mockResolvedValue([]);
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any -- prisma mock return typing
 		(mockProgressFindMany as any).mockImplementation((args: { select?: Record<string, boolean> }) => {
-			if (args?.select && 'meaningCorrect' in args.select) {
+			if (args?.select && 'meaningCorrect' in args.select && !('meaningDueAt' in args.select)) {
 				return Promise.resolve([
 					{ meaningCorrect: 5, meaningTotal: 10, soundCorrect: 3, soundTotal: 5, sentenceCorrect: 0, sentenceTotal: 0 },
 				]);
@@ -52,10 +52,14 @@ describe('getReviewBriefing', () => {
 					meaningDueAt: new Date('2020-01-01'),
 					soundDueAt: null,
 					sentenceDueAt: null,
+					meaningCorrect: 1,
 					meaningTotal: 1,
+					soundCorrect: 0,
 					soundTotal: 0,
+					sentenceCorrect: 0,
 					sentenceTotal: 0,
 					dueAt: new Date('2020-01-01'),
+					introducedAt: new Date('2020-01-01'),
 				},
 				{
 					wordId: 'w2',
@@ -66,10 +70,14 @@ describe('getReviewBriefing', () => {
 					meaningDueAt: new Date('2020-01-01'),
 					soundDueAt: new Date('2020-01-01'),
 					sentenceDueAt: null,
+					meaningCorrect: 5,
 					meaningTotal: 5,
+					soundCorrect: 3,
 					soundTotal: 3,
+					sentenceCorrect: 0,
 					sentenceTotal: 0,
 					dueAt: new Date('2020-01-01'),
+					introducedAt: new Date('2020-01-01'),
 				},
 			]);
 		});

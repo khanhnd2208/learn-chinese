@@ -186,6 +186,8 @@ export interface CnWordSetDTO {
 	itemCount: number;
 	dueCount: number;
 	weakCount: number;
+	introducedCount: number;
+	masteredCount: number;
 	items: CnWordSetItemDTO[];
 	createdAt: string;
 	updatedAt: string;
@@ -201,6 +203,8 @@ export interface CnWordSetListItemDTO {
 	itemCount: number;
 	dueCount: number;
 	weakCount: number;
+	introducedCount: number;
+	masteredCount: number;
 	createdAt: string;
 	updatedAt: string;
 }

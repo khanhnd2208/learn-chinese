@@ -1,18 +1,22 @@
-import { ALL_SKILL_CHANNELS } from '@/lib/chinese/practiceTaxonomy';
-
-/** `dueCount` on set list DTOs counts due SRS channels (up to 3 per word), not words. */
-export function maxSrsChannelsForSet(itemCount: number): number {
-	return itemCount * ALL_SKILL_CHANNELS.length;
+/** Counts for one word set. `dueChannels` is word×channel pairs, not words. */
+export interface SetLearningSnapshot {
+	introduced: number;
+	mastered: number;
+	total: number;
+	dueChannels: number;
 }
 
-/** Progress 0–100: share of channels not due today. Never negative. */
-export function computeSetChannelProgress(itemCount: number, dueChannelCount: number): number {
-	const maxChannels = maxSrsChannelsForSet(itemCount);
-	if (maxChannels <= 0) return 0;
-	return Math.max(
-		0,
-		Math.min(100, Math.round((1 - dueChannelCount / maxChannels) * 100)),
-	);
+export function masteredSharePct(snapshot: SetLearningSnapshot): number {
+	if (snapshot.total <= 0) return 0;
+	return Math.max(0, Math.min(100, Math.round((snapshot.mastered / snapshot.total) * 100)));
+}
+
+export function formatIntroducedLabel(snapshot: SetLearningSnapshot): string {
+	return `Đã học ${snapshot.introduced}/${snapshot.total} từ`;
+}
+
+export function formatMasteredLabel(snapshot: SetLearningSnapshot): string {
+	return `Đã nắm ${snapshot.mastered}/${snapshot.total}`;
 }
 
 export function formatSetDueChannelsLabel(dueChannelCount: number): string {

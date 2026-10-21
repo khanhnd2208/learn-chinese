@@ -18,6 +18,7 @@ import {
 	startOfLocalDay,
 	type ProgressForMetrics,
 } from '@/lib/chinese/reviewMetrics';
+import { isWordMastered } from '@/lib/chinese/masteryModel';
 import { loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
 import { ensureEnrollmentForActiveWords, resolveSrsPoolWordIds } from '@/services/chinese/cnSrsEnrollmentService';
 import type { CnDashboardDTO } from '@/types/chinese';
@@ -33,8 +34,11 @@ function progressToMetrics(p: {
 	meaningDueAt: Date | null;
 	soundDueAt: Date | null;
 	sentenceDueAt: Date | null;
+	meaningCorrect: number;
 	meaningTotal: number;
+	soundCorrect: number;
 	soundTotal: number;
+	sentenceCorrect: number;
 	sentenceTotal: number;
 	dueAt: Date;
 	introducedAt: Date | null;
@@ -48,8 +52,11 @@ function progressToMetrics(p: {
 		meaningDueAt: p.meaningDueAt,
 		soundDueAt: p.soundDueAt,
 		sentenceDueAt: p.sentenceDueAt,
+		meaningCorrect: p.meaningCorrect,
 		meaningTotal: p.meaningTotal,
+		soundCorrect: p.soundCorrect,
 		soundTotal: p.soundTotal,
+		sentenceCorrect: p.sentenceCorrect,
 		sentenceTotal: p.sentenceTotal,
 		dueAt: p.dueAt,
 		introducedAt: p.introducedAt,
@@ -102,14 +109,16 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 	const todayKey = localDayKey(now);
 	const reviewedToday = reviewDayLogs.filter((l) => localDayKey(l.createdAt) === todayKey).length;
 	const dailySeries = aggregateDailySeries(reviewDayLogs);
-	const stateDistribution = computeStateDistribution(progressMetrics);
-	const maturePct = computeMaturePct(progressMetrics);
+	const stateDistribution = computeStateDistribution(progressMetrics, wordsWithFillExamples);
+	const maturePct = computeMaturePct(progressMetrics, wordsWithFillExamples);
 
 	const activeDayKeys = [...new Set(reviewDayLogs.map((l) => localDayKey(l.createdAt)))];
 	const streak = computeStreak(activeDayKeys, now);
 
-	const wordsLearned = srsProgress.filter((p) => p.state !== 'new').length;
-	const wordsMastered = srsProgress.filter((p) => p.state === 'mastered').length;
+	const wordsLearned = srsProgress.filter((p) => p.introducedAt != null).length;
+	const wordsMastered = srsProgress.filter((p) =>
+		isWordMastered(p, wordsWithFillExamples.has(p.wordId)),
+	).length;
 	const weakCount = srsProgress.filter((p) => p.state === 'weak' || p.state === 'learning').length;
 
 	const meaningRate = rate(

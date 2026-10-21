@@ -59,7 +59,7 @@ export default function StateDistributionBar({ distribution, maturePct, simplifi
 					<LegendDot colorClass="bg-warning/80" label={`YẾU (${Math.round(weakPctBar)}%)`} />
 				</div>
 				<p className="mt-3 text-sm text-foreground-secondary">
-					<span className="font-black text-accent">{maturePct}%</span> từ đã trưởng thành (kênh ở giai đoạn duy trì)
+					<span className="font-black text-accent">{maturePct}%</span> từ đã nắm (mọi kênh bắt buộc từ bậc 3)
 				</p>
 			</div>
 		);
@@ -91,7 +91,7 @@ export default function StateDistributionBar({ distribution, maturePct, simplifi
 				))}
 			</div>
 			<p className="mt-3 text-sm text-foreground-secondary">
-				<span className="font-black text-accent">{maturePct}%</span> từ đã trưởng thành (kênh ở giai đoạn duy trì)
+				<span className="font-black text-accent">{maturePct}%</span> từ đã nắm (mọi kênh bắt buộc từ bậc 3)
 			</p>
 		</div>
 	);

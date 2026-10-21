@@ -5,9 +5,11 @@ import ProgressBar from '@/components/ui/ProgressBar';
 import PracticeModePicker from '@/components/chinese/PracticeModePicker';
 import { auth } from '@/lib/auth';
 import {
-	computeSetChannelProgress,
+	formatIntroducedLabel,
+	formatMasteredLabel,
 	formatSetDueChannelsLabel,
-	maxSrsChannelsForSet,
+	masteredSharePct,
+	type SetLearningSnapshot,
 } from '@/lib/chinese/setSrsProgress';
 import { countDueToday } from '@/services/chinese/cnSrsService';
 import { getLearnQueue } from '@/services/chinese/cnLearnService';
@@ -37,10 +39,13 @@ const ONBOARDING_STEPS = [
 	},
 ] as const;
 
-function setStatusLabel(progress: number): { label: string; className: string } {
-	if (progress >= 100) return { label: 'Vững vàng', className: 'bg-success/10 text-success' };
-	if (progress >= 50) return { label: 'Đang học', className: 'bg-surface-container text-foreground-secondary' };
-	if (progress > 0) return { label: 'Mới', className: 'bg-border text-foreground-secondary' };
+function setStatusLabel(snapshot: SetLearningSnapshot): { label: string; className: string } {
+	if (snapshot.total > 0 && snapshot.mastered >= snapshot.total) {
+		return { label: 'Đã nắm', className: 'bg-success/10 text-success' };
+	}
+	if (snapshot.introduced > 0) {
+		return { label: 'Đang học', className: 'bg-surface-container text-foreground-secondary' };
+	}
 	return { label: 'Mới', className: 'bg-border text-foreground-secondary' };
 }
 
@@ -165,12 +170,14 @@ export default async function ChineseHomePage() {
 				) : (
 					<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
 						{sets.slice(0, 3).map((set) => {
-							const maxChannels = maxSrsChannelsForSet(set.itemCount);
-							const progress = set.srsActive
-								? computeSetChannelProgress(set.itemCount, set.dueCount)
-								: 0;
-							const stableChannels = Math.max(0, maxChannels - set.dueCount);
-							const status = setStatusLabel(progress);
+							const snapshot: SetLearningSnapshot = {
+								introduced: set.introducedCount,
+								mastered: set.masteredCount,
+								total: set.itemCount,
+								dueChannels: set.dueCount,
+							};
+							const progress = set.srsActive ? masteredSharePct(snapshot) : 0;
+							const status = setStatusLabel(snapshot);
 							return (
 								<div
 									key={set.id}
@@ -187,9 +194,9 @@ export default async function ChineseHomePage() {
 										<p className="mt-1 text-sm text-muted">{set.description || 'Giáo trình chuẩn'}</p>
 										<div className="mt-3 pt-2">
 											<div className="mb-1 flex justify-between text-sm text-foreground-secondary">
-												<span>Kênh ổn định</span>
+												<span>{formatMasteredLabel(snapshot)}</span>
 												<span className={`font-bold ${progress >= 100 ? 'text-success' : 'text-accent'}`}>
-													{set.srsActive ? `${stableChannels} / ${maxChannels}` : '—'}
+													{set.srsActive ? `${progress}%` : '—'}
 												</span>
 											</div>
 											<ProgressBar
@@ -198,8 +205,9 @@ export default async function ChineseHomePage() {
 											/>
 											{set.srsActive && (
 												<p className="mt-1.5 text-xs text-muted">
+													{formatIntroducedLabel(snapshot)}
+													{' · '}
 													{set.dueCount > 0 ? formatSetDueChannelsLabel(set.dueCount) : 'Không có kênh đến hạn'}
-													{set.weakCount > 0 && ` · ${set.weakCount} từ yếu`}
 												</p>
 											)}
 										</div>

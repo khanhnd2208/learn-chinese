@@ -1,10 +1,8 @@
 /* ════════════════════════════════════════════════════════════════════════
    reviewMetrics.ts — Pure SRS reporting metrics (no Prisma)
    ════════════════════════════════════════════════════════════════════════ */
-import {
-	CN_STATE_THRESHOLDS,
-} from '@/config/constants';
 import { isChannelRampEligible } from '@/lib/chinese/channelRamp';
+import { isWordMastered, wordLevelState } from '@/lib/chinese/masteryModel';
 import { computeNextReview } from '@/lib/chinese/srsSchedule';
 import { ALL_SKILL_CHANNELS, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
 import { isTypedQuestion } from '@/lib/chinese/questionLabels';
@@ -49,8 +47,11 @@ export interface ProgressForMetrics {
 	meaningDueAt: Date | null;
 	soundDueAt: Date | null;
 	sentenceDueAt: Date | null;
+	meaningCorrect: number;
 	meaningTotal: number;
+	soundCorrect: number;
 	soundTotal: number;
+	sentenceCorrect: number;
 	sentenceTotal: number;
 	dueAt: Date;
 	introducedAt: Date | null;
@@ -82,12 +83,6 @@ const CHANNELS_BY_DUE_FIELD: Record<typeof CHANNEL_DUE_FIELDS[number], SkillChan
 	soundDueAt: 'sound',
 	sentenceDueAt: 'sentence',
 };
-
-const INTERVAL_FIELDS = [
-	'meaningIntervalIdx',
-	'soundIntervalIdx',
-	'sentenceIntervalIdx',
-] as const satisfies ReadonlyArray<keyof ProgressForMetrics>;
 
 const STATE_ORDER: CnWordProgressState[] = [
 	'new',
@@ -415,7 +410,15 @@ export function avgPerDay(dailySeries: DailyActivityRow[], days: number): number
 	return Math.round((total / days) * 10) / 10;
 }
 
-export function computeStateDistribution(progressList: ProgressForMetrics[]): StateDistribution {
+function hasFillExample(progress: ProgressForMetrics, wordsWithFillExamples?: ReadonlySet<string>): boolean {
+	if (progress.wordId && wordsWithFillExamples) return wordsWithFillExamples.has(progress.wordId);
+	return progress.sentenceTotal > 0;
+}
+
+export function computeStateDistribution(
+	progressList: ProgressForMetrics[],
+	wordsWithFillExamples?: ReadonlySet<string>,
+): StateDistribution {
 	const dist: StateDistribution = {
 		new: 0,
 		learning: 0,
@@ -427,22 +430,22 @@ export function computeStateDistribution(progressList: ProgressForMetrics[]): St
 	};
 
 	for (const p of progressList) {
-		if (STATE_ORDER.includes(p.state)) {
-			dist[p.state]++;
-		}
+		const state = wordLevelState(p, hasFillExample(p, wordsWithFillExamples));
+		if (STATE_ORDER.includes(state)) dist[state]++;
 	}
 
 	return dist;
 }
 
-export function computeMaturePct(progressList: ProgressForMetrics[]): number {
+export function computeMaturePct(
+	progressList: ProgressForMetrics[],
+	wordsWithFillExamples?: ReadonlySet<string>,
+): number {
 	if (!progressList.length) return 0;
-	const matureThreshold = CN_STATE_THRESHOLDS.familiar;
 	let mature = 0;
 
 	for (const p of progressList) {
-		const isMature = INTERVAL_FIELDS.some((field) => (p[field] as number) >= matureThreshold);
-		if (isMature) mature++;
+		if (isWordMastered(p, hasFillExample(p, wordsWithFillExamples))) mature++;
 	}
 
 	return Math.round((mature / progressList.length) * 100);

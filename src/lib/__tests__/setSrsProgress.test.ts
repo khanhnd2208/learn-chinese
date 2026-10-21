@@ -1,19 +1,23 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
-	computeSetChannelProgress,
+	formatIntroducedLabel,
+	formatMasteredLabel,
 	formatSetDueChannelsLabel,
-	maxSrsChannelsForSet,
+	masteredSharePct,
 } from '@/lib/chinese/setSrsProgress';
 
 describe('setSrsProgress', () => {
-	it('computes channel progress without going negative', () => {
-		expect(maxSrsChannelsForSet(31)).toBe(93);
-		expect(computeSetChannelProgress(31, 35)).toBe(62);
-		expect(computeSetChannelProgress(31, 93)).toBe(0);
-		expect(computeSetChannelProgress(31, 0)).toBe(100);
+	const snapshot = { introduced: 10, mastered: 4, total: 20, dueChannels: 3 };
+
+	it('uses mastered words as the progress share', () => {
+		expect(masteredSharePct(snapshot)).toBe(20);
+		expect(masteredSharePct({ ...snapshot, total: 0 })).toBe(0);
+		expect(masteredSharePct({ ...snapshot, mastered: 20 })).toBe(100);
 	});
 
-	it('formats due channel label', () => {
-		expect(formatSetDueChannelsLabel(35)).toBe('35 kênh cần ôn');
+	it('labels introduced words, mastered words, and due channels separately', () => {
+		expect(formatIntroducedLabel(snapshot)).toBe('Đã học 10/20 từ');
+		expect(formatMasteredLabel(snapshot)).toBe('Đã nắm 4/20');
+		expect(formatSetDueChannelsLabel(3)).toBe('3 kênh cần ôn');
 	});
 });
