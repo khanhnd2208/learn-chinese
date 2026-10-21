@@ -1,11 +1,98 @@
-import { describe, it, expect } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	computeNextReview,
 	countDueChannelsForProgressList,
 	nextStateFromInterval,
 	mergeSubmitItemsInMemory,
 	isChannelDue,
+	submitReviewResults,
 } from '@/services/chinese/cnSrsService';
+
+const answerLogHarness = vi.hoisted(() => ({
+	logs: [] as Array<Record<string, unknown>>,
+	examples: [] as Array<{ id: string; wordId: string; ownerUserId: string | null }>,
+}));
+
+vi.mock('@/services/chinese/cnSrsEnrollmentService', () => ({
+	resolveSrsPoolWordIds: vi.fn(async () => new Set(['w1'])),
+	ensureEnrollmentForActiveWords: vi.fn(),
+}));
+
+vi.mock('@/lib/prisma', () => ({
+	prisma: {
+		cnWord: {
+			count: vi.fn(async ({ where }: { where: { id: { in: string[] } } }) => where.id.in.length),
+			findMany: vi.fn(async () => [{
+				id: 'w1',
+				simplified: '学生',
+				pinyin: 'xuésheng',
+				hanViet: 'học sinh',
+				meaningVi: 'học sinh',
+				partOfSpeech: 'n',
+				ghiChu: '',
+				mnemonicVi: '',
+				examples: [],
+			}]),
+		},
+		cnUserWordOverride: {
+			findMany: vi.fn(async () => []),
+		},
+		cnExample: {
+			findMany: vi.fn(async ({ where }: { where: { id: { in: string[] }; OR: Array<{ ownerUserId: string | null }> } }) => {
+				const allowedOwners = new Set(where.OR.map((clause) => clause.ownerUserId));
+				return answerLogHarness.examples.filter((row) =>
+					where.id.in.includes(row.id) && allowedOwners.has(row.ownerUserId),
+				);
+			}),
+		},
+		cnAnswerLog: {
+			findMany: vi.fn(async () => []),
+			createMany: vi.fn(async ({ data }: { data: Array<Record<string, unknown>> }) => {
+				answerLogHarness.logs.push(...data);
+				return { count: data.length };
+			}),
+		},
+		cnWordProgress: {
+			findMany: vi.fn(async () => [{
+				id: 'p1',
+				userId: 'user-a',
+				wordId: 'w1',
+				state: 'familiar',
+				dueAt: new Date('2026-06-17T10:00:00Z'),
+				intervalIdx: 3,
+				lastReviewedAt: null,
+				meaningCorrect: 4,
+				meaningTotal: 4,
+				soundCorrect: 2,
+				soundTotal: 2,
+				sentenceCorrect: 1,
+				sentenceTotal: 2,
+				meaningDueAt: new Date('2026-06-17T10:00:00Z'),
+				meaningIntervalIdx: 3,
+				soundDueAt: new Date('2026-06-17T10:00:00Z'),
+				soundIntervalIdx: 2,
+				sentenceDueAt: new Date('2026-06-17T10:00:00Z'),
+				sentenceIntervalIdx: 3,
+				sentenceUnlockedAt: new Date('2026-06-17T10:00:00Z'),
+				lastExampleId: null,
+				meaningHeavyLapses: 0,
+				soundHeavyLapses: 0,
+				sentenceHeavyLapses: 0,
+				isStickingPoint: false,
+				meaningMarkedKnownAt: null,
+				soundMarkedKnownAt: null,
+				sentenceMarkedKnownAt: null,
+				sentenceIntroDayKey: null,
+				sentenceIntroDayCount: 0,
+				introducedAt: new Date('2026-06-01T00:00:00Z'),
+				createdAt: new Date('2026-06-01T00:00:00Z'),
+				updatedAt: new Date('2026-06-01T00:00:00Z'),
+			}]),
+			update: vi.fn(async () => ({})),
+		},
+		$transaction: vi.fn(async (ops: Promise<unknown>[]) => Promise.all(ops)),
+	},
+}));
 import {
 	addDays,
 	addMinutes,
@@ -345,5 +432,61 @@ describe('cnSrsService', () => {
 		expect(flagged.meaningIntervalIdx).toBe(2);
 		expect(flagged.meaningHeavyLapses).toBe(CN_STICKING_POINT_HEAVY_LAPSES);
 		expect(flagged.isStickingPoint).toBe(true);
+	});
+});
+
+describe('submitReviewResults answer log context', () => {
+	beforeEach(() => {
+		answerLogHarness.logs.length = 0;
+		answerLogHarness.examples.length = 0;
+	});
+
+	it('records the sentence interval from before the answer is applied', async () => {
+		answerLogHarness.examples.push({ id: 'ex-1', wordId: 'w1', ownerUserId: null });
+		await submitReviewResults('user-a', [{
+			wordId: 'w1',
+			questionType: 'fill_sentence_typed',
+			correct: true,
+			answer: '学生',
+			exampleId: 'ex-1',
+			clientAnswerId: 'log-sentence',
+			attempts: 1,
+		}]);
+		expect(answerLogHarness.logs[0]).toEqual(expect.objectContaining({
+			exampleId: 'ex-1',
+			channelIdxBefore: 3,
+			answer: '学生',
+			attempts: 1,
+		}));
+	});
+
+	it('drops an example id that belongs to a different word', async () => {
+		answerLogHarness.examples.push({ id: 'ex-other', wordId: 'w-other', ownerUserId: null });
+		await submitReviewResults('user-a', [{
+			wordId: 'w1',
+			questionType: 'fill_sentence',
+			correct: true,
+			answer: '学生',
+			exampleId: 'ex-other',
+			clientAnswerId: 'log-other-word',
+		}]);
+		expect(answerLogHarness.logs[0]?.exampleId).toBeNull();
+	});
+
+	it('does not store an example id for a meaning-channel answer', async () => {
+		answerLogHarness.examples.push({ id: 'ex-1', wordId: 'w1', ownerUserId: null });
+		await submitReviewResults('user-a', [{
+			wordId: 'w1',
+			questionType: 'hanzi_to_meaning',
+			correct: true,
+			answer: 'học sinh',
+			exampleId: 'ex-1',
+			clientAnswerId: 'log-meaning',
+		}]);
+		expect(answerLogHarness.logs[0]).toEqual(expect.objectContaining({
+			exampleId: null,
+			answer: null,
+			channelIdxBefore: 3,
+		}));
 	});
 });

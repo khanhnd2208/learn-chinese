@@ -8,6 +8,12 @@ import {
 	clampSrsIntervalIdx,
 } from '@/config/constants';
 import { prepareSubmitItems } from '@/lib/chinese/answerGrading';
+import {
+	loadVisibleExampleWordIds,
+	loggedAttempts,
+	loggedExampleId,
+	loggedSentenceAnswer,
+} from '@/services/chinese/cnAnswerLogContext';
 import { isChannelRampEligible } from '@/lib/chinese/channelRamp';
 import { buildDueCandidateWhere } from '@/lib/chinese/cnSrsDueQuery';
 import { isCoreQuestionType, questionChannel, type SkillChannel } from '@/lib/chinese/coreQuestionTypes';
@@ -349,6 +355,10 @@ export async function logPracticeAnswers(
 	const reconciled = await prepareSubmitItems(userId, items);
 	if (!reconciled.length) return { logged: 0 };
 
+	const exampleWordIds = await loadVisibleExampleWordIds(
+		userId,
+		reconciled.flatMap((item) => item.exampleId ? [item.exampleId] : []),
+	);
 	const answerLogs = reconciled.map((item) => ({
 		userId,
 		wordId: item.wordId,
@@ -359,6 +369,9 @@ export async function logPracticeAnswers(
 		hintUsed: item.hintUsed === true,
 		responseMs: item.responseMs,
 		clientAnswerId: item.clientAnswerId ?? null,
+		exampleId: loggedExampleId(item, exampleWordIds),
+		answer: loggedSentenceAnswer(item),
+		attempts: loggedAttempts(item),
 	}));
 
 	await prisma.cnAnswerLog.createMany({ data: answerLogs });
@@ -396,22 +409,30 @@ export async function submitReviewResults(
 		throw new AppError('Một hoặc nhiều từ chưa có tiến độ SRS', 400);
 	}
 
-	for (const item of fresh) {
-		const progress = progressMap.get(item.wordId)!;
-		applyPracticeItem(progress, item, now, false);
-	}
-
-	const answerLogs = fresh.map((item) => ({
+	const exampleWordIds = await loadVisibleExampleWordIds(
 		userId,
-		wordId: item.wordId,
-		questionType: item.questionType,
-		correct: item.correct,
-		errorType: resolveSubmitErrorType(item),
-		source: 'review' as const,
-		hintUsed: item.hintUsed === true,
-		responseMs: item.responseMs,
-		clientAnswerId: item.clientAnswerId ?? null,
-	}));
+		fresh.flatMap((item) => item.exampleId ? [item.exampleId] : []),
+	);
+	const answerLogs = fresh.map((item) => {
+		const progress = progressMap.get(item.wordId)!;
+		const channelIdxBefore = getChannelIntervalIdx(progress, questionChannel(item.questionType));
+		applyPracticeItem(progress, item, now, false);
+		return {
+			userId,
+			wordId: item.wordId,
+			questionType: item.questionType,
+			correct: item.correct,
+			errorType: resolveSubmitErrorType(item),
+			source: 'review' as const,
+			hintUsed: item.hintUsed === true,
+			responseMs: item.responseMs,
+			clientAnswerId: item.clientAnswerId ?? null,
+			exampleId: loggedExampleId(item, exampleWordIds),
+			answer: loggedSentenceAnswer(item),
+			attempts: loggedAttempts(item),
+			channelIdxBefore,
+		};
+	});
 
 	const updates: Array<{ wordId: string; data: Parameters<typeof prisma.cnWordProgress.update>[0]['data'] }> = [];
 	for (const [wordId, progress] of progressMap) {

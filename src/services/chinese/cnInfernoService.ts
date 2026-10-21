@@ -25,6 +25,12 @@ import { getWordCardsForSrsPool, getUserDistractorPool } from '@/services/chines
 import { loadWordViewsForUser } from '@/services/chinese/cnWordViewService';
 import { prepareSubmitItems } from '@/lib/chinese/answerGrading';
 import {
+	loadVisibleExampleWordIds,
+	loggedAttempts,
+	loggedExampleId,
+	loggedSentenceAnswer,
+} from '@/services/chinese/cnAnswerLogContext';
+import {
 	ensureEnrollmentForActiveWords,
 	resolveSrsPoolWordIds,
 } from '@/services/chinese/cnSrsEnrollmentService';
@@ -363,6 +369,10 @@ export async function submitInfernoResults(
 	const masteryDeltas: CnInfernoMasteryDeltaDTO[] = [];
 	const now = new Date();
 	const fresh = await prepareSubmitItems(userId, items);
+	const exampleWordIds = await loadVisibleExampleWordIds(
+		userId,
+		fresh.flatMap((item) => item.exampleId ? [item.exampleId] : []),
+	);
 
 	for (const item of fresh) {
 		const existing = await prisma.cnInfernoProgress.findUnique({
@@ -404,6 +414,11 @@ export async function submitInfernoResults(
 				correct: item.correct,
 				source: 'inferno',
 				clientAnswerId: item.clientAnswerId ?? null,
+				exampleId: loggedExampleId(item, exampleWordIds),
+				answer: loggedSentenceAnswer(item),
+				hintUsed: item.hintUsed === true,
+				responseMs: item.responseMs ?? null,
+				attempts: loggedAttempts(item),
 			},
 		});
 

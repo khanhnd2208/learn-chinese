@@ -19,6 +19,12 @@ import {
 } from '@/services/chinese/cnSrsEnrollmentService';
 import { progressToDTO } from '@/services/chinese/cnSrsService';
 import { prepareSubmitItems } from '@/lib/chinese/answerGrading';
+import {
+	loadVisibleExampleWordIds,
+	loggedAttempts,
+	loggedExampleId,
+	loggedSentenceAnswer,
+} from '@/services/chinese/cnAnswerLogContext';
 import type {
 	CnPracticeQuestionDTO,
 	CnPracticeSubmitItem,
@@ -263,6 +269,10 @@ export async function submitHhtResults(
 ): Promise<{ updated: number }> {
 	const now = new Date();
 	const fresh = await prepareSubmitItems(userId, items);
+	const exampleWordIds = await loadVisibleExampleWordIds(
+		userId,
+		fresh.flatMap((item) => item.exampleId ? [item.exampleId] : []),
+	);
 
 	for (const item of fresh) {
 		const existing = await prisma.cnHhtProgress.findUnique({
@@ -297,6 +307,11 @@ export async function submitHhtResults(
 				correct: item.correct,
 				source: 'hht',
 				clientAnswerId: item.clientAnswerId ?? null,
+				exampleId: loggedExampleId(item, exampleWordIds),
+				answer: loggedSentenceAnswer(item),
+				hintUsed: item.hintUsed === true,
+				responseMs: item.responseMs ?? null,
+				attempts: loggedAttempts(item),
 			},
 		});
 	}

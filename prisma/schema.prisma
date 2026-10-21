@@ -335,6 +335,11 @@ model CnAnswerLog {
   hintUsed     Boolean        @default(false)
   responseMs   Int?
   clientAnswerId String?
+  exampleId        String?
+  channelIdxBefore Int?
+  attempts         Int?
+  disputed         Boolean        @default(false)
+  answer           String?
   createdAt    DateTime       @default(now())
   word         CnWord         @relation(fields: [wordId], references: [id], onDelete: Cascade)
   @@unique([userId, clientAnswerId])
@@ -342,6 +347,7 @@ model CnAnswerLog {
   @@index([userId, wordId])
   @@index([userId, errorType])
   @@index([userId, source, createdAt])
+  @@index([exampleId, createdAt])
 }
 
 model CnInfernoProgress {
