@@ -68,6 +68,15 @@ export const CN_STICKING_POINT_HEAVY_LAPSES = 3;
 /** MCQ1/MCQ2 wrong answer: retry after this many minutes */
 export const CN_WRONG_FIRST_RETRY_MINUTES = 30;
 
+/** Số từ mới tối đa được giới thiệu mỗi ngày */
+export const CN_NEW_WORDS_PER_DAY = 10;
+/** Số từ trong một lượt Học từ mới */
+export const CN_LEARN_BATCH_SIZE = 5;
+/** Kênh Âm mở khi kênh Nghĩa đạt idx này */
+export const CN_UNLOCK_SOUND_AT_MEANING_IDX = 1;
+/** Kênh Câu mở khi kênh Nghĩa đạt idx này */
+export const CN_UNLOCK_SENTENCE_AT_MEANING_IDX = 2;
+
 export function clampSrsIntervalIdx(idx: number): number {
 	return Math.min(Math.max(idx, 0), CN_SRS_INTERVAL_DAYS.length - 1);
 }

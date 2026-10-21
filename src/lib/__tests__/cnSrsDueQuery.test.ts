@@ -39,6 +39,7 @@ function progressFixture(overrides: Partial<CnWordProgress> = {}): CnWordProgres
 		sentenceMarkedKnownAt: null,
 		sentenceIntroDayKey: null,
 		sentenceIntroDayCount: 0,
+		introducedAt: null,
 		createdAt: now,
 		updatedAt: now,
 		...overrides,

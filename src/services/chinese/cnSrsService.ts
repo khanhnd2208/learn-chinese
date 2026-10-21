@@ -467,6 +467,7 @@ function createEmptyProgress(userId: string, wordId: string, now: Date): CnWordP
 		sentenceMarkedKnownAt: null,
 		sentenceIntroDayKey: null,
 		sentenceIntroDayCount: 0,
+		introducedAt: null,
 		createdAt: now,
 		updatedAt: now,
 	};
@@ -576,6 +577,7 @@ function progressToWriteData(progress: CnWordProgress): Parameters<typeof prisma
 		sentenceMarkedKnownAt: progress.sentenceMarkedKnownAt,
 		sentenceIntroDayKey: progress.sentenceIntroDayKey,
 		sentenceIntroDayCount: progress.sentenceIntroDayCount,
+		introducedAt: progress.introducedAt,
 	};
 }
 

@@ -35,6 +35,7 @@ function baseProgress(overrides: Partial<CnWordProgress> = {}): CnWordProgress {
 		sentenceMarkedKnownAt: null,
 		sentenceIntroDayKey: null,
 		sentenceIntroDayCount: 0,
+		introducedAt: null,
 		createdAt: now,
 		updatedAt: now,
 		...overrides,

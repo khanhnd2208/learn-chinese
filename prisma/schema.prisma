@@ -269,6 +269,7 @@ model CnWordProgress {
   sentenceMarkedKnownAt  DateTime?
   sentenceIntroDayKey    String?
   sentenceIntroDayCount  Int @default(0)
+  introducedAt     DateTime?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
   word             CnWord              @relation(fields: [wordId], references: [id], onDelete: Cascade)
@@ -278,6 +279,7 @@ model CnWordProgress {
   @@index([userId, meaningDueAt])
   @@index([userId, soundDueAt])
   @@index([userId, sentenceDueAt])
+  @@index([userId, introducedAt])
 }
 
 model CnAnswerLog {
