@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/prisma';
+import { AppError } from '@/lib/appError';
 import { addDays, CN_EXAMPLE_STATS_WINDOW_DAYS } from '@/config/constants';
 import { normalizeGradedText } from '@/lib/chinese/answerGrade';
 import { scoreExample, type ExampleQualityScore } from '@/lib/chinese/exampleQuality';
+import { computeFillTarget } from '@/lib/chinese/fillExampleValidator';
 import { refreshStickingPoint, syncProgressRollup } from '@/services/chinese/cnSrsService';
 
 export interface ExampleQualityRow extends ExampleQualityScore {
@@ -212,4 +214,128 @@ export async function restoreSentenceLevels(input: {
 		}
 		return restored;
 	});
+}
+
+export interface FlaggedExampleRow extends ExampleQualityRow {
+	noFillExamplesLeft: boolean;
+}
+
+function usableFillWhere(wordId: string | { in: string[] }) {
+	return {
+		wordId,
+		ownerUserId: null,
+		naturalnessStatus: { in: ['auto', 'verified'] },
+		targetWordStart: { not: null },
+		targetWordEnd: { not: null },
+	};
+}
+
+export async function listFlaggedExamples(now = new Date()): Promise<FlaggedExampleRow[]> {
+	const rows = (await computeExampleQuality(now)).filter((row) => row.flagged);
+	rows.sort((a, b) => (b.attempts * (1 - b.cleanRate)) - (a.attempts * (1 - a.cleanRate)));
+	const wordIds = [...new Set(rows.map((row) => row.wordId))];
+	if (!wordIds.length) return [];
+	const usable = await prisma.cnExample.findMany({
+		where: usableFillWhere({ in: wordIds }),
+		select: { wordId: true },
+	});
+	const wordsWithFill = new Set(usable.map((row) => row.wordId));
+	return rows.map((row) => ({ ...row, noFillExamplesLeft: !wordsWithFill.has(row.wordId) }));
+}
+
+function appendAcceptedAnswers(existing: string[], incoming: string[]): string[] {
+	const next = [...existing];
+	for (const answer of incoming) {
+		const normalized = normalizeGradedText(answer);
+		if (!normalized) continue;
+		if (next.some((item) => normalizeGradedText(item) === normalized)) continue;
+		next.push(normalized);
+	}
+	return next;
+}
+
+async function wordStillHasFillExample(wordId: string): Promise<boolean> {
+	const count = await prisma.cnExample.count({
+		where: usableFillWhere(wordId),
+	});
+	return count > 0;
+}
+
+export async function applyExampleQualityAction(input: {
+	exampleId: string;
+	action: 'retire' | 'dismiss' | 'edit' | 'accept-answers';
+	hanzi?: string;
+	pinyin?: string;
+	meaningVi?: string;
+	answers?: string[];
+	now?: Date;
+}): Promise<{ restored: number; noFillExamplesLeft: boolean }> {
+	const now = input.now ?? new Date();
+	const example = await prisma.cnExample.findUnique({
+		where: { id: input.exampleId },
+		select: {
+			id: true,
+			wordId: true,
+			meaningViTemplate: true,
+			acceptedAnswers: true,
+			word: { select: { simplified: true } },
+		},
+	});
+	if (!example) throw new AppError('Không tìm thấy câu', 404);
+
+	if (input.action === 'dismiss') {
+		await prisma.cnExample.update({
+			where: { id: example.id },
+			data: { naturalnessStatus: 'verified', qualityReviewedAt: now },
+		});
+		return { restored: 0, noFillExamplesLeft: false };
+	}
+
+	if (input.action === 'retire') {
+		await prisma.cnExample.update({
+			where: { id: example.id },
+			data: { naturalnessStatus: 'flagged' },
+		});
+		const restored = await restoreSentenceLevels({ exampleId: example.id, wordId: example.wordId, now });
+		return { restored, noFillExamplesLeft: !(await wordStillHasFillExample(example.wordId)) };
+	}
+
+	if (input.action === 'edit') {
+		const hanzi = input.hanzi?.trim() ?? '';
+		const pinyin = input.pinyin?.trim() ?? '';
+		const meaningVi = input.meaningVi?.trim() ?? '';
+		if (!hanzi || !pinyin || !meaningVi) throw new AppError('Thiếu câu, pinyin hoặc nghĩa', 400);
+		const offsets = computeFillTarget(hanzi, example.word.simplified);
+		if (!offsets) throw new AppError('Câu phải chứa đúng một lần từ đích', 400);
+		await prisma.cnExample.update({
+			where: { id: example.id },
+			data: {
+				hanzi,
+				pinyin,
+				meaningVi,
+				meaningViTemplate: meaningVi.includes('__') ? example.meaningViTemplate : '',
+				targetWordStart: offsets.start,
+				targetWordEnd: offsets.end,
+				naturalnessStatus: 'verified',
+				qualityReviewedAt: now,
+			},
+		});
+		const restored = await restoreSentenceLevels({ exampleId: example.id, wordId: example.wordId, now });
+		return { restored, noFillExamplesLeft: !(await wordStillHasFillExample(example.wordId)) };
+	}
+
+	const incoming = (input.answers ?? []).map((answer) => answer.trim()).filter(Boolean);
+	if (!incoming.length) throw new AppError('Thiếu đáp án cần chấp nhận', 400);
+	const acceptedAnswers = appendAcceptedAnswers(example.acceptedAnswers, incoming);
+	await prisma.cnExample.update({
+		where: { id: example.id },
+		data: { acceptedAnswers, qualityReviewedAt: now },
+	});
+	const restored = await restoreSentenceLevels({
+		exampleId: example.id,
+		wordId: example.wordId,
+		now,
+		acceptedAnswers: incoming,
+	});
+	return { restored, noFillExamplesLeft: false };
 }

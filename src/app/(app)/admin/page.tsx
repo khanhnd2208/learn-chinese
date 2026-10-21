@@ -58,6 +58,9 @@ export default function AdminChinesePage() {
 					<Link href="/admin/disputes" className="btn-secondary">
 						Kháng nghị
 					</Link>
+					<Link href="/admin/example-quality" className="btn-secondary">
+						Câu cần sửa
+					</Link>
 					<Link href="/admin/analytics" className="btn-secondary">
 						Theo dõi luyện tập
 					</Link>

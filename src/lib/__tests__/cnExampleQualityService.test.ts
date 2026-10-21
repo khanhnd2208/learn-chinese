@@ -18,6 +18,8 @@ const store = vi.hoisted(() => ({
 	progress: null as CnWordProgress | null,
 	progressUpdates: [] as Array<Record<string, unknown>>,
 	disputedLogIds: [] as string[],
+	exampleUpdates: [] as Array<Record<string, unknown>>,
+	fillExampleCount: 0,
 }));
 
 vi.mock('@/lib/prisma', () => ({
@@ -40,10 +42,24 @@ vi.mock('@/lib/prisma', () => ({
 			const { prisma } = await import('@/lib/prisma');
 			return run(prisma);
 		}),
+		cnExample: {
+			findUnique: vi.fn(async () => ({
+				id: 'ex-1',
+				wordId: 'w1',
+				meaningViTemplate: 'tôi __',
+				acceptedAnswers: [] as string[],
+				word: { simplified: '吃' },
+			})),
+			update: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+				store.exampleUpdates.push(data);
+				return data;
+			}),
+			count: vi.fn(async () => store.fillExampleCount),
+		},
 	},
 }));
 
-import { restoreSentenceLevels, selectLogsToRestore, type SentenceRestoreLog } from '@/services/chinese/cnExampleQualityService';
+import { applyExampleQualityAction, restoreSentenceLevels, selectLogsToRestore, type SentenceRestoreLog } from '@/services/chinese/cnExampleQualityService';
 
 const now = new Date('2026-10-21T10:00:00Z');
 
@@ -107,6 +123,8 @@ beforeEach(() => {
 	store.progress = null;
 	store.progressUpdates = [];
 	store.disputedLogIds = [];
+	store.exampleUpdates = [];
+	store.fillExampleCount = 0;
 });
 
 describe('selectLogsToRestore', () => {
@@ -150,5 +168,45 @@ describe('restoreSentenceLevels', () => {
 		expect(due.getTime()).toBeLessThan(new Date('2026-11-01T10:00:00Z').getTime());
 		expect(due.getTime()).toBeGreaterThan(now.getTime());
 		expect(store.disputedLogIds).toEqual(['log-1']);
+	});
+});
+
+describe('applyExampleQualityAction', () => {
+	it('retires the sentence and restores the learner who missed it', async () => {
+		store.logs = [log({ answer: '喝', channelIdxBefore: 3 })];
+		store.progress = progress(2);
+		const result = await applyExampleQualityAction({ exampleId: 'ex-1', action: 'retire', now });
+		expect(store.exampleUpdates[0]).toMatchObject({ naturalnessStatus: 'flagged' });
+		expect(result.restored).toBe(1);
+		expect(result.noFillExamplesLeft).toBe(true);
+	});
+
+	it('rejects an edit that does not contain the target word once', async () => {
+		await expect(applyExampleQualityAction({
+			exampleId: 'ex-1',
+			action: 'edit',
+			hanzi: '我喝茶',
+			pinyin: 'wǒ hē chá',
+			meaningVi: 'Tôi uống trà',
+			now,
+		})).rejects.toThrow('Câu phải chứa đúng một lần từ đích');
+	});
+
+	it('accepts the listed answers and only restores those misses', async () => {
+		store.logs = [
+			log({ id: 'match', answer: '已' }),
+			log({ id: 'other', userId: 'u2', answer: '也' }),
+		];
+		store.progress = progress(2);
+		store.fillExampleCount = 1;
+		const result = await applyExampleQualityAction({
+			exampleId: 'ex-1',
+			action: 'accept-answers',
+			answers: ['已'],
+			now,
+		});
+		expect(store.exampleUpdates[0]).toMatchObject({ acceptedAnswers: ['已'] });
+		expect(result.restored).toBe(1);
+		expect(store.disputedLogIds).toEqual(['match']);
 	});
 });
