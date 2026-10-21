@@ -70,6 +70,8 @@ export const CN_WRONG_FIRST_RETRY_MINUTES = 30;
 
 /** Số từ mới tối đa được giới thiệu mỗi ngày */
 export const CN_NEW_WORDS_PER_DAY = 10;
+/** How many "my answer is also right" reports one learner can file per local day. */
+export const CN_DISPUTES_PER_DAY = 10;
 /** Số từ trong một lượt Học từ mới */
 export const CN_LEARN_BATCH_SIZE = 5;
 /** Kênh Âm mở khi kênh Nghĩa đạt idx này */

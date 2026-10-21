@@ -197,12 +197,33 @@ model CnExample {
   unknownWordEstimate Int?
   source              String       @default("admin")
   ownerUserId         String?
+  acceptedAnswers     String[]     @default([])
+  qualityReviewedAt   DateTime?
   word                CnWord       @relation(fields: [wordId], references: [id], onDelete: Cascade)
+  disputes            CnExampleDispute[]
   sense               CnWordSense? @relation(fields: [senseId], references: [id], onDelete: SetNull)
   @@index([wordId])
   @@index([senseId])
   @@index([wordId, naturalnessStatus])
   @@index([wordId, ownerUserId])
+}
+
+model CnExampleDispute {
+  id             String    @id @default(cuid())
+  exampleId      String
+  wordId         String
+  userId         String
+  answer         String
+  clientAnswerId String?
+  status         String    @default("pending")
+  resolvedById   String?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  example        CnExample @relation(fields: [exampleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, clientAnswerId])
+  @@index([status, createdAt])
+  @@index([exampleId, status])
 }
 
 model CnUserWordOverride {
