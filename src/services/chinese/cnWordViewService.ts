@@ -2,7 +2,7 @@
    cnWordViewService.ts — Canonical word plus one learner's overlay
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
-import type { CnUserWordOverride, CnWord } from '@prisma/client';
+import type { Prisma, CnUserWordOverride, CnWord } from '@prisma/client';
 
 export const WORD_OVERRIDE_FIELDS = [
 	'pinyin',
@@ -58,6 +58,83 @@ export function examplesForUser<T extends { ownerUserId: string | null }>(
 	const own = examples.filter((example) => example.ownerUserId === userId);
 	if (own.length > 0) return own;
 	return examples.filter((example) => example.ownerUserId == null);
+}
+
+export interface UserWordExampleWrite {
+	hanzi: string;
+	pinyin: string;
+	meaningVi: string;
+	meaningViTemplate?: string;
+	naturalnessStatus?: string;
+	targetWordStart?: number | null;
+	targetWordEnd?: number | null;
+}
+
+export interface UserWordWrite {
+	simplified: string;
+	pinyin?: string;
+	hanViet?: string;
+	meaningVi?: string;
+	partOfSpeech?: string;
+	ghiChu?: string;
+	mnemonicVi?: string;
+	examples?: UserWordExampleWrite[];
+}
+
+type WordOverlayClient = Pick<Prisma.TransactionClient, 'cnWord' | 'cnUserWordOverride' | 'cnExample'>;
+
+/** Writes a learner overlay. Never updates an existing canonical word or its examples. */
+export async function writeUserWordOverlay(
+	db: WordOverlayClient,
+	userId: string,
+	input: UserWordWrite,
+): Promise<{ id: string }> {
+	const existing = await db.cnWord.findUnique({ where: { simplified: input.simplified } });
+	const word = existing ?? await db.cnWord.create({
+		data: {
+			simplified: input.simplified,
+			pinyin: input.pinyin ?? '',
+			hanViet: input.hanViet ?? '',
+			meaningVi: input.meaningVi ?? '',
+			partOfSpeech: input.partOfSpeech ?? '',
+			ghiChu: input.ghiChu ?? '',
+			mnemonicVi: input.mnemonicVi ?? '',
+			status: 'published',
+			createdByUserId: userId,
+		},
+	});
+
+	const patch: WordOverridePatch = {};
+	for (const field of WORD_OVERRIDE_FIELDS) {
+		const value = input[field];
+		if (value !== undefined) patch[field] = value;
+	}
+	await db.cnUserWordOverride.upsert({
+		where: { userId_wordId: { userId, wordId: word.id } },
+		create: { userId, wordId: word.id, ...patch },
+		update: patch,
+	});
+
+	if (input.examples) {
+		await db.cnExample.deleteMany({ where: { wordId: word.id, ownerUserId: userId } });
+		if (input.examples.length) {
+			await db.cnExample.createMany({
+				data: input.examples.map((example) => ({
+					wordId: word.id,
+					hanzi: example.hanzi,
+					pinyin: example.pinyin,
+					meaningVi: example.meaningVi,
+					meaningViTemplate: example.meaningViTemplate ?? '',
+					naturalnessStatus: example.naturalnessStatus ?? 'auto',
+					targetWordStart: example.targetWordStart ?? null,
+					targetWordEnd: example.targetWordEnd ?? null,
+					ownerUserId: userId,
+				})),
+			});
+		}
+	}
+
+	return { id: word.id };
 }
 
 export async function loadWordViewsForUser(

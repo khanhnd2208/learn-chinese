@@ -12,6 +12,7 @@ import {
 } from '@/lib/excelWorkbook';
 import { normalizeTerm } from '@/lib/chinese/hanziUtils';
 import { enrollWordsInSrs } from '@/services/chinese/cnSrsEnrollmentService';
+import { writeUserWordOverlay } from '@/services/chinese/cnWordViewService';
 import { CORE_QUESTION_TYPE_SET } from '@/lib/chinese/coreQuestionTypes';
 import {
 	MIN_FILL_EXAMPLES_PER_WORD,
@@ -671,13 +672,30 @@ function filterValidTuVungRows(parsedRows: ParsedTuVungRow[]): ParsedTuVungRow[]
 	);
 }
 
+type ImportActor = { kind: 'admin' } | { kind: 'user'; userId: string };
+
 async function upsertTuVungWordsAndExamples(
 	tx: Prisma.TransactionClient,
 	parsedRows: ParsedTuVungRow[],
+	actor: ImportActor,
 ): Promise<Map<string, string>> {
 	const wordIdBySimplified = new Map<string, string>();
 
 	for (const row of parsedRows) {
+		if (actor.kind === 'user') {
+			const word = await writeUserWordOverlay(tx, actor.userId, {
+				simplified: row.simplified,
+				pinyin: row.pinyin,
+				hanViet: row.hanViet,
+				meaningVi: row.meaningVi,
+				partOfSpeech: row.partOfSpeech,
+				ghiChu: row.ghiChu,
+				examples: row.examples,
+			});
+			wordIdBySimplified.set(row.simplified, word.id);
+			continue;
+		}
+
 		const word = await tx.cnWord.upsert({
 			where: { simplified: row.simplified },
 			create: {
@@ -700,7 +718,7 @@ async function upsertTuVungWordsAndExamples(
 		});
 		wordIdBySimplified.set(row.simplified, word.id);
 
-		await tx.cnExample.deleteMany({ where: { wordId: word.id } });
+		await tx.cnExample.deleteMany({ where: { wordId: word.id, ownerUserId: null } });
 		if (row.examples.length) {
 			await tx.cnExample.createMany({
 				data: row.examples.map((ex) => ({
@@ -712,6 +730,7 @@ async function upsertTuVungWordsAndExamples(
 					naturalnessStatus: ex.naturalnessStatus,
 					targetWordStart: ex.targetWordStart,
 					targetWordEnd: ex.targetWordEnd,
+					ownerUserId: null,
 				})),
 			});
 		}
@@ -737,7 +756,7 @@ async function importTuVungWorkbook(
 	const createdSetIds: string[] = [];
 
 	await prisma.$transaction(async (tx) => {
-		const wordIdBySimplified = await upsertTuVungWordsAndExamples(tx, parsedRows);
+		const wordIdBySimplified = await upsertTuVungWordsAndExamples(tx, parsedRows, { kind: 'user', userId });
 
 		const rowsBySet = new Map<string, ParsedTuVungRow[]>();
 		for (const row of parsedRows) {
@@ -1083,7 +1102,7 @@ export async function importTuVungIntoSet(
 	let addedCount = 0;
 
 	await prisma.$transaction(async (tx) => {
-		const wordIdBySimplified = await upsertTuVungWordsAndExamples(tx, parsedRows);
+		const wordIdBySimplified = await upsertTuVungWordsAndExamples(tx, parsedRows, { kind: 'user', userId });
 		const seenTerms = new Set(existingTerms);
 
 		for (const row of parsedRows) {

@@ -2,7 +2,7 @@
    cnContentService.ts — Chinese content lookup & word cards
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
-import { applyOverride, examplesForUser } from '@/services/chinese/cnWordViewService';
+import { applyOverride, examplesForUser, writeUserWordOverlay } from '@/services/chinese/cnWordViewService';
 import { splitHanzi } from '@/lib/chinese/hanziUtils';
 import { assessLookupReadiness } from '@/lib/chinese/practiceReadiness';
 import { enrichExampleDtoForFill } from '@/lib/chinese/verifiedExample';
@@ -439,11 +439,17 @@ export async function updateWordFields(
 
 	if (!Object.keys(data).length) return null;
 
-	const word = await prisma.cnWord.update({
-		where: { id: wordId },
-		data,
+	const existing = await prisma.cnWord.findUnique({ where: { id: wordId } });
+	if (!existing) return null;
+
+	await writeUserWordOverlay(prisma, userId, {
+		simplified: existing.simplified,
+		...data,
 	});
-	return wordToDTO(word);
+	const override = await prisma.cnUserWordOverride.findUnique({
+		where: { userId_wordId: { userId, wordId } },
+	});
+	return wordToDTO(applyOverride(existing, override));
 }
 
 /** Vocabulary pool for MCQ distractors — user's sets + HSK fallback */

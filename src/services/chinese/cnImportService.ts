@@ -107,7 +107,7 @@ export async function publishWordRows(
 		}
 
 		if (row.exampleHanzi || row.exampleSentences) {
-			await db.cnExample.deleteMany({ where: { wordId: word.id } });
+			await db.cnExample.deleteMany({ where: { wordId: word.id, ownerUserId: null } });
 			const examples = row.exampleSentences
 				? parsePatternSamples(row.exampleSentences)
 				: row.exampleHanzi
@@ -126,6 +126,7 @@ export async function publishWordRows(
 							naturalnessStatus: fillMeta.naturalnessStatus,
 							targetWordStart: fillMeta.targetWordStart,
 							targetWordEnd: fillMeta.targetWordEnd,
+							ownerUserId: null,
 						};
 					}),
 				});

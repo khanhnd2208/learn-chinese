@@ -260,7 +260,7 @@ describe('previewUserWorkbook — legacy format', () => {
 });
 
 describe('importUserWorkbook — tu_vung format', () => {
-	it('upserts words and creates set with suffix on collision', async () => {
+	it('stores the learner gloss beside the shared word and suffixes a duplicate set title', async () => {
 		const file = await tuVungFile([
 			withFiveExamples({
 				bo_tu: 'Bài 1',
@@ -274,17 +274,26 @@ describe('importUserWorkbook — tu_vung format', () => {
 		mockWordSetFindMany.mockResolvedValue([{ title: 'Bài 1' }] as never);
 
 		const createdSets: Array<{ title: string }> = [];
-		const upsertCalls: Array<{ create: Record<string, unknown>; update: Record<string, unknown> }> = [];
+		const overlayWrites: Array<{ create: Record<string, unknown>; update: Record<string, unknown> }> = [];
+		const deletedExampleFilters: Array<Record<string, unknown>> = [];
 		mockTransaction.mockImplementation(async (callback) => {
 			const tx = {
 				cnWord: {
+					findUnique: vi.fn().mockResolvedValue({ id: 'word-1', simplified: '学生' }),
+					create: vi.fn(),
+					upsert: vi.fn(),
+				},
+				cnUserWordOverride: {
 					upsert: vi.fn().mockImplementation((args) => {
-						upsertCalls.push(args);
-						return { id: 'word-1', simplified: '学生' };
+						overlayWrites.push(args);
+						return args.create;
 					}),
 				},
 				cnExample: {
-					deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+					deleteMany: vi.fn().mockImplementation((args) => {
+						deletedExampleFilters.push(args.where);
+						return { count: 0 };
+					}),
 					createMany: vi.fn().mockResolvedValue({ count: 5 }),
 				},
 				cnWordSet: {
@@ -303,7 +312,8 @@ describe('importUserWorkbook — tu_vung format', () => {
 		const result = await importUserWorkbook('user-1', file, false);
 		expect(result.errors).toHaveLength(0);
 		expect(createdSets[0]?.title).toBe('Bài 1 (import 2)');
-		expect(upsertCalls[0]?.create.ghiChu).toBe('Thường dùng cho học sinh phổ thông hoặc sinh viên.');
-		expect(upsertCalls[0]?.update.ghiChu).toBe('Thường dùng cho học sinh phổ thông hoặc sinh viên.');
+		expect(overlayWrites[0]?.create.ghiChu).toBe('Thường dùng cho học sinh phổ thông hoặc sinh viên.');
+		expect(overlayWrites[0]?.update.ghiChu).toBe('Thường dùng cho học sinh phổ thông hoặc sinh viên.');
+		expect(deletedExampleFilters[0]).toEqual({ wordId: 'word-1', ownerUserId: 'user-1' });
 	});
 });
