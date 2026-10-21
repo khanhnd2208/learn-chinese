@@ -232,7 +232,7 @@ export async function buildContentExportWorkbook(): Promise<Buffer> {
 		prisma.cnWord.findMany({
 			include: {
 				chars: { include: { hanzi: true }, orderBy: { position: 'asc' } },
-				examples: { orderBy: { id: 'asc' } },
+				examples: { where: { ownerUserId: null }, orderBy: { id: 'asc' } },
 				patterns: { orderBy: { id: 'asc' } },
 			},
 			orderBy: { simplified: 'asc' },

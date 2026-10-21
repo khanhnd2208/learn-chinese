@@ -5,6 +5,12 @@ vi.mock('@/lib/prisma', () => ({
 		cnWordSet: {
 			findFirst: vi.fn(),
 		},
+		cnWord: {
+			findMany: vi.fn(),
+		},
+		cnUserWordOverride: {
+			findMany: vi.fn(),
+		},
 	},
 }));
 
@@ -12,9 +18,15 @@ import { prisma } from '@/lib/prisma';
 import { getFlashcardDeck } from '@/services/chinese/cnFlashcardService';
 
 const mockFindFirst = vi.mocked(prisma.cnWordSet.findFirst);
+const mockWordFindMany = vi.mocked(prisma.cnWord.findMany);
+const mockOverrideFindMany = vi.mocked(prisma.cnUserWordOverride.findMany);
 
 beforeEach(() => {
 	mockFindFirst.mockReset();
+	mockWordFindMany.mockReset();
+	mockOverrideFindMany.mockReset();
+	mockWordFindMany.mockResolvedValue([] as never);
+	mockOverrideFindMany.mockResolvedValue([] as never);
 });
 
 describe('getFlashcardDeck', () => {

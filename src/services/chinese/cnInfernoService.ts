@@ -22,6 +22,7 @@ import {
 	INFERNO_WRONG_PCT,
 } from '@/config/constants';
 import { getWordCardsForSrsPool, getUserDistractorPool } from '@/services/chinese/cnContentService';
+import { loadWordViewsForUser } from '@/services/chinese/cnWordViewService';
 import {
 	ensureEnrollmentForActiveWords,
 	resolveSrsPoolWordIds,
@@ -461,11 +462,12 @@ export async function getInfernoStats(userId: string): Promise<CnInfernoStatsDTO
 	const activeWordIds = await resolveSrsPoolWordIds(userId);
 	const wordIds = [...activeWordIds];
 
-	const [infernoRows] = await Promise.all([
+	const [infernoRows, views] = await Promise.all([
 		prisma.cnInfernoProgress.findMany({
 			where: { userId, wordId: { in: wordIds } },
 			include: { word: { select: { simplified: true, meaningVi: true } } },
 		}),
+		loadWordViewsForUser(userId, wordIds),
 	]);
 
 	const publishedCount = wordIds.length;
@@ -527,7 +529,7 @@ export async function getInfernoStats(userId: string): Promise<CnInfernoStatsDTO
 	const toRank = (row: typeof infernoRows[number]): CnInfernoWordRankDTO => ({
 		wordId: row.wordId,
 		simplified: row.word.simplified,
-		meaningVi: row.word.meaningVi,
+		meaningVi: views.get(row.wordId)?.meaningVi ?? row.word.meaningVi,
 		masteryScore: row.masteryScore,
 	});
 

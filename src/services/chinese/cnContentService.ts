@@ -2,6 +2,7 @@
    cnContentService.ts — Chinese content lookup & word cards
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
+import { applyOverride, examplesForUser } from '@/services/chinese/cnWordViewService';
 import { splitHanzi } from '@/lib/chinese/hanziUtils';
 import { assessLookupReadiness } from '@/lib/chinese/practiceReadiness';
 import { enrichExampleDtoForFill } from '@/lib/chinese/verifiedExample';
@@ -89,7 +90,7 @@ export async function lookupTerms(terms: string[]): Promise<CnLookupResultDTO[]>
 		where: { simplified: { in: normalized }, status: 'published' },
 		include: {
 			chars: { include: { hanzi: true }, orderBy: { position: 'asc' } },
-			examples: { take: 1, orderBy: { id: 'asc' } },
+			examples: { where: { ownerUserId: null }, take: 1, orderBy: { id: 'asc' } },
 			patterns: { take: 1, orderBy: { id: 'asc' } },
 		},
 	});
@@ -180,6 +181,7 @@ type WordWithCardInclude = CnWord & {
 		targetWordStart: number | null;
 		targetWordEnd: number | null;
 		naturalnessStatus: string;
+		ownerUserId: string | null;
 	}>;
 	patterns: CnSentencePattern[];
 	chars: Array<{ position: number; hanzi: CnHanzi; hanziId: string }>;
@@ -283,20 +285,30 @@ export async function getWordCardsByIds(
 	if (!allWords.length) return map;
 
 	const allWordIds = allWords.map((w) => w.id);
-	const [relatedPool, progressRows] = await Promise.all([
+	const [relatedPool, progressRows, overrides] = await Promise.all([
 		loadRelatedWordsPool(allWordIds),
 		userId
 			? prisma.cnWordProgress.findMany({
 				where: { userId, wordId: { in: allWordIds } },
 			})
 			: Promise.resolve([]),
+		userId
+			? prisma.cnUserWordOverride.findMany({
+				where: { userId, wordId: { in: allWordIds } },
+			})
+			: Promise.resolve([]),
 	]);
 	const progressByWordId = new Map(progressRows.map((p) => [p.wordId, p]));
+	const overrideByWordId = new Map(overrides.map((row) => [row.wordId, row]));
 
 	for (const word of allWords) {
 		const related = pickRelatedWords(word, relatedPool);
 		const progressRow = progressByWordId.get(word.id) ?? null;
-		map.set(word.id, wordCardDTOFromWord(word, related, progressRow));
+		const merged = applyOverride(word, overrideByWordId.get(word.id) ?? null);
+		const examples = userId
+			? examplesForUser(word.examples, userId)
+			: word.examples.filter((example) => example.ownerUserId == null);
+		map.set(word.id, wordCardDTOFromWord({ ...merged, examples }, related, progressRow));
 	}
 	return map;
 }

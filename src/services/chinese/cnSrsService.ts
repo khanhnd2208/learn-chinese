@@ -237,7 +237,7 @@ export function countDueChannelsForProgressList(
 	return count;
 }
 
-export async function loadWordIdsWithFillExamples(wordIds: string[]): Promise<Set<string>> {
+export async function loadWordIdsWithFillExamples(wordIds: string[], userId?: string): Promise<Set<string>> {
 	if (!wordIds.length) return new Set();
 	const rows = await prisma.cnExample.findMany({
 		where: {
@@ -245,11 +245,32 @@ export async function loadWordIdsWithFillExamples(wordIds: string[]): Promise<Se
 			naturalnessStatus: { in: ['auto', 'verified'] },
 			targetWordStart: { not: null },
 			targetWordEnd: { not: null },
+			...(userId
+				? { OR: [{ ownerUserId: null }, { ownerUserId: userId }] }
+				: { ownerUserId: null }),
 		},
-		select: { wordId: true },
-		distinct: ['wordId'],
+		select: { wordId: true, ownerUserId: true },
 	});
-	return new Set(rows.map((r) => r.wordId));
+	if (!userId) return new Set(rows.map((row) => row.wordId));
+
+	const replaced = new Set(
+		(await prisma.cnExample.findMany({
+			where: { wordId: { in: wordIds }, ownerUserId: userId },
+			select: { wordId: true },
+			distinct: ['wordId'],
+		})).map((row) => row.wordId),
+	);
+	const ownFill = new Set(rows.filter((row) => row.ownerUserId === userId).map((row) => row.wordId));
+	const canonicalFill = new Set(rows.filter((row) => row.ownerUserId == null).map((row) => row.wordId));
+	const result = new Set<string>();
+	for (const wordId of wordIds) {
+		if (replaced.has(wordId)) {
+			if (ownFill.has(wordId)) result.add(wordId);
+		} else if (canonicalFill.has(wordId)) {
+			result.add(wordId);
+		}
+	}
+	return result;
 }
 
 async function fetchDueCandidateProgress(
@@ -288,7 +309,7 @@ export async function getDueChannels(userId: string, limit = 50): Promise<DueCha
 	const wordIds = [...new Set(all.map((p) => p.wordId))];
 	const [practiceAdjustments, wordsWithFillExamples] = await Promise.all([
 		loadPracticePriorityAdjustments(userId, wordIds),
-		loadWordIdsWithFillExamples(wordIds),
+		loadWordIdsWithFillExamples(wordIds, userId),
 	]);
 
 	const entries = all.flatMap((p) =>
@@ -615,7 +636,7 @@ export async function countDueChannels(userId: string): Promise<number> {
 	const now = new Date();
 	const [all, wordsWithFillExamples] = await Promise.all([
 		fetchDueCandidateProgress(userId, wordIdList, now),
-		loadWordIdsWithFillExamples(wordIdList),
+		loadWordIdsWithFillExamples(wordIdList, userId),
 	]);
 	return countDueChannelsForProgressList(all, now, wordsWithFillExamples);
 }

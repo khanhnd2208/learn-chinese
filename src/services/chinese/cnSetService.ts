@@ -13,6 +13,7 @@ import {
 } from '@/services/chinese/cnSrsEnrollmentService';
 import { countDueChannelsForProgressList, fetchProgressDueCandidates, loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
 import { isWordMastered } from '@/lib/chinese/masteryModel';
+import { loadWordViewsForUser } from '@/services/chinese/cnWordViewService';
 import { normalizeTerm, uniqueTerms } from '@/lib/chinese/hanziUtils';
 import type {
 	CnCoverageReportDTO,
@@ -93,7 +94,7 @@ async function countDueAndWeak(userId: string, wordIds: string[], srsActive: boo
 			where: { userId, wordId: { in: wordIds } },
 			select: LEVEL_SELECT,
 		}),
-		loadWordIdsWithFillExamples(wordIds),
+		loadWordIdsWithFillExamples(wordIds, userId),
 	]);
 	const dueCount = countDueChannelsForProgressList(candidates, now, wordsWithFillExamples);
 	const weakCount = allProgress.filter((p) => p.state === 'weak' || p.state === 'learning').length;
@@ -124,7 +125,7 @@ async function countDueAndWeakForSets(
 			where: { userId, wordId: { in: allWordIds } },
 			select: LEVEL_SELECT,
 		}),
-		loadWordIdsWithFillExamples(allWordIds),
+		loadWordIdsWithFillExamples(allWordIds, userId),
 	]);
 
 	const dueCountByWordId = new Map<string, number>();
@@ -209,13 +210,15 @@ export async function getUserSet(userId: string, setId: string): Promise<CnWordS
 
 	const wordIds = set.items.map((i) => i.wordId).filter((id): id is string => !!id);
 	const stats = await countDueAndWeak(userId, wordIds, set.srsActive);
-	const progressMap = wordIds.length
-		? new Map(
-				(await prisma.cnWordProgress.findMany({
-					where: { userId, wordId: { in: wordIds } },
-				})).map((p) => [p.wordId, p]),
-			)
-		: new Map<string, CnWordProgress>();
+	const [progressRows, views] = wordIds.length
+		? await Promise.all([
+			prisma.cnWordProgress.findMany({
+				where: { userId, wordId: { in: wordIds } },
+			}),
+			loadWordViewsForUser(userId, wordIds),
+		])
+		: [[], new Map()] as const;
+	const progressMap = new Map(progressRows.map((p) => [p.wordId, p]));
 
 	return {
 		id: set.id,
@@ -235,7 +238,10 @@ export async function getUserSet(userId: string, setId: string): Promise<CnWordS
 			id: item.id,
 			rawTerm: item.rawTerm,
 			wordId: item.wordId,
-			word: item.word ? wordToBrief(item.word) : null,
+			word: item.word ? wordToBrief({
+				...item.word,
+				...(views.get(item.word.id) ?? {}),
+			}) : null,
 			progressState: item.wordId ? (progressMap.get(item.wordId)?.state ?? 'new') : null,
 		})),
 	};

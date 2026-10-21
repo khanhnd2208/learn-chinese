@@ -112,7 +112,7 @@ async function loadProgressMetrics(
 				introducedAt: true,
 			},
 		}),
-		loadWordIdsWithFillExamples(activeIds),
+		loadWordIdsWithFillExamples(activeIds, userId),
 	]);
 	return { metrics: rows.map(progressToMetrics), wordsWithFillExamples };
 }
@@ -292,7 +292,7 @@ export async function getReviewStats(userId: string): Promise<CnReviewStatsDTO> 
 		: [];
 
 	const progressMetrics = progress.map(progressToMetrics);
-	const wordsWithFillExamples = await loadWordIdsWithFillExamples(activeIds);
+	const wordsWithFillExamples = await loadWordIdsWithFillExamples(activeIds, userId);
 	const overdueCount = countOverdueChannels(progressMetrics, todayStart, wordsWithFillExamples);
 	const forecast = buildForecast(progressMetrics, now, 7, wordsWithFillExamples);
 	const nextDueAt = dueTotal === 0 ? findNextDueAt(progressMetrics, now, wordsWithFillExamples) : null;

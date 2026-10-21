@@ -95,6 +95,7 @@ export async function getChineseDashboard(userId: string): Promise<CnDashboardDT
 	const srsProgress = progress.filter((p) => activeIds.has(p.wordId));
 	const wordsWithFillExamples = await loadWordIdsWithFillExamples(
 		srsProgress.map((p) => p.wordId),
+		userId,
 	);
 	const progressMetrics = srsProgress.map(progressToMetrics);
 	const overdueCount = countOverdueChannels(progressMetrics, todayStart, wordsWithFillExamples);

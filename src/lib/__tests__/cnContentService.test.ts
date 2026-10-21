@@ -11,6 +11,9 @@ vi.mock('@/lib/prisma', () => ({
 		cnWordProgress: {
 			findMany: vi.fn(),
 		},
+		cnUserWordOverride: {
+			findMany: vi.fn(),
+		},
 	},
 }));
 
@@ -20,6 +23,7 @@ import { getWordCardsByIds } from '@/services/chinese/cnContentService';
 const mockWordFindMany = vi.mocked(prisma.cnWord.findMany);
 const mockWordCharFindMany = vi.mocked(prisma.cnWordChar.findMany);
 const mockProgressFindMany = vi.mocked(prisma.cnWordProgress.findMany);
+const mockOverrideFindMany = vi.mocked(prisma.cnUserWordOverride.findMany);
 
 const wordRow = {
 	id: 'w1',
@@ -76,6 +80,8 @@ beforeEach(() => {
 	mockWordFindMany.mockReset();
 	mockWordCharFindMany.mockReset();
 	mockProgressFindMany.mockReset();
+	mockOverrideFindMany.mockReset();
+	mockOverrideFindMany.mockResolvedValue([] as never);
 });
 
 describe('getWordCardsByIds', () => {
