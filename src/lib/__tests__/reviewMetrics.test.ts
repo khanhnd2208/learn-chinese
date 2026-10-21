@@ -285,5 +285,6 @@ describe('reviewMetrics', () => {
 		expect(formatReviewScheduleLabel(1, false, now)).toContain('30 phút');
 		expect(formatReviewScheduleLabel(2, false, now)).toContain('1 ngày');
 		expect(formatReviewScheduleLabel(2, true, now)).toContain('7 ngày');
+		expect(formatReviewScheduleLabel(3, true, now, { hintUsed: true })).toBe('Gặp lại sau 1 ngày');
 	});
 });

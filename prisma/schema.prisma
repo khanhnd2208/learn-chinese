@@ -288,6 +288,8 @@ model CnAnswerLog {
   errorType    CnErrorType?
   correct      Boolean
   source       CnAnswerSource @default(practice)
+  hintUsed     Boolean        @default(false)
+  responseMs   Int?
   createdAt    DateTime       @default(now())
   word         CnWord         @relation(fields: [wordId], references: [id], onDelete: Cascade)
   @@index([userId, createdAt(sort: Desc)])

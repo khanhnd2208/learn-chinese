@@ -220,6 +220,26 @@ describe('cnSrsService', () => {
 		expect(p.meaningIntervalIdx).toBe(2);
 	});
 
+	it('does not promote or count a correct answer that used a hint', () => {
+		const existing = progressFixture({
+			id: 'p1',
+			userId: 'u1',
+			wordId: 'w1',
+			meaningCorrect: 4,
+			meaningTotal: 4,
+			meaningIntervalIdx: 3,
+			meaningDueAt: now,
+		});
+		const items: CnPracticeSubmitItem[] = [
+			{ wordId: 'w1', questionType: 'hanzi_to_meaning', correct: true, hintUsed: true },
+		];
+		const p = mergeSubmitItemsInMemory('u1', items, [existing], now).progressByWordId.get('w1')!;
+		expect(p.meaningTotal).toBe(5);
+		expect(p.meaningCorrect).toBe(4);
+		expect(p.meaningIntervalIdx).toBe(3);
+		expect(p.meaningDueAt!.getTime()).toBe(addDays(now, 1).getTime());
+	});
+
 	it('does not count a heavy lapse for a wrong answer before Recall', () => {
 		const existing = progressFixture({
 			id: 'p1',

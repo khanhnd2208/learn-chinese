@@ -12,7 +12,7 @@ import SrsVocabManager from '@/components/chinese/SrsVocabManager';
 import { CN_REVIEW_PREFETCH_SIZE } from '@/config/constants';
 import { questionChannel } from '@/lib/chinese/coreQuestionTypes';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
-import type { CnPracticeQuestionDTO, CnReviewBriefingDTO } from '@/types/chinese';
+import type { CnPracticeQuestionDTO, CnPracticeSubmitItem, CnReviewBriefingDTO } from '@/types/chinese';
 
 type Phase = 'briefing' | 'loading' | 'review' | 'summary' | 'empty';
 
@@ -170,7 +170,7 @@ export default function ReviewSessionClient() {
 		}
 	}, [flushAndWait, appendQuestions]);
 
-	const handleAnswer = useCallback((result: { wordId: string; questionType: CnPracticeQuestionDTO['type']; correct: boolean }) => {
+	const handleAnswer = useCallback((result: CnPracticeSubmitItem) => {
 		enqueue(result);
 		seenWordChannelsRef.current.add(wordChannelKey(result.wordId, result.questionType));
 		reviewedCountRef.current += 1;

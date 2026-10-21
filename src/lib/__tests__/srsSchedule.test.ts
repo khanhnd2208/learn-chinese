@@ -17,6 +17,12 @@ function labelFromDueAt(dueAt: Date, now: Date, correct: boolean): string {
 describe('srsSchedule', () => {
 	const now = new Date('2026-06-17T10:00:00Z');
 
+	it('keeps the same step for one day when a correct answer used a hint', () => {
+		const next = computeNextReview({ intervalIdx: 3, correct: true, hintUsed: true, now });
+		expect(next.intervalIdx).toBe(3);
+		expect(next.dueAt.getTime()).toBe(addDays(now, 1).getTime());
+	});
+
 	it('sends a maintain miss back to Recall in one day', () => {
 		const at30 = computeNextReview({ intervalIdx: 5, correct: false, now });
 		expect(at30.intervalIdx).toBe(2);

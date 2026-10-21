@@ -18,7 +18,7 @@ import {
 } from '@/config/constants';
 import { isTypedQuestion } from '@/lib/chinese/questionLabels';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
-import type { CnInfernoStatsDTO, CnPracticeQuestionDTO } from '@/types/chinese';
+import type { CnInfernoStatsDTO, CnPracticeQuestionDTO, CnPracticeSubmitItem } from '@/types/chinese';
 
 type Phase = 'briefing' | 'loading' | 'gate' | 'review' | 'summary' | 'empty';
 
@@ -189,11 +189,7 @@ export default function InfernoSessionClient() {
 		return () => clearTimeout(timer);
 	}, [loadBriefing]);
 
-	const handleAnswer = useCallback((result: {
-		wordId: string;
-		questionType: CnPracticeQuestionDTO['type'];
-		correct: boolean;
-	}) => {
+	const handleAnswer = useCallback((result: CnPracticeSubmitItem) => {
 		enqueue(result);
 		const prevScore = masteryRef.current[result.wordId] ?? 0;
 		const delta = infernoDelta(result.questionType, result.correct, prevScore);

@@ -31,6 +31,15 @@ describe('apiValidation', () => {
 		})))).toBe(false);
 	});
 
+	it('rejects a non-boolean hint and a negative response time', () => {
+		expect(validatePracticeSubmitItems([
+			{ wordId: 'w1', questionType: 'hanzi_to_meaning', correct: true, hintUsed: 'yes' },
+		])).toBe(false);
+		expect(validatePracticeSubmitItems([
+			{ wordId: 'w1', questionType: 'hanzi_to_meaning', correct: true, responseMs: -1 },
+		])).toBe(false);
+	});
+
 	it('rejects invalid errorType on incorrect answers', () => {
 		expect(validatePracticeSubmitItems([
 			{ wordId: 'w1', questionType: 'hanzi_to_meaning', correct: false, errorType: 'not_real' },

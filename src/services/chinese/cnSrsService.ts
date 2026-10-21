@@ -141,11 +141,12 @@ async function loadPracticePriorityAdjustments(
 			source: 'practice',
 			createdAt: { gte: since },
 		},
-		select: { wordId: true, questionType: true, correct: true },
+		select: { wordId: true, questionType: true, correct: true, hintUsed: true },
 	});
 
 	const stats = new Map<string, { correct: number; total: number }>();
 	for (const log of logs) {
+		if (log.hintUsed) continue;
 		const channel = isCoreQuestionType(log.questionType)
 			? questionChannel(log.questionType)
 			: null;
@@ -353,6 +354,8 @@ export async function logPracticeAnswers(
 		correct: item.correct,
 		errorType: resolveSubmitErrorType(item),
 		source: 'practice' as const,
+		hintUsed: item.hintUsed === true,
+		responseMs: item.responseMs,
 	}));
 
 	await prisma.cnAnswerLog.createMany({ data: answerLogs });
@@ -401,6 +404,8 @@ export async function submitReviewResults(
 		correct: item.correct,
 		errorType: resolveSubmitErrorType(item),
 		source: 'review' as const,
+		hintUsed: item.hintUsed === true,
+		responseMs: item.responseMs,
 	}));
 
 	const updates: Array<{ wordId: string; data: Parameters<typeof prisma.cnWordProgress.update>[0]['data'] }> = [];
@@ -483,11 +488,13 @@ function applyPracticeItem(
 	isCreateBranch: boolean,
 ): void {
 	const channel = questionChannel(item.questionType);
+	const independentCorrect = item.correct && item.hintUsed !== true;
 
 	const reviewOpts = (idx: number): ComputeNextReviewOptions => ({
 		intervalIdx: idx,
 		correct: item.correct,
 		now,
+		hintUsed: item.hintUsed === true,
 	});
 
 	progress.lastReviewedAt = now;
@@ -501,7 +508,7 @@ function applyPracticeItem(
 			const fields = CHANNEL_FIELDS[channel];
 			(progress[fields.dueAt] as Date | null) = next.dueAt;
 			(progress[fields.intervalIdx] as number) = next.intervalIdx;
-			(progress[fields.correct] as number) = item.correct ? 1 : 0;
+			(progress[fields.correct] as number) = independentCorrect ? 1 : 0;
 			(progress[fields.total] as number) = 1;
 		}
 		return;
@@ -513,7 +520,7 @@ function applyPracticeItem(
 		const chNext = computeNextReview(reviewOpts(chIdx));
 		(progress[fields.dueAt] as Date | null) = chNext.dueAt;
 		(progress[fields.intervalIdx] as number) = chNext.intervalIdx;
-		(progress[fields.correct] as number) = (progress[fields.correct] as number) + (item.correct ? 1 : 0);
+		(progress[fields.correct] as number) = (progress[fields.correct] as number) + (independentCorrect ? 1 : 0);
 		(progress[fields.total] as number) = (progress[fields.total] as number) + 1;
 		if (!item.correct && chIdx >= 2) {
 			incrementHeavyLapse(progress, channel);

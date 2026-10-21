@@ -29,11 +29,19 @@ export function validatePracticeSubmitItems(items: unknown): items is CnPractice
 	return items.every((item) => {
 		if (!item || typeof item !== 'object') return false;
 		const row = item as Record<string, unknown>;
+		const hintOk = row.hintUsed === undefined || typeof row.hintUsed === 'boolean';
+		const responseOk = row.responseMs === undefined
+			|| (typeof row.responseMs === 'number'
+				&& Number.isInteger(row.responseMs)
+				&& row.responseMs >= 0
+				&& row.responseMs <= 600_000);
 		return typeof row.wordId === 'string'
 			&& row.wordId.length > 0
 			&& typeof row.correct === 'boolean'
 			&& typeof row.questionType === 'string'
 			&& VALID_QUESTION_TYPES.has(row.questionType)
+			&& hintOk
+			&& responseOk
 			&& (row.errorType === undefined
 				|| row.errorType === null
 				|| (typeof row.errorType === 'string' && VALID_ERROR_TYPES.has(row.errorType as CnErrorType)));

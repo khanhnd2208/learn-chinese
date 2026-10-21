@@ -8,12 +8,14 @@ interface Props {
 	sentenceTemplate: string;
 	sentenceMeaningVi?: string;
 	pinyin?: string;
+	onRevealPinyin?: () => void;
 }
 
 export default function SentencePromptCard({
 	sentenceTemplate,
 	sentenceMeaningVi,
 	pinyin,
+	onRevealPinyin,
 }: Props) {
 	const [showPinyin, setShowPinyin] = useState(false);
 	const { hanziClass, cardPadding } = getSentenceTypography(sentenceTemplate);
@@ -31,7 +33,10 @@ export default function SentencePromptCard({
 				<div className="mt-3 flex flex-col items-center gap-2">
 					<button
 						type="button"
-						onClick={() => setShowPinyin((v) => !v)}
+						onClick={() => {
+							if (!showPinyin) onRevealPinyin?.();
+							setShowPinyin((open) => !open);
+						}}
 						className="inline-flex items-center gap-1 rounded-full border border-border bg-surface px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-muted transition-colors hover:border-accent hover:text-accent"
 						aria-expanded={showPinyin}
 					>

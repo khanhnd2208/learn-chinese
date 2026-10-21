@@ -263,6 +263,10 @@ export interface CnPracticeSubmitItem {
 	correct: boolean;
 	errorType?: CnErrorType;
 	exampleId?: string;
+	/** Learner opened a hint before answering. A correct answer then does not promote. */
+	hintUsed?: boolean;
+	/** Milliseconds from question display to the answer. */
+	responseMs?: number;
 }
 
 export interface CnPracticeSessionResultDTO {

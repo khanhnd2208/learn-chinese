@@ -10,7 +10,7 @@ import SessionBriefingCard from '@/components/chinese/SessionBriefingCard';
 import SessionSummaryCard from '@/components/chinese/SessionSummaryCard';
 import { CN_HHT_PREFETCH_SIZE, HHT_MIN_ENROLLED } from '@/config/constants';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
-import type { CnPracticeQuestionDTO } from '@/types/chinese';
+import type { CnPracticeQuestionDTO, CnPracticeSubmitItem } from '@/types/chinese';
 
 type Phase = 'briefing' | 'loading' | 'gate' | 'review' | 'summary' | 'empty';
 
@@ -169,11 +169,7 @@ export default function HhtSessionClient() {
 		return () => clearTimeout(timer);
 	}, [loadBriefing]);
 
-	const handleAnswer = useCallback((result: {
-		wordId: string;
-		questionType: CnPracticeQuestionDTO['type'];
-		correct: boolean;
-	}) => {
+	const handleAnswer = useCallback((result: CnPracticeSubmitItem) => {
 		enqueue(result);
 		recentWordIdsRef.current = [...recentWordIdsRef.current, result.wordId].slice(-20);
 

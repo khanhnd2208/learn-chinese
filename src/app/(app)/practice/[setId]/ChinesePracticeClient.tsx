@@ -8,7 +8,7 @@ import QuestionRenderer from '@/components/chinese/QuestionRenderer';
 import { channelLabel, practiceModeLabel } from '@/lib/chinese/questionLabels';
 import { questionChannel } from '@/lib/chinese/coreQuestionTypes';
 import { useIncrementalSubmit } from '@/lib/chinese/useIncrementalSubmit';
-import type { CnPracticeQuestionDTO, CnQuestionType } from '@/types/chinese';
+import type { CnPracticeQuestionDTO, CnPracticeSubmitItem, CnQuestionType } from '@/types/chinese';
 
 function summarizeByChannel(byType: Record<string, { correct: number; total: number }>) {
 	const out: Record<string, { correct: number; total: number }> = {};
@@ -57,7 +57,7 @@ export default function ChinesePracticeClient() {
 		})();
 	}, [setId, mode, wordId]);
 
-	const handleAnswer = (result: { wordId: string; questionType: CnQuestionType; correct: boolean }) => {
+	const handleAnswer = (result: CnPracticeSubmitItem) => {
 		enqueue(result);
 		setReviewedCount((c) => c + 1);
 	};

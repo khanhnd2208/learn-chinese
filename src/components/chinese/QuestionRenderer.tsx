@@ -133,6 +133,7 @@ export default function QuestionRenderer({
 	const [sessionHeavyLapses, setSessionHeavyLapses] = useState<Record<string, number>>({});
 	const { speak, supported, ready: speechReady } = useSpeech();
 	const autoPlayedRef = useRef<string | null>(null);
+	const questionShownAtRef = useRef(Date.now());
 	const typedInputRef = useRef<HTMLInputElement>(null);
 	const resultsRef = useRef(results);
 	const pendingAdvanceRef = useRef(false);
@@ -193,6 +194,10 @@ export default function QuestionRenderer({
 	}, [questions.length, onComplete, clearAdvanceKeyGuard]);
 
 	useEffect(() => {
+		questionShownAtRef.current = Date.now();
+	}, [idx]);
+
+	useEffect(() => {
 		if (!q?.audioText || !supported || !isSound) return;
 		const audioText = q.audioText;
 		const key = `${q.id}-${idx}`;
@@ -242,12 +247,15 @@ export default function QuestionRenderer({
 		if (pendingAdvanceRef.current) return;
 
 		const correct = gradeCurrentAnswer(answer);
-		const feedbackText = correct ? 'Đúng!' : 'Sai';
+		const feedbackText = correct ? (hintUsed ? 'Đúng (có gợi ý)' : 'Đúng!') : 'Sai';
+		const responseMs = Math.min(600_000, Math.max(0, Date.now() - questionShownAtRef.current));
 
 		const item: QuestionAnswerResult = {
 			wordId: q.wordId,
 			questionType: q.type,
 			correct,
+			hintUsed,
+			responseMs,
 			...(q.exampleId ? { exampleId: q.exampleId } : {}),
 		};
 		const next = [...results, item];
@@ -279,7 +287,7 @@ export default function QuestionRenderer({
 	const progressPct = totalEstimate > 0 ? Math.min(100, Math.round((reviewedCount / totalEstimate) * 100)) : 0;
 
 	const scheduleLabel = feedback && q.channelIntervalIdx !== undefined
-		? formatReviewScheduleLabel(q.channelIntervalIdx, isFeedbackCorrect)
+		? formatReviewScheduleLabel(q.channelIntervalIdx, isFeedbackCorrect, new Date(), { hintUsed })
 		: null;
 
 	const resolvedExitLabel = exitLabel ?? (incremental ? 'Dừng' : 'Thoát');
@@ -388,13 +396,17 @@ export default function QuestionRenderer({
 							question={q}
 							isSound={isSound}
 							showSoundPinyin={hintUsed || !!feedback || (speechReady && !supported)}
-							onRevealPinyin={speechReady && supported ? () => setHintUsed(true) : undefined}
+							soundHintAvailable={speechReady && supported}
+							onRevealPinyin={() => setHintUsed(true)}
 						/>
 					</div>
 					{hasHint && (
 						<button
 							type="button"
-							onClick={() => setShowHint((v) => !v)}
+							onClick={() => {
+								if (!showHint) setHintUsed(true);
+								setShowHint((open) => !open);
+							}}
 							className="mx-auto mt-3 flex items-center gap-1 label-caps text-muted transition-colors hover:text-accent"
 						>
 							<MaterialIcon name="lightbulb" size={14} />
@@ -556,7 +568,7 @@ export default function QuestionRenderer({
 										filled
 									/>
 									<span className={`text-base font-black sm:text-lg ${isFeedbackCorrect ? 'text-success' : 'text-accent'}`}>
-										{isFeedbackCorrect ? 'Đúng!' : 'Chưa đúng'}
+										{isFeedbackCorrect ? (hintUsed ? 'Đúng (có gợi ý)' : 'Đúng!') : 'Chưa đúng'}
 									</span>
 								</div>
 								{isFeedbackWrong && <AnswerRevealCard question={q} />}
@@ -652,12 +664,14 @@ function QuestionHeroCard({
 	question: q,
 	isSound,
 	showSoundPinyin,
+	soundHintAvailable,
 	onRevealPinyin,
 }: {
 	question: CnPracticeQuestionDTO;
 	isSound: boolean;
 	showSoundPinyin: boolean;
-	onRevealPinyin?: () => void;
+	soundHintAvailable: boolean;
+	onRevealPinyin: () => void;
 }) {
 	if (isSound) {
 		const caption = q.type === 'sound_to_hanzi_typed' ? 'Nghe và gõ chữ đúng' : 'Nghe và chọn chữ đúng';
@@ -667,7 +681,7 @@ function QuestionHeroCard({
 				<p className="text-sm font-medium text-muted">{caption}</p>
 				{showSoundPinyin && q.pinyin ? (
 					<p className="text-2xl font-bold text-accent">{q.pinyin}</p>
-				) : q.pinyin && onRevealPinyin ? (
+				) : q.pinyin && soundHintAvailable ? (
 					<button
 						type="button"
 						onClick={onRevealPinyin}
@@ -686,6 +700,7 @@ function QuestionHeroCard({
 				sentenceTemplate={q.sentenceTemplate}
 				sentenceMeaningVi={q.sentenceMeaningVi}
 				pinyin={q.pinyin}
+				onRevealPinyin={onRevealPinyin}
 			/>
 		);
 	}

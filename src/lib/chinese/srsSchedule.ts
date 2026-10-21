@@ -37,9 +37,18 @@ export function computeNextReview(options: ComputeNextReviewOptions): {
 		intervalIdx,
 		correct,
 		now = new Date(),
+		hintUsed = false,
 	} = options;
 
 	const idx = clampSrsIntervalIdx(intervalIdx);
+
+	if (correct && hintUsed) {
+		return {
+			dueAt: addDays(now, 1),
+			intervalIdx: idx,
+			state: nextStateFromInterval(idx, true),
+		};
+	}
 
 	if (!correct) {
 		let nextIdx: number;
