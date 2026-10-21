@@ -5,6 +5,7 @@ vi.mock('@/lib/prisma', () => ({
 	prisma: {
 		cnWordSet: {
 			findMany: vi.fn(),
+			update: vi.fn(),
 		},
 	},
 }));
@@ -13,35 +14,31 @@ vi.mock('@/services/chinese/cnExcelService', () => ({
 	importUserWorkbookBuffer: vi.fn(),
 }));
 
-vi.mock('@/services/chinese/cnSrsEnrollmentService', () => ({
-	activateSetInSrs: vi.fn(),
-}));
-
 vi.mock('@/lib/chinese/userSetSampleWorkbook', () => ({
 	buildUserSetSampleWorkbook: vi.fn(async () => Buffer.from('sample-xlsx')),
 }));
 
 import { prisma } from '@/lib/prisma';
 import { importUserWorkbookBuffer } from '@/services/chinese/cnExcelService';
-import { activateSetInSrs } from '@/services/chinese/cnSrsEnrollmentService';
 import { buildUserSetSampleWorkbook } from '@/lib/chinese/userSetSampleWorkbook';
 import { ensureGlobalSampleSets } from '@/services/chinese/cnSampleSetService';
 
 const mockFindMany = vi.mocked(prisma.cnWordSet.findMany);
+const mockUpdate = vi.mocked(prisma.cnWordSet.update);
 const mockImport = vi.mocked(importUserWorkbookBuffer);
-const mockActivate = vi.mocked(activateSetInSrs);
 const mockBuildWorkbook = vi.mocked(buildUserSetSampleWorkbook);
 
 beforeEach(() => {
 	mockFindMany.mockReset();
+	mockUpdate.mockReset();
 	mockImport.mockReset();
-	mockActivate.mockReset();
 	mockBuildWorkbook.mockReset();
 	mockBuildWorkbook.mockResolvedValue(Buffer.from('sample-xlsx'));
+	mockUpdate.mockResolvedValue({} as never);
 });
 
 describe('ensureGlobalSampleSets', () => {
-	it('imports and activates missing sample sets', async () => {
+	it('imports missing starter sets as published HSK1 sets and does not copy them per learner', async () => {
 		mockFindMany.mockResolvedValueOnce([]);
 		let setCounter = 0;
 		mockImport.mockImplementation(async () =>
@@ -51,46 +48,63 @@ describe('ensureGlobalSampleSets', () => {
 			}) as never,
 		);
 
-		await ensureGlobalSampleSets('user-1');
+		await ensureGlobalSampleSets('admin-1');
 
 		expect(mockImport).toHaveBeenCalledTimes(3);
-		expect(mockActivate).toHaveBeenCalledTimes(3);
+		expect(mockImport).toHaveBeenCalledWith('admin-1', expect.any(Buffer), expect.objectContaining({
+			canCreateWords: true,
+		}));
 		expect(mockBuildWorkbook).toHaveBeenCalledWith('bai1');
-		expect(mockBuildWorkbook).toHaveBeenCalledWith('bai2');
-		expect(mockBuildWorkbook).toHaveBeenCalledWith('bai3');
+		expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+			where: { id: 'set-1' },
+			data: expect.objectContaining({ shared: true, level: 1, sortOrder: 1 }),
+		}));
 	});
 
-	it('skips import when all sets already exist with SRS active', async () => {
+	it('skips import when the published starter sets already exist', async () => {
 		mockFindMany.mockResolvedValueOnce(
-			HSK1_SAMPLE_SETS.map((s, i) => ({
-				id: `existing-${i}`,
-				title: s.boTu,
-				srsActive: true,
+			HSK1_SAMPLE_SETS.map((sample, index) => ({
+				id: `existing-${index}`,
+				title: sample.boTu,
+				userId: 'admin-1',
+				shared: true,
+				level: 1,
+				sortOrder: index + 1,
+				publishedAt: new Date('2026-01-01'),
 			})) as never,
 		);
 
-		await ensureGlobalSampleSets('user-1');
+		await ensureGlobalSampleSets('admin-1');
 
 		expect(mockImport).not.toHaveBeenCalled();
-		expect(mockActivate).not.toHaveBeenCalled();
+		expect(mockUpdate).not.toHaveBeenCalled();
 	});
 
-	it('activates SRS for existing sets missing srsActive', async () => {
+	it('publishes an admin starter set that is still a draft', async () => {
 		mockFindMany.mockResolvedValueOnce([
-			{ id: 'set-bai1', title: HSK1_SAMPLE_SETS[0]!.boTu, srsActive: false },
+			{
+				id: 'set-bai1',
+				title: HSK1_SAMPLE_SETS[0]!.boTu,
+				userId: 'admin-1',
+				shared: false,
+				level: null,
+				sortOrder: 0,
+				publishedAt: null,
+			},
 		] as never);
 		mockImport.mockImplementation(async () =>
 			({
 				preview: { errors: [] },
-				createdSetIds: ['set-bai2', 'set-bai3'],
+				createdSetIds: ['set-bai2'],
 			}) as never,
 		);
 
-		await ensureGlobalSampleSets('user-1');
+		await ensureGlobalSampleSets('admin-1');
 
-		expect(mockActivate).toHaveBeenCalledWith('user-1', 'set-bai1');
+		expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+			where: { id: 'set-bai1' },
+			data: expect.objectContaining({ shared: true, level: 1, userId: 'admin-1' }),
+		}));
 		expect(mockImport).toHaveBeenCalledTimes(2);
-		expect(mockActivate).toHaveBeenCalledWith('user-1', 'set-bai2');
-		expect(mockActivate).toHaveBeenCalledWith('user-1', 'set-bai3');
 	});
 });

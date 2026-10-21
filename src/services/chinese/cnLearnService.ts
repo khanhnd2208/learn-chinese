@@ -62,7 +62,7 @@ export async function getLearnQueue(
 
 	const [items, rows] = await Promise.all([
 		prisma.cnWordSetItem.findMany({
-			where: { wordId: { in: poolIds }, set: { userId, srsActive: true } },
+			where: { wordId: { in: poolIds }, set: { enrollments: { some: { userId, srsActive: true } } } },
 			select: { id: true, wordId: true },
 			orderBy: { id: 'asc' },
 		}),

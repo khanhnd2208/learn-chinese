@@ -439,7 +439,7 @@ export async function updateWordFields(
 /** Vocabulary pool for MCQ distractors — user's sets + HSK fallback */
 export async function getUserDistractorPool(userId: string, minCount = 12): Promise<CnWordCardDTO[]> {
 	const setItems = await prisma.cnWordSetItem.findMany({
-		where: { set: { userId }, wordId: { not: null } },
+		where: { set: { enrollments: { some: { userId } } }, wordId: { not: null } },
 		select: { wordId: true },
 		distinct: ['wordId'],
 	});

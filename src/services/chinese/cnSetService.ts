@@ -5,20 +5,19 @@ import { prisma } from '@/lib/prisma';
 import { AppError } from '@/lib/appError';
 import { MAX_CN_TERMS_PER_SET } from '@/config/constants';
 import { buildCoverageReport, lookupTerms } from '@/services/chinese/cnContentService';
+import { canViewSet, enrollNewWordsForActiveFollowers } from '@/services/chinese/cnEnrollmentService';
 import {
 	activateSetInSrs,
-	enrollWordsInSrs,
 	onSetDeleted,
 	onWordRemovedFromActiveSet,
 } from '@/services/chinese/cnSrsEnrollmentService';
 import { countDueChannelsForProgressList, fetchProgressDueCandidates, loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
-import { isWordMastered } from '@/lib/chinese/masteryModel';
+import { bucketWordProgress, type ProgressBucketRow } from '@/lib/chinese/masteryModel';
 import { loadWordViewsForUser } from '@/services/chinese/cnWordViewService';
 import { normalizeTerm, uniqueTerms } from '@/lib/chinese/hanziUtils';
 import type {
 	CnCoverageReportDTO,
 	CnSharedWordSetDTO,
-	CnWordProgressState,
 	CnWordSetDTO,
 	CnWordSetListItemDTO,
 	CreateCnWordSetInput,
@@ -40,7 +39,14 @@ function wordToBrief(w: CnWord) {
 	};
 }
 
-const EMPTY_SET_STATS = { dueCount: 0, weakCount: 0, introducedCount: 0, masteredCount: 0 };
+const EMPTY_SET_STATS = {
+	dueCount: 0,
+	weakCount: 0,
+	introducedCount: 0,
+	masteredCount: 0,
+	newCount: 0,
+	learningCount: 0,
+};
 
 const LEVEL_SELECT = {
 	wordId: true,
@@ -57,51 +63,32 @@ const LEVEL_SELECT = {
 	sentenceTotal: true,
 } as const;
 
-type LevelRow = {
-	wordId: string;
-	state: CnWordProgressState;
-	introducedAt: Date | null;
-	meaningIntervalIdx: number;
-	soundIntervalIdx: number;
-	sentenceIntervalIdx: number;
-	meaningCorrect: number;
-	meaningTotal: number;
-	soundCorrect: number;
-	soundTotal: number;
-	sentenceCorrect: number;
-	sentenceTotal: number;
-};
-
-function learningCounts(wordIds: string[], progress: LevelRow[], wordsWithFillExamples: Set<string>) {
-	const byWord = new Map(progress.map((row) => [row.wordId, row]));
-	let introducedCount = 0;
-	let masteredCount = 0;
-	for (const wordId of wordIds) {
-		const row = byWord.get(wordId);
-		if (!row?.introducedAt) continue;
-		introducedCount++;
-		if (isWordMastered(row, wordsWithFillExamples.has(wordId))) masteredCount++;
-	}
-	return { introducedCount, masteredCount };
-}
-
-async function countDueAndWeak(userId: string, wordIds: string[], srsActive: boolean) {
-	if (!srsActive || !wordIds.length) return { ...EMPTY_SET_STATS };
+async function countDueAndWeak(
+	userId: string,
+	wordIds: string[],
+	itemCount: number,
+	srsActive: boolean,
+) {
+	if (!wordIds.length) return { ...EMPTY_SET_STATS, newCount: itemCount };
 	const now = new Date();
 	const [candidates, allProgress, wordsWithFillExamples] = await Promise.all([
-		fetchProgressDueCandidates(userId, wordIds, now),
+		srsActive ? fetchProgressDueCandidates(userId, wordIds, now) : Promise.resolve([]),
 		prisma.cnWordProgress.findMany({
 			where: { userId, wordId: { in: wordIds } },
 			select: LEVEL_SELECT,
 		}),
 		loadWordIdsWithFillExamples(wordIds, userId),
 	]);
-	const dueCount = countDueChannelsForProgressList(candidates, now, wordsWithFillExamples);
-	const weakCount = allProgress.filter((p) => p.state === 'weak' || p.state === 'learning').length;
+	const dueCount = srsActive
+		? countDueChannelsForProgressList(candidates, now, wordsWithFillExamples)
+		: 0;
+	const weakCount = srsActive
+		? allProgress.filter((p) => p.state === 'weak' || p.state === 'learning').length
+		: 0;
 	return {
 		dueCount,
 		weakCount,
-		...learningCounts(wordIds, allProgress, wordsWithFillExamples),
+		...bucketWordProgress(wordIds, itemCount, allProgress as ProgressBucketRow[], wordsWithFillExamples),
 	};
 }
 
@@ -110,17 +97,23 @@ async function countDueAndWeakForSets(
 	sets: Array<CnWordSet & { items: CnWordSetItem[] }>,
 ): Promise<Map<string, typeof EMPTY_SET_STATS>> {
 	const statsBySetId = new Map<string, typeof EMPTY_SET_STATS>();
-	for (const set of sets) statsBySetId.set(set.id, { ...EMPTY_SET_STATS });
+	for (const set of sets) {
+		statsBySetId.set(set.id, { ...EMPTY_SET_STATS, newCount: set.items.length });
+	}
 
-	const activeSets = sets.filter((set) => set.srsActive);
-	const allWordIds = [...new Set(activeSets.flatMap((set) =>
+	const allWordIds = [...new Set(sets.flatMap((set) =>
 		set.items.map((item) => item.wordId).filter((id): id is string => !!id),
 	))];
 	if (!allWordIds.length) return statsBySetId;
 
+	const activeWordIds = [...new Set(sets.filter((set) => set.srsActive).flatMap((set) =>
+		set.items.map((item) => item.wordId).filter((id): id is string => !!id),
+	))];
 	const now = new Date();
 	const [candidates, allProgress, wordsWithFillExamples] = await Promise.all([
-		fetchProgressDueCandidates(userId, allWordIds, now),
+		activeWordIds.length
+			? fetchProgressDueCandidates(userId, activeWordIds, now)
+			: Promise.resolve([]),
 		prisma.cnWordProgress.findMany({
 			where: { userId, wordId: { in: allWordIds } },
 			select: LEVEL_SELECT,
@@ -141,12 +134,14 @@ async function countDueAndWeakForSets(
 			.map((p) => p.wordId),
 	);
 
-	for (const set of activeSets) {
+	for (const set of sets) {
 		const wordIds = [...new Set(set.items.map((item) => item.wordId).filter((id): id is string => !!id))];
 		statsBySetId.set(set.id, {
-			dueCount: wordIds.reduce((sum, wordId) => sum + (dueCountByWordId.get(wordId) ?? 0), 0),
-			weakCount: wordIds.filter((wordId) => weakWordIds.has(wordId)).length,
-			...learningCounts(wordIds, allProgress, wordsWithFillExamples),
+			dueCount: set.srsActive
+				? wordIds.reduce((sum, wordId) => sum + (dueCountByWordId.get(wordId) ?? 0), 0)
+				: 0,
+			weakCount: set.srsActive ? wordIds.filter((wordId) => weakWordIds.has(wordId)).length : 0,
+			...bucketWordProgress(wordIds, set.items.length, allProgress as ProgressBucketRow[], wordsWithFillExamples),
 		});
 	}
 
@@ -156,6 +151,8 @@ async function countDueAndWeakForSets(
 function setToListItem(
 	set: CnWordSet & { items: CnWordSetItem[] },
 	stats: typeof EMPTY_SET_STATS,
+	viewerId: string,
+	extras: { enrolled: boolean; learnerCount: number },
 ): CnWordSetListItemDTO {
 	return {
 		id: set.id,
@@ -164,11 +161,17 @@ function setToListItem(
 		source: set.source,
 		srsActive: set.srsActive,
 		shared: set.shared,
+		level: set.level ?? null,
+		legacy: set.userId === viewerId && !set.shared,
+		enrolled: extras.enrolled,
+		learnerCount: extras.learnerCount,
 		itemCount: set.items.length,
 		dueCount: stats.dueCount,
 		weakCount: stats.weakCount,
 		introducedCount: stats.introducedCount,
 		masteredCount: stats.masteredCount,
+		newCount: stats.newCount,
+		learningCount: stats.learningCount,
 		createdAt: set.createdAt.toISOString(),
 		updatedAt: set.updatedAt.toISOString(),
 	};
@@ -185,31 +188,42 @@ export async function listUserSetTitles(userId: string): Promise<Array<{ id: str
 export async function listUserSets(userId: string): Promise<CnWordSetListItemDTO[]> {
 	const sets = await prisma.cnWordSet.findMany({
 		where: { userId },
-		include: { items: true },
+		include: {
+			items: true,
+			enrollments: { select: { userId: true, srsActive: true } },
+		},
 		orderBy: { updatedAt: 'desc' },
 	});
 
-	const statsBySetId = await countDueAndWeakForSets(userId, sets);
-	return sets.map((set) => setToListItem(
+	const decorated = sets.map((set) => {
+		const mine = set.enrollments.find((enrollment) => enrollment.userId === userId);
+		return {
+			...set,
+			srsActive: mine?.srsActive ?? false,
+			enrolled: !!mine,
+			learnerCount: set.enrollments.filter((enrollment) => enrollment.userId !== set.userId).length,
+		};
+	});
+	const statsBySetId = await countDueAndWeakForSets(userId, decorated);
+	return decorated.map((set) => setToListItem(
 		set,
-		statsBySetId.get(set.id) ?? { ...EMPTY_SET_STATS },
+		statsBySetId.get(set.id) ?? { ...EMPTY_SET_STATS, newCount: set.items.length },
+		userId,
+		{ enrolled: set.enrolled, learnerCount: set.learnerCount },
 	));
 }
 
-export async function getUserSet(userId: string, setId: string): Promise<CnWordSetDTO | null> {
-	const set = await prisma.cnWordSet.findFirst({
-		where: { id: setId, userId },
-		include: {
-			items: {
-				include: { word: true },
-				orderBy: { rawTerm: 'asc' },
-			},
-		},
-	});
-	if (!set) return null;
-
+async function mapSetDto(
+	userId: string,
+	set: CnWordSet & {
+		items: Array<CnWordSetItem & { word: CnWord | null }>;
+		enrollments?: Array<{ srsActive: boolean }>;
+	},
+): Promise<CnWordSetDTO> {
+	const enrollment = set.enrollments?.[0];
+	const srsActive = enrollment?.srsActive ?? false;
 	const wordIds = set.items.map((i) => i.wordId).filter((id): id is string => !!id);
-	const stats = await countDueAndWeak(userId, wordIds, set.srsActive);
+	const stats = await countDueAndWeak(userId, wordIds, set.items.length, srsActive);
 	const [progressRows, views] = wordIds.length
 		? await Promise.all([
 			prisma.cnWordProgress.findMany({
@@ -225,13 +239,18 @@ export async function getUserSet(userId: string, setId: string): Promise<CnWordS
 		title: set.title,
 		description: set.description,
 		source: set.source,
-		srsActive: set.srsActive,
+		srsActive,
 		shared: set.shared,
+		level: set.level ?? null,
+		legacy: set.userId === userId && !set.shared,
+		enrolled: !!enrollment,
 		itemCount: set.items.length,
 		dueCount: stats.dueCount,
 		weakCount: stats.weakCount,
 		introducedCount: stats.introducedCount,
 		masteredCount: stats.masteredCount,
+		newCount: stats.newCount,
+		learningCount: stats.learningCount,
 		createdAt: set.createdAt.toISOString(),
 		updatedAt: set.updatedAt.toISOString(),
 		items: set.items.map((item) => ({
@@ -245,6 +264,39 @@ export async function getUserSet(userId: string, setId: string): Promise<CnWordS
 			progressState: item.wordId ? (progressMap.get(item.wordId)?.state ?? 'new') : null,
 		})),
 	};
+}
+
+const SET_DETAIL_INCLUDE = {
+	items: {
+		include: { word: true },
+		orderBy: { rawTerm: 'asc' as const },
+	},
+};
+
+export async function getUserSet(userId: string, setId: string): Promise<CnWordSetDTO | null> {
+	const set = await prisma.cnWordSet.findFirst({
+		where: { id: setId, userId },
+		include: {
+			...SET_DETAIL_INCLUDE,
+			enrollments: { where: { userId }, select: { srsActive: true } },
+		},
+	});
+	if (!set) return null;
+	return mapSetDto(userId, set);
+}
+
+/** Read-only study view: owner, published set, or an existing enrollment. */
+export async function getViewableSet(userId: string, setId: string): Promise<CnWordSetDTO | null> {
+	if (!(await canViewSet(userId, setId))) return null;
+	const set = await prisma.cnWordSet.findFirst({
+		where: { id: setId },
+		include: {
+			...SET_DETAIL_INCLUDE,
+			enrollments: { where: { userId }, select: { srsActive: true } },
+		},
+	});
+	if (!set) return null;
+	return mapSetDto(userId, set);
 }
 
 export async function createUserSet(
@@ -344,16 +396,14 @@ export async function addTermsToSet(
 		}),
 	);
 
-	if (set.srsActive && newWordIds.length) {
-		await enrollWordsInSrs(userId, newWordIds);
-	}
+	const followerCount = await enrollNewWordsForActiveFollowers(setId, newWordIds);
 
 	await prisma.cnWordSet.update({ where: { id: setId }, data: { updatedAt: new Date() } });
 	const full = await getUserSet(userId, setId);
 	return {
 		set: full!,
 		coverage,
-		enrolledCount: set.srsActive ? newWordIds.length : 0,
+		enrolledCount: followerCount > 0 ? newWordIds.length : 0,
 	};
 }
 
@@ -397,12 +447,10 @@ export async function removeItemsFromSet(
 	});
 
 	let purgedProgressCount = 0;
-	if (set.srsActive) {
-		for (const item of items) {
-			if (!item.wordId) continue;
-			const purged = await onWordRemovedFromActiveSet(userId, setId, item.wordId);
-			if (purged > 0) purgedProgressCount += 1;
-		}
+	for (const item of items) {
+		if (!item.wordId) continue;
+		const purged = await onWordRemovedFromActiveSet(userId, setId, item.wordId);
+		if (purged > 0) purgedProgressCount += 1;
 	}
 
 	return { ok: true, removedCount: items.length, purgedProgressCount };
@@ -455,9 +503,7 @@ export async function resolveSetItemWithWordData(
 		data: { wordId: word.id, rawTerm: simplified },
 	});
 
-	if (set.srsActive) {
-		await enrollWordsInSrs(userId, [word.id]);
-	}
+	await enrollNewWordsForActiveFollowers(setId, [word.id]);
 
 	await prisma.cnWordSet.update({ where: { id: setId }, data: { updatedAt: new Date() } });
 	return getUserSet(userId, setId);
@@ -490,12 +536,8 @@ export async function moveItemToSet(
 	}
 
 	if (item.wordId) {
-		if (from.srsActive) {
-			await onWordRemovedFromActiveSet(userId, fromSetId, item.wordId);
-		}
-		if (to.srsActive) {
-			await enrollWordsInSrs(userId, [item.wordId]);
-		}
+		await onWordRemovedFromActiveSet(userId, fromSetId, item.wordId);
+		await enrollNewWordsForActiveFollowers(toSetId, [item.wordId]);
 	}
 	return true;
 }
@@ -552,8 +594,19 @@ export async function setSharedStatus(
 
 	await prisma.cnWordSet.update({
 		where: { id: setId },
-		data: { shared },
+		data: {
+			shared,
+			publishedAt: shared ? (existing.publishedAt ?? new Date()) : null,
+		},
 	});
+
+	if (shared) {
+		const items = await prisma.cnWordSetItem.findMany({
+			where: { setId, wordId: { not: null } },
+			select: { wordId: true },
+		});
+		await enrollNewWordsForActiveFollowers(setId, items.map((item) => item.wordId!));
+	}
 
 	return getUserSet(userId, setId);
 }

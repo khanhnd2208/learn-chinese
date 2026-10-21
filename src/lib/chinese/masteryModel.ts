@@ -56,6 +56,37 @@ function lowerState(a: CnWordProgressState, b: CnWordProgressState): CnWordProgr
 	return STATE_RANK[a] < STATE_RANK[b] ? a : b;
 }
 
+export interface ProgressBucketRow extends WordLevelInput {
+	wordId: string;
+	introducedAt: Date | null;
+}
+
+/** Split a set into new / learning / mastered. Unintroduced and unresolved items count as new. */
+export function bucketWordProgress(
+	wordIds: string[],
+	itemCount: number,
+	rows: ProgressBucketRow[],
+	wordsWithFillExamples: Set<string>,
+): { newCount: number; learningCount: number; masteredCount: number; introducedCount: number } {
+	const byWord = new Map(rows.map((row) => [row.wordId, row]));
+	let learningCount = 0;
+	let masteredCount = 0;
+	let introducedCount = 0;
+	for (const wordId of wordIds) {
+		const row = byWord.get(wordId);
+		if (!row?.introducedAt) continue;
+		introducedCount++;
+		if (isWordMastered(row, wordsWithFillExamples.has(wordId))) masteredCount++;
+		else learningCount++;
+	}
+	return {
+		newCount: Math.max(0, itemCount - learningCount - masteredCount),
+		learningCount,
+		masteredCount,
+		introducedCount,
+	};
+}
+
 export function isWordMastered(p: WordLevelInput, hasFillExample: boolean): boolean {
 	return requiredChannels(hasFillExample).every((channel) =>
 		channelTotal(p, channel) > 0 && channelIdx(p, channel) >= CN_MASTERED_MIN_IDX,

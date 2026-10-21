@@ -57,9 +57,9 @@ function wordSupportsAnyMcq(word: CnWordCardDTO): boolean {
 	return PRACTICE_MCQ_TYPES.some((type) => wordSupportsQuestionType(word, type));
 }
 
-/** Count user sets with srsActive — matches sets page SRS toggles. */
+/** Count sets the user is actively reviewing. */
 export async function countSrsActiveSets(userId: string): Promise<number> {
-	return prisma.cnWordSet.count({
+	return prisma.cnSetEnrollment.count({
 		where: { userId, srsActive: true },
 	});
 }
@@ -82,7 +82,7 @@ export async function buildHhtSetWordEntries(userId: string): Promise<HhtSetWord
 	const items = await prisma.cnWordSetItem.findMany({
 		where: {
 			wordId: { not: null },
-			set: { userId, srsActive: true },
+			set: { enrollments: { some: { userId, srsActive: true } } },
 		},
 		select: { setId: true, wordId: true },
 	});

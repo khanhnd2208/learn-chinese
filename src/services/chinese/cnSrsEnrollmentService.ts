@@ -1,15 +1,20 @@
 /* ════════════════════════════════════════════════════════════════════════
-   cnSrsEnrollmentService.ts — Per-set SRS activation and word enrollment
+   cnSrsEnrollmentService.ts — Review pool via CnSetEnrollment
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
 import { normalizeTerm } from '@/lib/chinese/hanziUtils';
+import { canViewSet } from '@/services/chinese/cnEnrollmentService';
 
-/** Word IDs from items in all SRS-active sets for this user (no self-heal) */
+function activeEnrollment(userId: string) {
+	return { enrollments: { some: { userId, srsActive: true } } };
+}
+
+/** Word IDs from items in sets this user is actively reviewing. */
 export async function getSrsActiveWordIds(userId: string): Promise<Set<string>> {
 	const items = await prisma.cnWordSetItem.findMany({
 		where: {
 			wordId: { not: null },
-			set: { userId, srsActive: true },
+			set: activeEnrollment(userId),
 		},
 		select: { wordId: true },
 	});
@@ -17,12 +22,13 @@ export async function getSrsActiveWordIds(userId: string): Promise<Set<string>> 
 }
 
 /**
- * SRS pool for practice/review/inferno — heals stale set items and includes
- * legacy CnWordProgress rows whose word matches a rawTerm in an SRS-active set.
+ * Review pool for practice/review/inferno — heals stale set items and includes
+ * legacy CnWordProgress rows whose word matches a rawTerm in an active enrollment.
+ * A published set the user does not follow stays out of the pool.
  */
 export async function resolveSrsPoolWordIds(userId: string): Promise<Set<string>> {
 	const activeItems = await prisma.cnWordSetItem.findMany({
-		where: { set: { userId, srsActive: true } },
+		where: { set: activeEnrollment(userId) },
 		select: { id: true, wordId: true, rawTerm: true },
 	});
 
@@ -105,18 +111,27 @@ export async function resolveSrsPoolWordIds(userId: string): Promise<Set<string>
 	return ids;
 }
 
-/** Resolved word IDs in a specific set */
+/** Resolved word IDs in a set the user is allowed to open. */
 export async function getWordIdsInSet(userId: string, setId: string): Promise<string[]> {
+	if (!(await canViewSet(userId, setId))) return [];
 	const items = await prisma.cnWordSetItem.findMany({
-		where: { setId, wordId: { not: null }, set: { userId } },
+		where: { setId, wordId: { not: null } },
 		select: { wordId: true },
 	});
 	return items.map((i) => i.wordId!);
 }
 
+async function enrollmentIsActive(userId: string, setId: string): Promise<boolean> {
+	const enrollment = await prisma.cnSetEnrollment.findUnique({
+		where: { userId_setId: { userId, setId } },
+		select: { srsActive: true },
+	});
+	return enrollment?.srsActive === true;
+}
+
 /**
- * Words in this set that would lose SRS progress if the set is deactivated/deleted:
- * not present in any OTHER srs-active set.
+ * Words in this set that would leave the review pool if this enrollment pauses:
+ * not present in any OTHER set the user is actively reviewing.
  */
 export async function getExclusiveWordIdsForSet(userId: string, setId: string): Promise<string[]> {
 	const setWordIds = await getWordIdsInSet(userId, setId);
@@ -125,7 +140,7 @@ export async function getExclusiveWordIdsForSet(userId: string, setId: string): 
 	const otherActiveItems = await prisma.cnWordSetItem.findMany({
 		where: {
 			wordId: { in: setWordIds },
-			set: { userId, srsActive: true, id: { not: setId } },
+			set: { ...activeEnrollment(userId), id: { not: setId } },
 		},
 		select: { wordId: true },
 	});
@@ -143,7 +158,7 @@ export async function enrollWordsInSrs(userId: string, wordIds: string[]): Promi
 	});
 }
 
-/** Self-heal: upsert CnWordProgress for SRS-active words missing enrollment */
+/** Self-heal: upsert CnWordProgress for reviewing words missing enrollment */
 export async function ensureEnrollmentForActiveWords(userId: string, activeWordIds: string[]): Promise<void> {
 	const poolIds = activeWordIds.length ? activeWordIds : [...await resolveSrsPoolWordIds(userId)];
 	if (!poolIds.length) return;
@@ -166,39 +181,46 @@ export async function purgeSrsForWordIds(userId: string, wordIds: string[]): Pro
 }
 
 export async function activateSetInSrs(userId: string, setId: string): Promise<void> {
-	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
-	if (!set) throw new Error('Bộ từ không tồn tại');
+	if (!(await canViewSet(userId, setId))) throw new Error('Bộ từ không tồn tại');
 
-	await prisma.cnWordSet.update({ where: { id: setId }, data: { srsActive: true } });
+	await prisma.cnSetEnrollment.upsert({
+		where: { userId_setId: { userId, setId } },
+		create: { userId, setId, srsActive: true },
+		update: { srsActive: true },
+	});
 	const wordIds = await getWordIdsInSet(userId, setId);
 	await enrollWordsInSrs(userId, wordIds);
 }
 
-/** Turn off SRS for a set — excludes words from review queue but keeps CnWordProgress */
+/** Pause review for this follower. Progress rows stay. */
 export async function deactivateSetFromSrs(userId: string, setId: string): Promise<void> {
-	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
-	if (!set) throw new Error('Bộ từ không tồn tại');
+	const enrollment = await prisma.cnSetEnrollment.findUnique({
+		where: { userId_setId: { userId, setId } },
+		select: { id: true },
+	});
+	if (!enrollment) throw new Error('Bộ từ không tồn tại');
 
-	await prisma.cnWordSet.update({ where: { id: setId }, data: { srsActive: false } });
+	await prisma.cnSetEnrollment.update({
+		where: { userId_setId: { userId, setId } },
+		data: { srsActive: false },
+	});
 }
 
-/** Explicit purge: delete SRS progress for words only in this set (not in other active sets) */
+/** Explicit purge: delete review progress for words only in this set */
 export async function purgeSrsProgressForSet(
 	userId: string,
 	setId: string,
 ): Promise<{ purgedWordCount: number }> {
-	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
-	if (!set) throw new Error('Bộ từ không tồn tại');
+	if (!(await canViewSet(userId, setId))) throw new Error('Bộ từ không tồn tại');
 
 	const exclusive = await getExclusiveWordIdsForSet(userId, setId);
 	const purgedWordCount = await purgeSrsForWordIds(userId, exclusive);
 	return { purgedWordCount };
 }
 
-/** Call before deleting a set — purges SRS for exclusive words if set was active */
+/** Call before deleting a set — purges review rows for the acting user only. */
 export async function onSetDeleted(userId: string, setId: string): Promise<number> {
-	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
-	if (!set?.srsActive) return 0;
+	if (!(await enrollmentIsActive(userId, setId))) return 0;
 	const exclusive = await getExclusiveWordIdsForSet(userId, setId);
 	return purgeSrsForWordIds(userId, exclusive);
 }
@@ -214,21 +236,20 @@ export async function previewDeactivateSet(
 	};
 }
 
-/** Preview SRS impact of removing one word from an SRS-active set */
+/** Preview review impact of removing one word from a set the user is reviewing */
 export async function previewRemoveWordFromSet(
 	userId: string,
 	setId: string,
 	wordId: string,
 ): Promise<{ wouldPurgeProgress: boolean; inOtherActiveSet: boolean }> {
-	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
-	if (!set?.srsActive) {
+	if (!(await enrollmentIsActive(userId, setId))) {
 		return { wouldPurgeProgress: false, inOtherActiveSet: false };
 	}
 
 	const otherActiveItems = await prisma.cnWordSetItem.findMany({
 		where: {
 			wordId,
-			set: { userId, srsActive: true, id: { not: setId } },
+			set: { ...activeEnrollment(userId), id: { not: setId } },
 		},
 		select: { wordId: true },
 	});
@@ -239,19 +260,18 @@ export async function previewRemoveWordFromSet(
 	};
 }
 
-/** After removing a word from an SRS-active set, purge if no longer in any active set */
+/** After removing a word from a set under review, purge if no longer in any active enrollment */
 export async function onWordRemovedFromActiveSet(
 	userId: string,
 	setId: string,
 	wordId: string,
 ): Promise<number> {
-	const set = await prisma.cnWordSet.findFirst({ where: { id: setId, userId } });
-	if (!set?.srsActive) return 0;
+	if (!(await enrollmentIsActive(userId, setId))) return 0;
 
 	const stillInActiveSet = await prisma.cnWordSetItem.count({
 		where: {
 			wordId,
-			set: { userId, srsActive: true },
+			set: activeEnrollment(userId),
 		},
 	});
 	if (stillInActiveSet > 0) return 0;

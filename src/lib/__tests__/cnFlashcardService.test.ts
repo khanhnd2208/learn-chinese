@@ -14,10 +14,16 @@ vi.mock('@/lib/prisma', () => ({
 	},
 }));
 
+vi.mock('@/services/chinese/cnEnrollmentService', () => ({
+	canViewSet: vi.fn(),
+}));
+
 import { prisma } from '@/lib/prisma';
+import { canViewSet } from '@/services/chinese/cnEnrollmentService';
 import { getFlashcardDeck } from '@/services/chinese/cnFlashcardService';
 
 const mockFindFirst = vi.mocked(prisma.cnWordSet.findFirst);
+const mockCanView = vi.mocked(canViewSet);
 const mockWordFindMany = vi.mocked(prisma.cnWord.findMany);
 const mockOverrideFindMany = vi.mocked(prisma.cnUserWordOverride.findMany);
 
@@ -25,17 +31,36 @@ beforeEach(() => {
 	mockFindFirst.mockReset();
 	mockWordFindMany.mockReset();
 	mockOverrideFindMany.mockReset();
+	mockCanView.mockReset();
+	mockCanView.mockResolvedValue(true);
 	mockWordFindMany.mockResolvedValue([] as never);
 	mockOverrideFindMany.mockResolvedValue([] as never);
 });
 
 describe('getFlashcardDeck', () => {
-	it('does not read a set unless it belongs to the user', async () => {
-		mockFindFirst.mockResolvedValue(null);
+	it('does not read a set the user cannot view', async () => {
+		mockCanView.mockResolvedValueOnce(false);
 
 		await expect(getFlashcardDeck('user-1', 'set-other')).resolves.toBeNull();
+		expect(mockFindFirst).not.toHaveBeenCalled();
+		expect(mockCanView).toHaveBeenCalledWith('user-1', 'set-other');
+	});
+
+	it('reads a published set the learner follows', async () => {
+		mockFindFirst.mockResolvedValue({
+			id: 'set-other',
+			title: 'Bài chia sẻ',
+			items: [],
+		} as never);
+
+		await expect(getFlashcardDeck('user-1', 'set-other')).resolves.toEqual({
+			setId: 'set-other',
+			title: 'Bài chia sẻ',
+			cards: [],
+			skippedCount: 0,
+		});
 		expect(mockFindFirst).toHaveBeenCalledWith(expect.objectContaining({
-			where: { id: 'set-other', userId: 'user-1' },
+			where: { id: 'set-other' },
 			include: expect.objectContaining({
 				items: expect.objectContaining({
 					include: {

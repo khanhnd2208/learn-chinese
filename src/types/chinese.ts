@@ -181,13 +181,21 @@ export interface CnWordSetDTO {
 	title: string;
 	description: string;
 	source: CnWordSetSource;
+	/** Viewer's review switch. Comes from CnSetEnrollment, not the set row. */
 	srsActive: boolean;
+	/** Published to Khám phá. */
 	shared: boolean;
+	level: number | null;
+	/** Learner-owned set that was not matched to a published original. */
+	legacy: boolean;
+	enrolled: boolean;
 	itemCount: number;
 	dueCount: number;
 	weakCount: number;
 	introducedCount: number;
 	masteredCount: number;
+	newCount: number;
+	learningCount: number;
 	items: CnWordSetItemDTO[];
 	createdAt: string;
 	updatedAt: string;
@@ -200,11 +208,17 @@ export interface CnWordSetListItemDTO {
 	source: CnWordSetSource;
 	srsActive: boolean;
 	shared: boolean;
+	level: number | null;
+	legacy: boolean;
+	enrolled: boolean;
+	learnerCount: number;
 	itemCount: number;
 	dueCount: number;
 	weakCount: number;
 	introducedCount: number;
 	masteredCount: number;
+	newCount: number;
+	learningCount: number;
 	createdAt: string;
 	updatedAt: string;
 }

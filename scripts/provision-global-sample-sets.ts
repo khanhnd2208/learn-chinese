@@ -1,6 +1,7 @@
 #!/usr/bin/env npx tsx
 /**
- * Provision global HSK1 sample sets for all MongoDB users.
+ * Publish the HSK1 starter sets once, owned by an admin.
+ * Learners follow them from Khám phá. This does not copy a set per user.
  * Run: npx tsx scripts/provision-global-sample-sets.ts
  */
 import { config } from 'dotenv';
@@ -11,31 +12,32 @@ import { ObjectId } from 'mongodb';
 expand(config({ path: resolve(process.cwd(), '.env.local') }));
 expand(config({ path: resolve(process.cwd(), '.env') }));
 
+function adminEmails(): string[] {
+	const raw = process.env.ADMIN_EMAILS ?? process.env.ADMIN_EMAIL ?? '';
+	return raw.split(/[,;\s]+/).map((email) => email.trim().toLowerCase()).filter(Boolean);
+}
+
 async function main() {
 	const { mongoClientPromise } = await import('@/lib/mongodbClient');
 	const { ensureGlobalSampleSets } = await import('@/services/chinese/cnSampleSetService');
 
 	const client = await mongoClientPromise;
-	const users = await client.db().collection('users').find({}, { projection: { _id: 1 } }).toArray();
-
-	console.log(`Provisioning sample sets for ${users.length} user(s)...`);
-	let ok = 0;
-	let failed = 0;
-
-	for (const user of users) {
-		const userId = user._id instanceof ObjectId ? user._id.toString() : String(user._id);
-		try {
-			await ensureGlobalSampleSets(userId);
-			ok++;
-			console.log(`  ✅ ${userId.slice(0, 8)}…`);
-		} catch (error) {
-			failed++;
-			console.error(`  ❌ ${userId.slice(0, 8)}…`, error);
-		}
+	const emails = adminEmails();
+	const user = await client.db().collection('users').findOne({
+		$or: [
+			{ role: 'admin' },
+			...(emails.length ? [{ email: { $in: emails } }] : []),
+		],
+	});
+	if (!user) {
+		console.error('No admin user found. Set role=admin or ADMIN_EMAILS, then run again.');
+		process.exit(1);
 	}
 
-	console.log(`\nDone: ${ok} ok, ${failed} failed`);
-	process.exit(failed > 0 ? 1 : 0);
+	const userId = user._id instanceof ObjectId ? user._id.toString() : String(user._id);
+	console.log(`Publishing HSK1 starter sets for admin ${userId.slice(0, 8)}…`);
+	await ensureGlobalSampleSets(userId);
+	console.log('Done.');
 }
 
 main().catch((error) => {

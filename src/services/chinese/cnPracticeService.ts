@@ -3,6 +3,7 @@
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
 import { practiceModeToGroup, resolvePracticeSessionMode } from '@/lib/chinese/practiceTaxonomy';
+import { canViewSet } from '@/services/chinese/cnEnrollmentService';
 import {
 	generatePracticeSession,
 	generateReviewQuestion,
@@ -26,8 +27,9 @@ export interface SetWordsResult {
 }
 
 export async function getWordsForSet(userId: string, setId: string): Promise<SetWordsResult> {
+	if (!(await canViewSet(userId, setId))) return { words: [], progressMap: new Map() };
 	const set = await prisma.cnWordSet.findFirst({
-		where: { id: setId, userId },
+		where: { id: setId },
 		include: { items: { where: { wordId: { not: null } } } },
 	});
 	if (!set) return { words: [], progressMap: new Map() };

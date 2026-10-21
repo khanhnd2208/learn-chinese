@@ -11,6 +11,7 @@ import {
 	type ExcelWorkbookData,
 } from '@/lib/excelWorkbook';
 import { normalizeTerm } from '@/lib/chinese/hanziUtils';
+import { enrollNewWordsForActiveFollowers } from '@/services/chinese/cnEnrollmentService';
 import { enrollWordsInSrs } from '@/services/chinese/cnSrsEnrollmentService';
 import { CORE_QUESTION_TYPE_SET } from '@/lib/chinese/coreQuestionTypes';
 import {
@@ -949,7 +950,11 @@ async function importLegacyWorkbook(
 
 		if (restoreProgress) {
 			for (const setId of setIdByKey.values()) {
-				await tx.cnWordSet.update({ where: { id: setId }, data: { srsActive: true } });
+				await tx.cnSetEnrollment.upsert({
+					where: { userId_setId: { userId, setId } },
+					create: { userId, setId, srsActive: true },
+					update: { srsActive: true },
+				});
 			}
 		}
 
@@ -1200,9 +1205,7 @@ export async function importTuVungIntoSet(
 		});
 	});
 
-	if (set.srsActive && newWordIds.length) {
-		await enrollWordsInSrs(userId, newWordIds);
-	}
+	await enrollNewWordsForActiveFollowers(setId, newWordIds);
 
 	return { preview, addedCount };
 }

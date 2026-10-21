@@ -3,12 +3,14 @@
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
 import { buildFlashcardCards } from '@/lib/chinese/flashcardExamples';
+import { canViewSet } from '@/services/chinese/cnEnrollmentService';
 import { loadWordViewsForUser } from '@/services/chinese/cnWordViewService';
 import type { FlashcardDeckDTO } from '@/types/chinese';
 
 export async function getFlashcardDeck(userId: string, setId: string): Promise<FlashcardDeckDTO | null> {
+	if (!(await canViewSet(userId, setId))) return null;
 	const set = await prisma.cnWordSet.findFirst({
-		where: { id: setId, userId },
+		where: { id: setId },
 		include: {
 			items: {
 				include: {
