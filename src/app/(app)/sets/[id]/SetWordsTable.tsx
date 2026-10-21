@@ -374,22 +374,12 @@ export default function SetWordsTable({ set, otherSets, canEditWords = false, on
 										<div className="flex justify-end gap-1">
 											{isEditing ? (
 												<>
-													<button
-														type="button"
-														onClick={() => void saveEdit(item)}
-														disabled={loading}
-														className="btn-primary px-2 py-1 text-xs"
-													>
+													<Button size="sm" onClick={() => void saveEdit(item)} disabled={loading}>
 														Lưu
-													</button>
-													<button
-														type="button"
-														onClick={cancelEdit}
-														disabled={loading}
-														className="btn-secondary px-2 py-1 text-xs"
-													>
+													</Button>
+													<Button size="sm" variant="secondary" onClick={cancelEdit} disabled={loading}>
 														Hủy
-													</button>
+													</Button>
 												</>
 											) : (
 												<>

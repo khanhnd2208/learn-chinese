@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 import ReviewActivityChart from '@/components/chinese/ReviewActivityChart';
 import UpcomingSchedule from '@/components/chinese/UpcomingSchedule';
 import WordPipelineBar from '@/components/chinese/WordPipelineBar';
+import Button from '@/components/ui/Button';
+import { Card, CardContent } from '@/components/ui/Card';
 import MaterialIcon from '@/components/ui/MaterialIcon';
 import ProgressBar from '@/components/ui/ProgressBar';
 import { channelRateQualitative } from '@/lib/chinese/channelRateLabels';
@@ -56,11 +58,13 @@ function ChannelSkill({ label, rate }: { label: string; rate: number }) {
 
 function MiniStat({ label, value, sub, accent }: { label: string; value: number | string; sub?: string; accent?: boolean }) {
 	return (
-		<div className="card-paper flex flex-col p-4">
+		<Card>
+		<CardContent className="flex flex-col">
 			<p className="label-caps !text-[10px] text-muted">{label}</p>
 			<p className={`mt-1 text-2xl font-black ${accent ? 'text-accent' : 'text-foreground'}`}>{value}</p>
 			{sub && <p className="mt-0.5 text-xs font-bold text-warning">{sub}</p>}
-		</div>
+		</CardContent>
+		</Card>
 	);
 }
 
@@ -90,15 +94,17 @@ export default function SrsReportPanel({ dashboard }: Props) {
 						</span>
 					)}
 					{hasDue ? (
-						<Link href="/review" className="btn-primary shadow-sm">
-							<MaterialIcon name="play_arrow" size={18} />
-							Luyện ngay
-						</Link>
+						<form action="/review">
+							<Button type="submit" leftIcon={<MaterialIcon name="play_arrow" size={18} />}>
+								Ôn ngay
+							</Button>
+						</form>
 					) : (
-						<Link href="/library" className="btn-secondary">
-							<MaterialIcon name="library_books" size={16} />
-							Thư viện
-						</Link>
+						<form action="/library">
+							<Button type="submit" variant="secondary" leftIcon={<MaterialIcon name="library_books" size={16} />}>
+								Thư viện
+							</Button>
+						</form>
 					)}
 				</div>
 			</section>
@@ -120,13 +126,15 @@ export default function SrsReportPanel({ dashboard }: Props) {
 					/>
 					<MiniStat label="Đã ôn hôm nay" value={reviewedToday} />
 				</div>
-				<div className="card-paper p-4 sm:p-6">
+				<Card>
+				<CardContent className="sm:p-6">
 					<UpcomingSchedule
 						slots={dashboard.upcomingSchedule}
 						forecast={dashboard.forecast}
 						nextDueLabel={dashboard.nextDueLabel}
 					/>
-				</div>
+				</CardContent>
+				</Card>
 			</section>
 
 			{dashboard.stateDistribution.total > 0 && (
@@ -139,7 +147,8 @@ export default function SrsReportPanel({ dashboard }: Props) {
 			<section className="animate-section-in grid gap-8 lg:grid-cols-2">
 				<div className="space-y-4">
 					<SectionHeading sub="Dựa trên các lần ôn gần đây">Tỉ lệ chính xác</SectionHeading>
-					<div className="card-paper grid gap-8 p-6 md:grid-cols-2 md:items-center">
+					<Card>
+					<CardContent className="grid gap-8 md:grid-cols-2 md:items-center sm:p-6">
 						<div className="flex justify-center border-border md:border-r md:pr-8">
 							<OverallRateRing rate={dashboard.overallRate} />
 						</div>
@@ -148,7 +157,8 @@ export default function SrsReportPanel({ dashboard }: Props) {
 							<ChannelSkill label="Âm đọc" rate={dashboard.soundRate} />
 							<ChannelSkill label="Dùng câu" rate={dashboard.sentenceRate} />
 						</div>
-					</div>
+					</CardContent>
+					</Card>
 				</div>
 
 				{hasInsights && (
@@ -156,7 +166,8 @@ export default function SrsReportPanel({ dashboard }: Props) {
 						{dashboard.topErrors.length > 0 && (
 							<div className="space-y-4">
 								<SectionHeading>Lỗi phổ biến</SectionHeading>
-								<ul className="card-paper divide-y divide-border">
+								<Card>
+								<ul className="divide-y divide-border">
 									{dashboard.topErrors.map((e) => (
 										<li key={e.errorType} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
 											<span className="font-medium text-foreground">{errorTypeLabel(e.errorType)}</span>
@@ -166,6 +177,7 @@ export default function SrsReportPanel({ dashboard }: Props) {
 										</li>
 									))}
 								</ul>
+								</Card>
 							</div>
 						)}
 
