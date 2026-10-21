@@ -19,7 +19,8 @@ const globalForPrisma = globalThis as unknown as { _prisma?: PrismaClient };
 /** Drop a dev client created before `prisma generate` added new models. */
 function reusableClient(client: PrismaClient | undefined): PrismaClient | undefined {
 	if (!client) return undefined;
-	if ('enEnrollment' in client && 'cnWord' in client) return client;
+	const delegates = client as unknown as Record<string, unknown>;
+	if ('cnExampleDispute' in delegates && 'cnSetEnrollment' in delegates) return client;
 	void client.$disconnect();
 	return undefined;
 }
