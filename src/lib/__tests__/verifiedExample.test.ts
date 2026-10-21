@@ -188,6 +188,11 @@ describe('verifiedExample', () => {
 		expect(enriched.naturalnessStatus).toBe('auto');
 		expect(enriched.targetWordStart).toBe(2);
 		expect(enriched.targetWordEnd).toBe(4);
+		expect(enrichExampleDtoForFill({
+			...draftExample,
+			meaningVi: 'Tôi là học sinh.',
+			meaningViTemplate: '',
+		}, '学生').meaningViTemplate).toBe('');
 		expect(wordSupportsFillSentence({
 			...word,
 			simplified: '学生',

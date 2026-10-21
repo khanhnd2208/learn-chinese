@@ -37,11 +37,13 @@ export function enrichExampleDtoForFill(
 		targetWordStart: example.targetWordStart ?? null,
 		targetWordEnd: example.targetWordEnd ?? null,
 	});
-	const meaningViTemplate = example.meaningViTemplate?.includes('__')
-		? example.meaningViTemplate
-		: example.meaningVi.includes('__')
-			? example.meaningVi
-			: example.meaningViTemplate;
+	const meaningViTemplate = example.meaningViTemplate === ''
+		? ''
+		: example.meaningViTemplate?.includes('__')
+			? example.meaningViTemplate
+			: example.meaningVi.includes('__')
+				? example.meaningVi
+				: example.meaningViTemplate;
 
 	return {
 		...example,

@@ -20,7 +20,7 @@ export interface ParsedFillExample {
 }
 
 export type ParseFillExampleResult =
-	| { ok: true; example: ParsedFillExample }
+	| { ok: true; example: ParsedFillExample; warning?: string }
 	| { ok: false; reason: string };
 
 function hanCharCount(text: string): number {
@@ -109,7 +109,8 @@ export function parseFillExampleCell(
 		}
 		return { ok: false, reason: 'câu Hán phải có đúng một __' };
 	}
-	if (countBlanks(vnPart) !== 1) {
+	const vnBlanks = countBlanks(vnPart);
+	if (vnBlanks > 1) {
 		return { ok: false, reason: 'câu nghĩa Việt phải có đúng một __' };
 	}
 	if (!targetWord) {
@@ -128,9 +129,12 @@ export function parseFillExampleCell(
 		return { ok: false, reason: duplicateTargetReason(targetWord) };
 	}
 
-	const meaningViTemplate = vnPart;
 	const primaryMeaning = wordMeaningVi.split(/[;；]/)[0]?.trim() || wordMeaningVi;
-	const meaningVi = vnPart.replace(FILL_BLANK, primaryMeaning);
+	const meaningVi = vnBlanks === 1 ? vnPart.replace(FILL_BLANK, primaryMeaning) : vnPart;
+	const meaningViTemplate = vnBlanks === 1 ? vnPart : '';
+	const warning = viWordCount(vnPart) < 4
+		? 'câu tiếng Việt quá ngắn (dưới 4 từ) — nên dịch trọn câu'
+		: undefined;
 
 	return {
 		ok: true,
@@ -144,13 +148,20 @@ export function parseFillExampleCell(
 			naturalnessStatus: 'auto',
 			...(repaired ? { repaired: true } : {}),
 		},
+		...(warning ? { warning } : {}),
 	};
+}
+
+function viWordCount(text: string): number {
+	return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
 export function formatFillExampleCell(
 	chineseWithBlank: string,
 	pinyin: string,
-	vnWithBlank: string,
+	meaningVi: string,
+	meaningViTemplate?: string | null,
 ): string {
-	return `${chineseWithBlank}|${pinyin}|${vnWithBlank}`;
+	const vn = meaningViTemplate?.includes(FILL_BLANK) ? meaningViTemplate : meaningVi;
+	return `${chineseWithBlank}|${pinyin}|${vn}`;
 }

@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
 	parseFillExampleCell,
+	formatFillExampleCell,
 	normalizeFillBlankToken,
 	MIN_FILL_EXAMPLES_PER_WORD,
 } from '@/lib/chinese/parseFillExample';
@@ -105,9 +106,63 @@ describe('parseFillExampleCell', () => {
 		expect(result.example.targetWordEnd).toBe(3);
 	});
 
-	it('requires exactly one blank in Chinese and Vietnamese', () => {
-		expect(parseFillExampleCell('他是老师。|tā shì.|Anh là.', '老师', 'giáo viên').ok).toBe(false);
-		expect(parseFillExampleCell('他是__ __。|tā shì.|Anh __ __.', '老师', 'giáo viên').ok).toBe(false);
+	it('accepts a full Vietnamese sentence and still accepts one blank', () => {
+		const full = parseFillExampleCell(
+			'他是[BLANK]。|tā shì [BLANK].|Anh ấy là giáo viên.',
+			'老师',
+			'giáo viên',
+		);
+		expect(full.ok).toBe(true);
+		if (!full.ok) return;
+		expect(full.example.meaningVi).toBe('Anh ấy là giáo viên.');
+		expect(full.example.meaningViTemplate).toBe('');
+
+		const blanked = parseFillExampleCell(
+			'他是__。|tā shì __.|Anh ấy là __.',
+			'老师',
+			'giáo viên',
+		);
+		expect(blanked.ok).toBe(true);
+		if (!blanked.ok) return;
+		expect(blanked.example.meaningViTemplate).toBe('Anh ấy là __.');
+		expect(blanked.example.meaningVi).toBe('Anh ấy là giáo viên.');
+	});
+
+	it('rejects two blanks in Chinese or Vietnamese', () => {
+		expect(parseFillExampleCell('他是__ __。|tā shì __.|Anh ấy là __.', '老师', 'giáo viên').ok).toBe(false);
+		expect(parseFillExampleCell('他是__。|tā shì __.|Anh __ là __.', '老师', 'giáo viên').ok).toBe(false);
+	});
+
+	it('warns, without rejecting, when the Vietnamese sentence is shorter than four words', () => {
+		const result = parseFillExampleCell(
+			'他是__。|tā shì __.|Anh là thầy.',
+			'老师',
+			'giáo viên',
+		);
+		expect(result.ok).toBe(true);
+		if (!result.ok) return;
+		expect(result.warning).toContain('4 từ');
+	});
+
+	it('exports a full Vietnamese sentence and imports it back unchanged', () => {
+		const parsed = parseFillExampleCell(
+			'他是[BLANK]。|tā shì [BLANK].|Anh ấy là giáo viên.',
+			'老师',
+			'giáo viên',
+		);
+		expect(parsed.ok).toBe(true);
+		if (!parsed.ok) return;
+		const exported = formatFillExampleCell(
+			'他是__。',
+			parsed.example.pinyin,
+			parsed.example.meaningVi,
+			parsed.example.meaningViTemplate,
+		);
+		const again = parseFillExampleCell(exported, '老师', 'giáo viên');
+		expect(again.ok).toBe(true);
+		if (!again.ok) return;
+		expect(again.example.meaningVi).toBe('Anh ấy là giáo viên.');
+		expect(again.example.hanzi).toBe('他是老师。');
 	});
 
 	it('reports actionable reason when blank fully missing (Pattern B)', () => {

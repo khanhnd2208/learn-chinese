@@ -140,6 +140,8 @@ export interface BadExampleWarning {
 	exampleIndex: 1 | 2 | 3 | 4 | 5;
 	sentence: string;
 	reason: string;
+	/** Soft notes do not block the row. Omitted means the cell was rejected. */
+	level?: 'warning' | 'error';
 }
 
 interface ParsedTuVungRow {
@@ -475,6 +477,16 @@ async function previewTuVungWorkbook(
 						exampleIndex: (i + 1) as 1 | 2 | 3 | 4 | 5,
 						sentence: rawStr,
 						reason: parsed.reason,
+						level: 'error',
+					});
+				} else if (parsed.warning) {
+					badExampleWarnings.push({
+						rowNumber: row.rowNumber,
+						simplified: row.simplified,
+						exampleIndex: (i + 1) as 1 | 2 | 3 | 4 | 5,
+						sentence: rawStr,
+						reason: parsed.warning,
+						level: 'warning',
 					});
 				}
 			}
