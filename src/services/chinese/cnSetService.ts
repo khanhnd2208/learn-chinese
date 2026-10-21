@@ -13,7 +13,7 @@ import {
 } from '@/services/chinese/cnSrsEnrollmentService';
 import { countDueChannelsForProgressList, fetchProgressDueCandidates, loadWordIdsWithFillExamples } from '@/services/chinese/cnSrsService';
 import { isWordMastered } from '@/lib/chinese/masteryModel';
-import { loadWordViewsForUser, writeUserWordOverlay } from '@/services/chinese/cnWordViewService';
+import { loadWordViewsForUser } from '@/services/chinese/cnWordViewService';
 import { normalizeTerm, uniqueTerms } from '@/lib/chinese/hanziUtils';
 import type {
 	CnCoverageReportDTO,
@@ -435,14 +435,19 @@ export async function resolveSetItemWithWordData(
 		throw new Error('Pinyin và nghĩa tiếng Việt là bắt buộc');
 	}
 
-	const word = await writeUserWordOverlay(prisma, userId, {
-		simplified,
+	const wordData = {
 		pinyin: fields.pinyin.trim(),
 		meaningVi: fields.meaningVi.trim(),
 		hanViet: fields.hanViet?.trim() ?? '',
 		partOfSpeech: fields.partOfSpeech?.trim() ?? '',
 		ghiChu: fields.ghiChu?.trim() ?? '',
 		mnemonicVi: fields.mnemonicVi?.trim() ?? '',
+	};
+	// Admin only (the route enforces it). This writes the shared word.
+	const word = await prisma.cnWord.upsert({
+		where: { simplified },
+		create: { simplified, ...wordData, status: 'published' },
+		update: { ...wordData, status: 'published' },
 	});
 
 	await prisma.cnWordSetItem.update({

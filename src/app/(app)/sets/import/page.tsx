@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 export default async function SetImportPage() {
 	const session = await auth();
 	if (!session?.user) redirect('/login');
+	const isAdmin = session.user.role === 'admin';
 
 	return (
 		<div className="mx-auto max-w-6xl space-y-6 px-4 py-8 md:px-8">
@@ -22,6 +23,11 @@ export default async function SetImportPage() {
 				<p className="mt-2 max-w-2xl text-sm text-foreground-secondary">
 					Tải file Excel theo mẫu hệ thống, hoặc dùng <strong>AI Smart Import</strong>: copy prompt có sẵn sang Gen AI bên ngoài, rồi dán kết quả TSV trở lại app — không cần tự làm file Excel.
 				</p>
+				{!isAdmin && (
+					<p className="mt-2 max-w-2xl rounded-lg border border-border bg-surface p-3 text-sm text-foreground-secondary">
+						Chỉ admin mới thêm được từ mới vào hệ thống. Khi import, bạn chỉ chọn được các từ đã có sẵn; từ chưa có sẽ được báo và bỏ qua.
+					</p>
+				)}
 				<p className="mt-2 text-xs text-muted md:hidden">
 					Trên điện thoại vẫn import được — nên dùng file .xlsx từ Files/Drive.
 				</p>

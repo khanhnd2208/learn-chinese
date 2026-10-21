@@ -21,11 +21,11 @@ export const POST = withAuth(async (request, user) => {
 	}
 
 	if (action === 'preview') {
-		const preview = await previewUserWorkbook(file, user.id);
+		const preview = await previewUserWorkbook(file, user.id, { canCreateWords: user.role === 'admin' });
 		return apiSuccess({ preview });
 	}
 
-	const result = await importUserWorkbook(user.id, file, restoreProgress);
+	const result = await importUserWorkbook(user.id, file, restoreProgress, { canCreateWords: user.role === 'admin' });
 	if (result.errors.length) {
 		return apiError(`Import có ${result.errors.length} lỗi — sửa trước khi publish`, 400);
 	}

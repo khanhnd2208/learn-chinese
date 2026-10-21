@@ -37,11 +37,11 @@ export const POST = withAuth(async (request, user) => {
 	if (textError) return apiError(textError, 400);
 
 	if (action === 'preview') {
-		const preview = await previewPastedTuVung(text, setName, user.id);
+		const preview = await previewPastedTuVung(text, setName, user.id, { canCreateWords: user.role === 'admin' });
 		return apiSuccess({ preview });
 	}
 
-	const result = await importPastedTuVung(user.id, text, setName);
+	const result = await importPastedTuVung(user.id, text, setName, { canCreateWords: user.role === 'admin' });
 	if (result.errors.length) {
 		return apiError(`Import có ${result.errors.length} lỗi — sửa trước khi publish`, 400);
 	}

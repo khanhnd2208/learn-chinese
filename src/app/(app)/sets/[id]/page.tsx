@@ -39,7 +39,7 @@ export default async function ChineseSetDetailPage({ params }: Props) {
 				/>
 			)}
 			<SetStudyPanel set={set} />
-			<SetManagePanel set={set} allSets={allSets} />
+			<SetManagePanel set={set} allSets={allSets} isAdmin={isAdmin} />
 		</div>
 	);
 }

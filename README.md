@@ -14,11 +14,12 @@ App học từ vựng tiếng Trung độc lập — tách khỏi [toiladuykhanh
 - **Tiến độ SRS** (`/review/stats`) — xem mục cần ôn / đã ôn hôm nay
 - Dashboard lỗi & tiến bộ
 - Admin CMS import CSV
+- **Chỉ admin thêm hoặc sửa từ.** Học viên chỉ chọn các từ đã có trong hệ thống để lập bộ và học
 
 ## Chạy local
 
 ```bash
-cd /Users/duykhanh/Documents/learn-chinese
+cd learn-chinese
 cp .env.example .env.local
 # Chỉnh DATABASE_URL, MONGODB_URI, Google OAuth, ADMIN_EMAILS
 

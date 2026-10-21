@@ -65,6 +65,9 @@ function withFiveExamples(row: Record<string, unknown>): Record<string, unknown>
 	return out;
 }
 
+const ADMIN = { canCreateWords: true };
+const LEARNER = { canCreateWords: false };
+
 beforeEach(() => {
 	mockWordFindMany.mockReset();
 	mockWordSetFindMany.mockReset();
@@ -94,7 +97,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 			}),
 		]);
 
-		const preview = await previewUserWorkbook(file, 'user-1');
+		const preview = await previewUserWorkbook(file, 'user-1', ADMIN);
 		expect(preview.errors).toHaveLength(0);
 		expect(preview.validWords).toBe(2);
 		expect(preview.setsCount).toBe(1);
@@ -117,7 +120,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 			}),
 		]);
 
-		const preview = await previewUserWorkbook(file);
+		const preview = await previewUserWorkbook(file, undefined, ADMIN);
 		expect(preview.errors).toHaveLength(0);
 		expect(preview.validWords).toBe(1);
 	});
@@ -132,7 +135,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 				vi_du_1: '我喜欢__。|wǒ xǐhuān __.|Tôi thích __.',
 			},
 		]);
-		const preview = await previewUserWorkbook(file);
+		const preview = await previewUserWorkbook(file, undefined, ADMIN);
 		expect(preview.errors.some((e) => e.includes('5 ví dụ'))).toBe(true);
 		expect(preview.errors.some((e) => e.includes('chi tiết bên dưới'))).toBe(true);
 	});
@@ -151,7 +154,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 				vi_du_5: '他是。|tā shì.|Anh ấy là __.',
 			},
 		]);
-		const preview = await previewUserWorkbook(file);
+		const preview = await previewUserWorkbook(file, undefined, ADMIN);
 		expect(preview.badExampleWarnings?.length).toBe(5);
 		expect(preview.badExampleWarnings?.[0]?.reason).toContain('Markdown');
 		expect(preview.badExampleWarnings?.[0]?.simplified).toBe('老师');
@@ -178,7 +181,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 		// Replace vi_du_1 with unblanked sentence that still contains target word
 		repairedRow.vi_du_1 = '我很好。|wǒ hěn hǎo.|Tôi rất __.';
 
-		const preview = await previewUserWorkbook(await tuVungFile([repairedRow]));
+		const preview = await previewUserWorkbook(await tuVungFile([repairedRow]), undefined, ADMIN);
 		expect(preview.errors).toHaveLength(0);
 		expect(preview.warnings.some((w) => w.includes('tự thêm dấu trống'))).toBe(true);
 	});
@@ -187,7 +190,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 		const file = await tuVungFile([
 			{ bo_tu: 'Bài 1', simplified: '学生' },
 		]);
-		const preview = await previewUserWorkbook(file);
+		const preview = await previewUserWorkbook(file, undefined, ADMIN);
 		expect(preview.errors.some((e) => e.includes('pinyin'))).toBe(true);
 		expect(preview.errors.some((e) => e.includes('meaning_vi'))).toBe(true);
 	});
@@ -197,7 +200,7 @@ describe('previewUserWorkbook — tu_vung format', () => {
 			{ bo_tu: 'Bài 1', simplified: '学生', pinyin: 'xuésheng', meaning_vi: 'học sinh' },
 			{ bo_tu: 'Bài 2', simplified: '学生', pinyin: 'xuésheng', meaning_vi: 'học sinh' },
 		]);
-		const preview = await previewUserWorkbook(file);
+		const preview = await previewUserWorkbook(file, undefined, ADMIN);
 		expect(preview.errors.some((e) => e.includes('trùng'))).toBe(true);
 	});
 
@@ -206,14 +209,14 @@ describe('previewUserWorkbook — tu_vung format', () => {
 		const file = await tuVungFile([
 			{ bo_tu: 'Bài 1', simplified: '学生', pinyin: 'xuésheng', meaning_vi: 'học sinh' },
 		]);
-		const preview = await previewUserWorkbook(file, 'user-1');
+		const preview = await previewUserWorkbook(file, 'user-1', ADMIN);
 		expect(preview.duplicateSetNames).toEqual(['Bài 1']);
 		expect(preview.warnings.some((w) => w.includes('import N'))).toBe(true);
 	});
 
 	it('rejects unknown format', async () => {
 		const file = await workbookFile({ random: [{ foo: 'bar' }] });
-		const preview = await previewUserWorkbook(file);
+		const preview = await previewUserWorkbook(file, undefined, ADMIN);
 		expect(preview.errors.some((e) => e.includes('không đúng định dạng'))).toBe(true);
 	});
 });
@@ -260,60 +263,129 @@ describe('previewUserWorkbook — legacy format', () => {
 });
 
 describe('importUserWorkbook — tu_vung format', () => {
-	it('stores the learner gloss beside the shared word and suffixes a duplicate set title', async () => {
-		const file = await tuVungFile([
-			withFiveExamples({
-				bo_tu: 'Bài 1',
-				simplified: '学生',
-				pinyin: 'xuésheng',
-				meaning_vi: 'học sinh',
-				ghi_chu: 'Thường dùng cho học sinh phổ thông hoặc sinh viên.',
-			}),
-		]);
-
-		mockWordSetFindMany.mockResolvedValue([{ title: 'Bài 1' }] as never);
-
-		const createdSets: Array<{ title: string }> = [];
-		const overlayWrites: Array<{ create: Record<string, unknown>; update: Record<string, unknown> }> = [];
-		const deletedExampleFilters: Array<Record<string, unknown>> = [];
+	function txWithKnownWords(known: Array<{ id: string; simplified: string }>) {
+		const created = {
+			sets: [] as Array<{ title: string }>,
+			items: [] as Array<{ rawTerm: string; wordId: string }>,
+			wordUpserts: [] as Array<Record<string, unknown>>,
+			exampleDeletes: [] as Array<Record<string, unknown>>,
+			exampleCreates: [] as Array<unknown>,
+		};
 		mockTransaction.mockImplementation(async (callback) => {
 			const tx = {
 				cnWord: {
-					findUnique: vi.fn().mockResolvedValue({ id: 'word-1', simplified: '学生' }),
-					create: vi.fn(),
-					upsert: vi.fn(),
-				},
-				cnUserWordOverride: {
+					findMany: vi.fn().mockResolvedValue(known),
 					upsert: vi.fn().mockImplementation((args) => {
-						overlayWrites.push(args);
-						return args.create;
+						created.wordUpserts.push(args);
+						return { id: 'word-admin', simplified: args.where.simplified };
 					}),
+					create: vi.fn(),
+					update: vi.fn(),
 				},
+				cnUserWordOverride: { upsert: vi.fn() },
 				cnExample: {
 					deleteMany: vi.fn().mockImplementation((args) => {
-						deletedExampleFilters.push(args.where);
+						created.exampleDeletes.push(args.where);
 						return { count: 0 };
 					}),
-					createMany: vi.fn().mockResolvedValue({ count: 5 }),
+					createMany: vi.fn().mockImplementation((args) => {
+						created.exampleCreates.push(args);
+						return { count: 5 };
+					}),
 				},
 				cnWordSet: {
 					create: vi.fn().mockImplementation(({ data }) => {
-						createdSets.push({ title: data.title });
-						return { id: 'set-1', ...data };
+						created.sets.push({ title: data.title });
+						return { id: `set-${created.sets.length}`, ...data };
 					}),
 				},
 				cnWordSetItem: {
-					create: vi.fn().mockResolvedValue({ id: 'item-1' }),
+					create: vi.fn().mockImplementation(({ data }) => {
+						created.items.push({ rawTerm: data.rawTerm, wordId: data.wordId });
+						return { id: 'item-1' };
+					}),
 				},
 			};
 			return callback(tx as never);
 		});
+		return created;
+	}
 
-		const result = await importUserWorkbook('user-1', file, false);
+	const fullRow = (simplified: string) => withFiveExamples({
+		bo_tu: 'Bài 1',
+		simplified,
+		pinyin: 'xuésheng',
+		meaning_vi: 'học sinh',
+		ghi_chu: 'Ghi chú của người nhập.',
+	});
+
+	it('lets an admin create or update the shared word and its shared examples', async () => {
+		const file = await tuVungFile([fullRow('学生')]);
+		mockWordSetFindMany.mockResolvedValue([{ title: 'Bài 1' }] as never);
+		const created = txWithKnownWords([]);
+
+		const result = await importUserWorkbook('admin-1', file, false, ADMIN);
+
 		expect(result.errors).toHaveLength(0);
-		expect(createdSets[0]?.title).toBe('Bài 1 (import 2)');
-		expect(overlayWrites[0]?.create.ghiChu).toBe('Thường dùng cho học sinh phổ thông hoặc sinh viên.');
-		expect(overlayWrites[0]?.update.ghiChu).toBe('Thường dùng cho học sinh phổ thông hoặc sinh viên.');
-		expect(deletedExampleFilters[0]).toEqual({ wordId: 'word-1', ownerUserId: 'user-1' });
+		expect(created.sets[0]?.title).toBe('Bài 1 (import 2)');
+		expect(created.wordUpserts).toHaveLength(1);
+		expect(created.exampleDeletes[0]).toEqual({ wordId: 'word-admin', ownerUserId: null });
+		expect(created.items[0]).toEqual({ rawTerm: '学生', wordId: 'word-admin' });
+	});
+
+	it('links a learner only to words that already exist and never writes a word or example', async () => {
+		const file = await tuVungFile([{ bo_tu: 'Bài 1', simplified: '学生' }]);
+		mockWordFindMany.mockResolvedValue([{ id: 'word-1', simplified: '学生' }] as never);
+		const created = txWithKnownWords([{ id: 'word-1', simplified: '学生' }]);
+
+		const result = await importUserWorkbook('learner-1', file, false, LEARNER);
+
+		expect(result.errors).toHaveLength(0);
+		expect(created.wordUpserts).toHaveLength(0);
+		expect(created.exampleDeletes).toHaveLength(0);
+		expect(created.exampleCreates).toHaveLength(0);
+		expect(created.items).toEqual([{ rawTerm: '学生', wordId: 'word-1' }]);
+	});
+
+	it('skips a learner word that is not in the system and says so', async () => {
+		const file = await tuVungFile([
+			{ bo_tu: 'Bài 1', simplified: '学生' },
+			{ bo_tu: 'Bài 1', simplified: '新词' },
+		]);
+		mockWordFindMany.mockResolvedValue([{ id: 'word-1', simplified: '学生' }] as never);
+		const created = txWithKnownWords([{ id: 'word-1', simplified: '学生' }]);
+
+		const preview = await previewUserWorkbook(file, 'learner-1', LEARNER);
+		expect(preview.errors).toHaveLength(0);
+		expect(preview.items).toBe(1);
+		expect(preview.pendingWords).toBe(1);
+		expect(preview.warnings.some((w) => w.includes('新词') && w.includes('admin'))).toBe(true);
+
+		await importUserWorkbook('learner-1', file, false, LEARNER);
+		expect(created.items).toEqual([{ rawTerm: '学生', wordId: 'word-1' }]);
+		expect(created.wordUpserts).toHaveLength(0);
+	});
+
+	it('rejects a learner file when none of its words exist yet', async () => {
+		const file = await tuVungFile([{ bo_tu: 'Bài 1', simplified: '新词' }]);
+		mockWordFindMany.mockResolvedValue([] as never);
+		const created = txWithKnownWords([]);
+
+		const result = await importUserWorkbook('learner-1', file, false, LEARNER);
+
+		expect(result.errors.length).toBeGreaterThan(0);
+		expect(created.sets).toHaveLength(0);
+		expect(created.wordUpserts).toHaveLength(0);
+	});
+
+	it('defaults to learner rules when no policy is given', async () => {
+		const file = await tuVungFile([fullRow('新词')]);
+		mockWordFindMany.mockResolvedValue([] as never);
+		const created = txWithKnownWords([]);
+
+		const result = await importUserWorkbook('someone', file, false);
+
+		expect(result.errors.length).toBeGreaterThan(0);
+		expect(created.wordUpserts).toHaveLength(0);
 	});
 });

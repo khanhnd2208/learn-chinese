@@ -12,7 +12,6 @@ import {
 } from '@/lib/excelWorkbook';
 import { normalizeTerm } from '@/lib/chinese/hanziUtils';
 import { enrollWordsInSrs } from '@/services/chinese/cnSrsEnrollmentService';
-import { writeUserWordOverlay } from '@/services/chinese/cnWordViewService';
 import { CORE_QUESTION_TYPE_SET } from '@/lib/chinese/coreQuestionTypes';
 import {
 	MIN_FILL_EXAMPLES_PER_WORD,
@@ -182,6 +181,26 @@ function parseTuVungRows(rows: Row[]): ParsedTuVungRow[] {
 			examples,
 		};
 	});
+}
+
+/** Only admins may add or change words. Learners can only pick words that already exist. */
+export interface WordWritePolicy {
+	canCreateWords?: boolean;
+}
+
+const MAX_SKIPPED_WORDS_LISTED = 20;
+
+async function findPublishedWordIds(
+	db: Pick<Prisma.TransactionClient, 'cnWord'>,
+	simplifiedList: string[],
+): Promise<Map<string, string>> {
+	const unique = [...new Set(simplifiedList.filter(Boolean))];
+	if (!unique.length) return new Map();
+	const rows = await db.cnWord.findMany({
+		where: { simplified: { in: unique }, status: 'published' },
+		select: { id: true, simplified: true },
+	});
+	return new Map(rows.map((row) => [row.simplified, row.id]));
 }
 
 function emptyTuVungPreviewFields(): Pick<
@@ -391,7 +410,9 @@ export interface UserWorkbookPreview {
 async function previewTuVungWorkbook(
 	workbook: ExcelWorkbookData,
 	userId?: string,
+	policy: WordWritePolicy = {},
 ): Promise<UserWorkbookPreview> {
+	const canCreateWords = policy.canCreateWords === true;
 	const errors: string[] = [];
 	const warnings: string[] = [];
 	const rows = sanitizeSheetRows(rowsFromSheet(workbook, 'tu_vung'));
@@ -409,6 +430,7 @@ async function previewTuVungWorkbook(
 	let examplesRepaired = 0;
 	let wordsWithExamples = 0;
 	const badExampleWarnings: BadExampleWarning[] = [];
+	const validSimplified: string[] = [];
 
 	for (const row of parsedRows) {
 		let rowValid = true;
@@ -420,11 +442,11 @@ async function previewTuVungWorkbook(
 			errors.push(`tu_vung dòng ${row.rowNumber}: thiếu simplified`);
 			rowValid = false;
 		}
-		if (!row.pinyin) {
+		if (canCreateWords && !row.pinyin) {
 			errors.push(`tu_vung dòng ${row.rowNumber}: thiếu pinyin`);
 			rowValid = false;
 		}
-		if (!row.meaningVi) {
+		if (canCreateWords && !row.meaningVi) {
 			errors.push(`tu_vung dòng ${row.rowNumber}: thiếu meaning_vi`);
 			rowValid = false;
 		}
@@ -437,7 +459,7 @@ async function previewTuVungWorkbook(
 			}
 		}
 
-		if (row.simplified && row.meaningVi) {
+		if (canCreateWords && row.simplified && row.meaningVi) {
 			const rawRow = rows[row.rowNumber - 2];
 			for (let i = 0; i < VI_DU_COLUMN_KEYS.length; i++) {
 				const key = VI_DU_COLUMN_KEYS[i];
@@ -471,11 +493,37 @@ async function previewTuVungWorkbook(
 		if (!rowValid) continue;
 
 		validWords++;
+		validSimplified.push(row.simplified);
+	}
+
+	let pendingWords = 0;
+	let knownSimplified = new Set(validSimplified);
+	if (!canCreateWords) {
+		const known = await findPublishedWordIds(prisma, validSimplified);
+		knownSimplified = new Set(known.keys());
+		const missing = validSimplified.filter((term) => !known.has(term));
+		pendingWords = missing.length;
+		validWords -= missing.length;
+		wordsWithExamples = validWords;
+		if (missing.length) {
+			const listed = missing.slice(0, MAX_SKIPPED_WORDS_LISTED).join(', ');
+			const more = missing.length > MAX_SKIPPED_WORDS_LISTED
+				? ` và ${missing.length - MAX_SKIPPED_WORDS_LISTED} từ khác`
+				: '';
+			warnings.push(
+				`${missing.length} từ chưa có trong hệ thống nên sẽ bị bỏ qua: ${listed}${more}. Nhờ admin thêm các từ này.`,
+			);
+		}
+		if (parsedRows.length > 0 && validWords === 0 && errors.length === 0) {
+			errors.push('Không có từ nào trong file đã có trong hệ thống. Chỉ admin mới thêm được từ mới.');
+		}
 	}
 
 	const itemCountBySet = new Map<string, number>();
 	for (const row of parsedRows) {
-		if (!row.boTu || !row.simplified || !row.pinyin || !row.meaningVi) continue;
+		if (!row.boTu || !row.simplified) continue;
+		if (canCreateWords && (!row.pinyin || !row.meaningVi)) continue;
+		if (!knownSimplified.has(row.simplified)) continue;
 		itemCountBySet.set(row.boTu, (itemCountBySet.get(row.boTu) ?? 0) + 1);
 	}
 	for (const [boTu, count] of itemCountBySet) {
@@ -508,7 +556,7 @@ async function previewTuVungWorkbook(
 		progress: 0,
 		answerLogs: 0,
 		matchedWords: validWords,
-		pendingWords: 0,
+		pendingWords,
 		errors,
 		warnings,
 		totalRows: parsedRows.length,
@@ -637,16 +685,24 @@ async function previewLegacyWorkbook(workbook: ExcelWorkbookData): Promise<UserW
 	};
 }
 
-export async function previewUserWorkbook(file: File, userId?: string): Promise<UserWorkbookPreview> {
+export async function previewUserWorkbook(
+	file: File,
+	userId?: string,
+	policy: WordWritePolicy = {},
+): Promise<UserWorkbookPreview> {
 	const buffer = Buffer.from(await file.arrayBuffer());
-	return previewUserWorkbookBuffer(buffer, userId);
+	return previewUserWorkbookBuffer(buffer, userId, policy);
 }
 
-export async function previewUserWorkbookBuffer(buffer: Buffer, userId?: string): Promise<UserWorkbookPreview> {
+export async function previewUserWorkbookBuffer(
+	buffer: Buffer,
+	userId?: string,
+	policy: WordWritePolicy = {},
+): Promise<UserWorkbookPreview> {
 	const workbook = await readExcelWorkbook(buffer);
 
 	if (isTuVungFormat(workbook)) {
-		return previewTuVungWorkbook(workbook, userId);
+		return previewTuVungWorkbook(workbook, userId, policy);
 	}
 	if (hasExcelSheet(workbook, 'sets')) {
 		return previewLegacyWorkbook(workbook);
@@ -665,37 +721,31 @@ export async function previewUserWorkbookBuffer(buffer: Buffer, userId?: string)
 	};
 }
 
-function filterValidTuVungRows(parsedRows: ParsedTuVungRow[]): ParsedTuVungRow[] {
+function filterValidTuVungRows(parsedRows: ParsedTuVungRow[], canCreateWords: boolean): ParsedTuVungRow[] {
+	if (!canCreateWords) {
+		return parsedRows.filter((row) => row.boTu && row.simplified);
+	}
 	return parsedRows.filter(
 		(row) => row.boTu && row.simplified && row.pinyin && row.meaningVi
 			&& row.examples.length >= MIN_FILL_EXAMPLES_PER_WORD,
 	);
 }
 
-type ImportActor = { kind: 'admin' } | { kind: 'user'; userId: string };
+type ImportActor = { kind: 'admin' } | { kind: 'learner' };
 
 async function upsertTuVungWordsAndExamples(
 	tx: Prisma.TransactionClient,
 	parsedRows: ParsedTuVungRow[],
 	actor: ImportActor,
 ): Promise<Map<string, string>> {
+	if (actor.kind === 'learner') {
+		// Learners never write words or examples. They only link words that already exist.
+		return findPublishedWordIds(tx, parsedRows.map((row) => row.simplified));
+	}
+
 	const wordIdBySimplified = new Map<string, string>();
 
 	for (const row of parsedRows) {
-		if (actor.kind === 'user') {
-			const word = await writeUserWordOverlay(tx, actor.userId, {
-				simplified: row.simplified,
-				pinyin: row.pinyin,
-				hanViet: row.hanViet,
-				meaningVi: row.meaningVi,
-				partOfSpeech: row.partOfSpeech,
-				ghiChu: row.ghiChu,
-				examples: row.examples,
-			});
-			wordIdBySimplified.set(row.simplified, word.id);
-			continue;
-		}
-
 		const word = await tx.cnWord.upsert({
 			where: { simplified: row.simplified },
 			create: {
@@ -744,9 +794,11 @@ async function importTuVungWorkbook(
 	workbook: ExcelWorkbookData,
 	preview: UserWorkbookPreview,
 	options: ImportTuVungOptions = {},
+	policy: WordWritePolicy = {},
 ): Promise<{ preview: UserWorkbookPreview; createdSetIds: string[] }> {
+	const canCreateWords = policy.canCreateWords === true;
 	const rows = sanitizeSheetRows(rowsFromSheet(workbook, 'tu_vung'));
-	const parsedRows = filterValidTuVungRows(parseTuVungRows(rows));
+	const parsedRows = filterValidTuVungRows(parseTuVungRows(rows), canCreateWords);
 
 	const existingSets = await prisma.cnWordSet.findMany({
 		where: { userId },
@@ -756,10 +808,15 @@ async function importTuVungWorkbook(
 	const createdSetIds: string[] = [];
 
 	await prisma.$transaction(async (tx) => {
-		const wordIdBySimplified = await upsertTuVungWordsAndExamples(tx, parsedRows, { kind: 'user', userId });
+		const wordIdBySimplified = await upsertTuVungWordsAndExamples(
+			tx,
+			parsedRows,
+			canCreateWords ? { kind: 'admin' } : { kind: 'learner' },
+		);
 
 		const rowsBySet = new Map<string, ParsedTuVungRow[]>();
 		for (const row of parsedRows) {
+			if (!wordIdBySimplified.has(row.simplified)) continue;
 			const group = rowsBySet.get(row.boTu) ?? [];
 			group.push(row);
 			rowsBySet.set(row.boTu, group);
@@ -817,18 +874,20 @@ export interface ImportWorkbookBufferResult {
 export async function importUserWorkbookBuffer(
 	userId: string,
 	buffer: Buffer,
-	options: ImportTuVungOptions & { restoreProgress?: boolean } = {},
+	options: ImportTuVungOptions & WordWritePolicy & { restoreProgress?: boolean } = {},
 ): Promise<ImportWorkbookBufferResult> {
-	const preview = await previewUserWorkbookBuffer(buffer, userId);
+	const { canCreateWords, ...importOptions } = options;
+	const policy: WordWritePolicy = { canCreateWords };
+	const preview = await previewUserWorkbookBuffer(buffer, userId, policy);
 	if (preview.errors.length) {
 		return { preview, createdSetIds: [] };
 	}
 
 	const workbook = await readExcelWorkbook(buffer);
-	const { restoreProgress = false, ...tuVungOptions } = options;
+	const { restoreProgress = false, ...tuVungOptions } = importOptions;
 
 	if (isTuVungFormat(workbook)) {
-		return importTuVungWorkbook(userId, workbook, preview, tuVungOptions);
+		return importTuVungWorkbook(userId, workbook, preview, tuVungOptions, policy);
 	}
 	if (hasExcelSheet(workbook, 'sets')) {
 		const legacyPreview = await importLegacyWorkbook(userId, workbook, restoreProgress, preview);
@@ -989,9 +1048,10 @@ export async function importUserWorkbook(
 	userId: string,
 	file: File,
 	restoreProgress: boolean,
+	policy: WordWritePolicy = {},
 ): Promise<UserWorkbookPreview> {
 	const buffer = Buffer.from(await file.arrayBuffer());
-	const { preview } = await importUserWorkbookBuffer(userId, buffer, { restoreProgress });
+	const { preview } = await importUserWorkbookBuffer(userId, buffer, { restoreProgress, ...policy });
 	return preview;
 }
 
@@ -1003,22 +1063,25 @@ export async function previewPastedTuVung(
 	text: string,
 	setName?: string,
 	userId?: string,
+	policy: WordWritePolicy = {},
 ): Promise<UserWorkbookPreview> {
 	const rows = parsePastedTuVung(text, setName);
 	const buffer = await buildTuVungWorkbookBuffer(rows);
-	return previewUserWorkbookBuffer(buffer, userId);
+	return previewUserWorkbookBuffer(buffer, userId, policy);
 }
 
 export async function importPastedTuVung(
 	userId: string,
 	text: string,
 	setName?: string,
+	policy: WordWritePolicy = {},
 ): Promise<UserWorkbookPreview> {
 	const rows = parsePastedTuVung(text, setName);
 	const buffer = await buildTuVungWorkbookBuffer(rows);
 	const { preview } = await importUserWorkbookBuffer(userId, buffer, {
 		preserveSetTitle: true,
 		setDescription: '',
+		...policy,
 	});
 	return preview;
 }
@@ -1056,6 +1119,7 @@ export async function previewTuVungIntoSet(
 	userId: string,
 	setId: string,
 	text: string,
+	policy: WordWritePolicy = {},
 ): Promise<UserWorkbookPreview | null> {
 	const set = await prisma.cnWordSet.findFirst({
 		where: { id: setId, userId },
@@ -1063,7 +1127,7 @@ export async function previewTuVungIntoSet(
 	});
 	if (!set) return null;
 
-	const preview = await previewPastedTuVung(text, set.title, userId);
+	const preview = await previewPastedTuVung(text, set.title, userId, policy);
 	const pastedRows = parsePastedTuVung(text, set.title);
 	const incomingSimplified = pastedRows
 		.map((row) => getField(row as Row, 'simplified'))
@@ -1081,20 +1145,22 @@ export async function importTuVungIntoSet(
 	userId: string,
 	setId: string,
 	text: string,
+	policy: WordWritePolicy = {},
 ): Promise<{ preview: UserWorkbookPreview; addedCount: number } | null> {
+	const canCreateWords = policy.canCreateWords === true;
 	const set = await prisma.cnWordSet.findFirst({
 		where: { id: setId, userId },
 		include: { items: { select: { rawTerm: true } } },
 	});
 	if (!set) return null;
 
-	const preview = await previewTuVungIntoSet(userId, setId, text);
+	const preview = await previewTuVungIntoSet(userId, setId, text, policy);
 	if (!preview || preview.errors.length) {
 		return preview ? { preview, addedCount: 0 } : null;
 	}
 
 	const rows = sanitizeSheetRows(parsePastedTuVung(text, set.title) as Row[]);
-	const parsedRows = filterValidTuVungRows(parseTuVungRows(rows));
+	const parsedRows = filterValidTuVungRows(parseTuVungRows(rows), canCreateWords);
 	const existingTerms = new Set(
 		set.items.map((item) => normalizeTerm(item.rawTerm)).filter(Boolean),
 	);
@@ -1102,7 +1168,11 @@ export async function importTuVungIntoSet(
 	let addedCount = 0;
 
 	await prisma.$transaction(async (tx) => {
-		const wordIdBySimplified = await upsertTuVungWordsAndExamples(tx, parsedRows, { kind: 'user', userId });
+		const wordIdBySimplified = await upsertTuVungWordsAndExamples(
+			tx,
+			parsedRows,
+			canCreateWords ? { kind: 'admin' } : { kind: 'learner' },
+		);
 		const seenTerms = new Set(existingTerms);
 
 		for (const row of parsedRows) {

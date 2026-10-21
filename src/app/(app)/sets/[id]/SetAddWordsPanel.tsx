@@ -8,9 +8,10 @@ import TuVungPasteWizard from '@/app/(app)/sets/import/TuVungPasteWizard';
 interface Props {
 	setId: string;
 	setTitle: string;
+	isAdmin?: boolean;
 }
 
-export default function SetAddWordsPanel({ setId, setTitle }: Props) {
+export default function SetAddWordsPanel({ setId, setTitle, isAdmin = false }: Props) {
 	const router = useRouter();
 	const [expanded, setExpanded] = useState(false);
 	const [success, setSuccess] = useState<string | null>(null);
@@ -27,7 +28,9 @@ export default function SetAddWordsPanel({ setId, setTitle }: Props) {
 				<div>
 					<h2 className="text-lg font-extrabold text-foreground">Thêm từ vào bộ</h2>
 					<p className="mt-1 text-xs text-muted">
-						Bắt buộc đủ trường như import mới — dùng AI copy-paste TSV.
+						{isAdmin
+							? 'Bắt buộc đủ trường như import mới — dùng AI copy-paste TSV.'
+							: 'Chỉ thêm được các từ admin đã đưa vào hệ thống. Từ chưa có sẽ được báo và bỏ qua.'}
 					</p>
 				</div>
 				<button

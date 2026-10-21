@@ -30,6 +30,7 @@ export async function ensureGlobalSampleSets(userId: string): Promise<void> {
 		const { preview, createdSetIds } = await importUserWorkbookBuffer(userId, buffer, {
 			setDescription: GLOBAL_SAMPLE_SET_DESCRIPTION,
 			preserveSetTitle: true,
+			canCreateWords: true,
 		});
 
 		if (preview.errors.length) {

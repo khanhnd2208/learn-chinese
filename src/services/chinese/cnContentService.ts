@@ -2,7 +2,7 @@
    cnContentService.ts — Chinese content lookup & word cards
    ════════════════════════════════════════════════════════════════════════ */
 import { prisma } from '@/lib/prisma';
-import { applyOverride, examplesForUser, writeUserWordOverlay } from '@/services/chinese/cnWordViewService';
+import { applyOverride, examplesForUser } from '@/services/chinese/cnWordViewService';
 import { splitHanzi } from '@/lib/chinese/hanziUtils';
 import { assessLookupReadiness } from '@/lib/chinese/practiceReadiness';
 import { enrichExampleDtoForFill } from '@/lib/chinese/verifiedExample';
@@ -414,21 +414,11 @@ export interface UpdateWordFieldsInput {
 	mnemonicVi?: string;
 }
 
-async function userOwnsWord(userId: string, wordId: string): Promise<boolean> {
-	const item = await prisma.cnWordSetItem.findFirst({
-		where: { wordId, set: { userId } },
-		select: { id: true },
-	});
-	return !!item;
-}
-
+/** Admin only (the route enforces it). Writes the shared word that every learner sees. */
 export async function updateWordFields(
-	userId: string,
 	wordId: string,
 	fields: UpdateWordFieldsInput,
 ): Promise<CnWordDTO | null> {
-	if (!(await userOwnsWord(userId, wordId))) return null;
-
 	const data: Partial<Pick<CnWord, 'pinyin' | 'meaningVi' | 'hanViet' | 'partOfSpeech' | 'ghiChu' | 'mnemonicVi'>> = {};
 	if (fields.pinyin !== undefined) data.pinyin = fields.pinyin.trim();
 	if (fields.meaningVi !== undefined) data.meaningVi = fields.meaningVi.trim();
@@ -439,17 +429,11 @@ export async function updateWordFields(
 
 	if (!Object.keys(data).length) return null;
 
-	const existing = await prisma.cnWord.findUnique({ where: { id: wordId } });
+	const existing = await prisma.cnWord.findUnique({ where: { id: wordId }, select: { id: true } });
 	if (!existing) return null;
 
-	await writeUserWordOverlay(prisma, userId, {
-		simplified: existing.simplified,
-		...data,
-	});
-	const override = await prisma.cnUserWordOverride.findUnique({
-		where: { userId_wordId: { userId, wordId } },
-	});
-	return wordToDTO(applyOverride(existing, override));
+	const word = await prisma.cnWord.update({ where: { id: wordId }, data });
+	return wordToDTO(word);
 }
 
 /** Vocabulary pool for MCQ distractors — user's sets + HSK fallback */

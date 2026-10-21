@@ -92,7 +92,7 @@ vi.mock('@/lib/prisma', () => {
 
 import { prisma } from '@/lib/prisma';
 import { getWordCard, updateWordFields } from '@/services/chinese/cnContentService';
-import { loadWordViewsForUser, writeUserWordOverlay } from '@/services/chinese/cnWordViewService';
+import { loadWordViewsForUser } from '@/services/chinese/cnWordViewService';
 
 function seedCanonical() {
 	store.words.push({
@@ -150,7 +150,7 @@ function seedCanonical() {
 	store.setItems.push({ wordId: 'word-student', userId: 'user-a' }, { wordId: 'word-student', userId: 'user-b' });
 }
 
-describe('learner word overlay', () => {
+describe('shared word and stored learner overlay', () => {
 	beforeEach(() => {
 		store.words = [];
 		store.overrides = [];
@@ -158,42 +158,37 @@ describe('learner word overlay', () => {
 		store.setItems = [];
 		store.seq = 1;
 		seedCanonical();
-		vi.mocked(prisma.cnWord.update).mockClear();
+		vi.mocked(prisma.cnWord.update).mockReset();
+		vi.mocked(prisma.cnWord.update).mockImplementation((async ({ where, data }: {
+			where: { id: string };
+			data: Record<string, unknown>;
+		}) => {
+			const word = store.words.find((row) => row.id === where.id)!;
+			Object.assign(word, data);
+			return word;
+		}) as never);
 	});
 
-	it('keeps a learner gloss off the shared word and off other learners', async () => {
-		await writeUserWordOverlay(prisma, 'user-a', {
-			simplified: '学生',
-			meaningVi: 'X',
-			examples: [{ hanzi: 'A', pinyin: '', meaningVi: 'của A' }],
-		});
+	it('still applies an overlay row that already exists, for that learner only', async () => {
+		store.overrides.push({ userId: 'user-a', wordId: 'word-student', meaningVi: 'X' });
 
-		expect(store.words[0]?.meaningVi).toBe('học sinh');
 		expect((await loadWordViewsForUser('user-a', ['word-student'])).get('word-student')?.meaningVi).toBe('X');
 		expect((await loadWordViewsForUser('user-b', ['word-student'])).get('word-student')?.meaningVi).toBe('học sinh');
-		expect(store.examples.some((example) => example.id === 'ex-canonical')).toBe(true);
-		expect(store.examples.some((example) => example.id === 'ex-b')).toBe(true);
-
-		await writeUserWordOverlay(prisma, 'user-a', {
-			simplified: '学生',
-			meaningVi: 'X2',
-			examples: [{ hanzi: 'A2', pinyin: '', meaningVi: 'của A lần 2' }],
-		});
-		expect(store.examples.filter((example) => example.ownerUserId === 'user-a')).toHaveLength(1);
-		expect(store.examples.some((example) => example.id === 'ex-canonical')).toBe(true);
-		expect(store.examples.some((example) => example.id === 'ex-b')).toBe(true);
-
-		store.words[0]!.meaningVi = 'học trò';
-		expect((await loadWordViewsForUser('user-a', ['word-student'])).get('word-student')?.meaningVi).toBe('X2');
-		expect((await getWordCard('word-student', 'user-b'))?.meaningVi).toBe('học trò');
-		expect((await getWordCard('word-student', 'user-a'))?.meaningVi).toBe('X2');
+		expect((await getWordCard('word-student', 'user-b'))?.meaningVi).toBe('học sinh');
+		expect((await getWordCard('word-student', 'user-a'))?.meaningVi).toBe('X');
 	});
 
-	it('edits one learner without writing the shared word', async () => {
-		const updated = await updateWordFields('user-a', 'word-student', { meaningVi: 'X' });
-		expect(updated?.meaningVi).toBe('X');
+	it('writes admin edits to the shared word for every learner', async () => {
+		const updated = await updateWordFields('word-student', { meaningVi: 'học trò' });
+
+		expect(updated?.meaningVi).toBe('học trò');
+		expect(prisma.cnWord.update).toHaveBeenCalledTimes(1);
+		expect(store.overrides).toHaveLength(0);
+		expect((await getWordCard('word-student', 'user-b'))?.meaningVi).toBe('học trò');
+	});
+
+	it('returns null for an unknown word and writes nothing', async () => {
+		expect(await updateWordFields('missing', { meaningVi: 'x' })).toBeNull();
 		expect(prisma.cnWord.update).not.toHaveBeenCalled();
-		expect(store.words[0]?.meaningVi).toBe('học sinh');
-		expect((await getWordCard('word-student', 'user-b'))?.meaningVi).toBe('học sinh');
 	});
 });

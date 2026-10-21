@@ -53,6 +53,9 @@ export const PATCH = withAuth(async (request, user, ctx) => {
 	if (!body.itemId) return apiError('itemId is required', 400);
 
 	if (body.wordFields) {
+		if (user.role !== 'admin') {
+			return apiError('Chỉ admin mới thêm hoặc sửa nội dung từ', 403);
+		}
 		if (!body.wordFields.pinyin?.trim() || !body.wordFields.meaningVi?.trim()) {
 			return apiError('pinyin và meaningVi là bắt buộc', 400);
 		}

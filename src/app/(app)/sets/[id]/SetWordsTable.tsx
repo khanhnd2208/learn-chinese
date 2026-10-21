@@ -9,6 +9,8 @@ import type { CnWordSetDTO, CnWordSetItemDTO } from '@/types/chinese';
 interface Props {
 	set: CnWordSetDTO;
 	otherSets: Array<{ id: string; title: string }>;
+	/** Only admins may edit or fill in word content. */
+	canEditWords?: boolean;
 	onMessage?: (message: { success?: string; error?: string }) => void;
 }
 
@@ -74,7 +76,7 @@ function cellInput(
 	);
 }
 
-export default function SetWordsTable({ set, otherSets, onMessage }: Props) {
+export default function SetWordsTable({ set, otherSets, canEditWords = false, onMessage }: Props) {
 	const router = useRouter();
 	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 	const [editingId, setEditingId] = useState<string | null>(null);
@@ -387,15 +389,17 @@ export default function SetWordsTable({ set, otherSets, onMessage }: Props) {
 												</>
 											) : (
 												<>
-													<button
-														type="button"
-														onClick={() => startEdit(item)}
-														disabled={loading || editingId !== null}
-														className="rounded-full p-1.5 text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
-														aria-label="Sửa từ"
-													>
-														<MaterialIcon name="edit" size={16} />
-													</button>
+													{canEditWords && (
+														<button
+															type="button"
+															onClick={() => startEdit(item)}
+															disabled={loading || editingId !== null}
+															className="rounded-full p-1.5 text-muted transition-colors hover:bg-surface-hover hover:text-foreground"
+															aria-label="Sửa từ"
+														>
+															<MaterialIcon name="edit" size={16} />
+														</button>
+													)}
 													<button
 														type="button"
 														onClick={() => void removeItems([item])}

@@ -40,12 +40,12 @@ export const POST = withAuth(async (request, user, ctx) => {
 	const { id: setId } = await (ctx as Ctx).params;
 
 	if (action === 'preview') {
-		const preview = await previewTuVungIntoSet(user.id, setId, text);
+		const preview = await previewTuVungIntoSet(user.id, setId, text, { canCreateWords: user.role === 'admin' });
 		if (!preview) return apiError('Không tìm thấy bộ từ', 404);
 		return apiSuccess({ preview });
 	}
 
-	const result = await importTuVungIntoSet(user.id, setId, text);
+	const result = await importTuVungIntoSet(user.id, setId, text, { canCreateWords: user.role === 'admin' });
 	if (!result) return apiError('Không tìm thấy bộ từ', 404);
 	if (result.preview.errors.length) {
 		return apiError(`Import có ${result.preview.errors.length} lỗi — sửa trước khi publish`, 400);
