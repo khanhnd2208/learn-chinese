@@ -23,7 +23,7 @@ import type {
 	CnWordSetListItemDTO,
 	CreateCnWordSetInput,
 } from '@/types/chinese';
-import type { CnWord, CnWordProgress, CnWordSet, CnWordSetItem } from '@prisma/client';
+import type { CnWord, CnWordSet, CnWordSetItem } from '@prisma/client';
 
 function wordToBrief(w: CnWord) {
 	return {
