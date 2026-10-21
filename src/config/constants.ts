@@ -72,6 +72,13 @@ export const CN_WRONG_FIRST_RETRY_MINUTES = 30;
 export const CN_NEW_WORDS_PER_DAY = 10;
 /** How many "my answer is also right" reports one learner can file per local day. */
 export const CN_DISPUTES_PER_DAY = 10;
+/** Minimum distinct learners on one sentence before a low clean rate can flag it. */
+export const CN_EXAMPLE_FLAG_MIN_ATTEMPTS = 8;
+/** Clean (correct, no hint) rate below this flags the sentence once the attempt floor is met. */
+export const CN_EXAMPLE_FLAG_MAX_CLEAN_RATE = 0.4;
+/** Distinct learners who disputed a sentence, pending or accepted, are enough to flag it. */
+export const CN_EXAMPLE_FLAG_DISPUTE_USERS = 3;
+export const CN_EXAMPLE_STATS_WINDOW_DAYS = 90;
 /** Số từ trong một lượt Học từ mới */
 export const CN_LEARN_BATCH_SIZE = 5;
 /** Kênh Âm mở khi kênh Nghĩa đạt idx này */
