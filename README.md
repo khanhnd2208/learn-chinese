@@ -63,13 +63,13 @@ Hệ thống ôn **không phải SM-2/FSRS/Anki**. Mỗi từ có 3 kênh (nghĩ
 
 **Đơn vị lập lịch:** `(word, channel)` — số "ôn hôm nay" = số cặp từ×kênh đến hạn.
 
-**Thang interval (ngày):** 1, 1, 3, 7, 14, 30. Bậc 0–1 là MCQ, bậc 2 là gõ (Recall), bậc 3–5 là duy trì.
+**Thang interval (ngày):** 1, 1, 3, 7, 14, 30, 60, 120. Bậc 0–1 là MCQ, bậc 2 là gõ (Recall), bậc 3–7 là duy trì.
 
 **Khi sai:** bậc 0 hoặc 1 về bậc 0 và hẹn 30 phút. Bậc 2 về bậc 1, hẹn 1 ngày. Bậc 3 trở lên về bậc Recall (2), hẹn 1 ngày.
 
 **Gợi ý:** mở gợi ý rồi trả lời đúng thì giữ nguyên bậc và hẹn 1 ngày.
 
-**Kênh câu:** chỉ đến hạn khi từ có câu ví dụ điền được. Cả 3 kênh đang được xếp lịch từ lúc ghi danh.
+**Kênh câu:** chỉ đến hạn khi từ có câu ví dụ điền được. Từ chưa học không vào hàng ôn. Sau khi học, kênh Nghĩa mở trước; kênh Âm mở khi Nghĩa đạt bậc 1, kênh Câu khi Nghĩa đạt bậc 2.
 
 **Perf:** `getDueChannels` / `countDueChannels` dùng SQL superset prefilter (`cnSrsDueQuery.ts`) rồi `isChannelDue` trong JS; `listUserSets` vẫn N+1 query dueCount mỗi set.
 

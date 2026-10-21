@@ -83,10 +83,11 @@ describe('cnSrsService', () => {
 		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[4]).getTime());
 	});
 
-	it('caps at max maintain tier (30 days)', () => {
-		const next = computeNextReview({ intervalIdx: 5, correct: true, now });
-		expect(next.intervalIdx).toBe(5);
-		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[5]).getTime());
+	it('caps at max maintain tier (120 days)', () => {
+		const last = CN_SRS_INTERVAL_DAYS.length - 1;
+		const next = computeNextReview({ intervalIdx: last, correct: true, now });
+		expect(next.intervalIdx).toBe(last);
+		expect(next.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[last]).getTime());
 	});
 
 	it('MCQ1 wrong stays at MCQ1 due in 30 minutes', () => {

@@ -75,7 +75,7 @@
 8. Kenh rate thap nhung chua het interval.
    - Ky vong: KHONG due som.
 9. Thang on.
-   - Ky vong: 1, 1, 3, 7, 14, 30 ngay. 7 dang cau, khong con kenh listening/pinyin/hanzi rieng.
+   - Ky vong: 1, 1, 3, 7, 14, 30, 60, 120 ngay. 7 dang cau, khong con kenh listening/pinyin/hanzi rieng.
 10. `/review` khi co due channels.
    - Ky vong: dueToday dem theo tu x kenh.
 11. `/review` khi khong co due.

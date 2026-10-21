@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, addMinutes, CN_WRONG_FIRST_RETRY_MINUTES } from '@/config/constants';
+import { addDays, addMinutes, CN_SRS_INTERVAL_DAYS, CN_WRONG_FIRST_RETRY_MINUTES } from '@/config/constants';
 import { formatReviewScheduleLabel } from '@/lib/chinese/reviewMetrics';
 import { computeNextReview } from '@/lib/chinese/srsSchedule';
 
@@ -23,6 +23,17 @@ describe('srsSchedule', () => {
 		expect(next.dueAt.getTime()).toBe(addDays(now, 1).getTime());
 	});
 
+	it('extends a correct answer past 30 days up to 120 days', () => {
+		const next = computeNextReview({ intervalIdx: 5, correct: true, now });
+		expect(next.intervalIdx).toBe(6);
+		expect(next.dueAt.getTime()).toBe(addDays(now, 60).getTime());
+
+		const last = CN_SRS_INTERVAL_DAYS.length - 1;
+		const capped = computeNextReview({ intervalIdx: last, correct: true, now });
+		expect(capped.intervalIdx).toBe(last);
+		expect(capped.dueAt.getTime()).toBe(addDays(now, CN_SRS_INTERVAL_DAYS[last]).getTime());
+	});
+
 	it('sends a maintain miss back to Recall in one day', () => {
 		const at30 = computeNextReview({ intervalIdx: 5, correct: false, now });
 		expect(at30.intervalIdx).toBe(2);
@@ -39,7 +50,7 @@ describe('srsSchedule', () => {
 	});
 
 	it('keeps the UI label equal to the backend dueAt for every ladder step', () => {
-		for (let intervalIdx = 0; intervalIdx <= 5; intervalIdx++) {
+		for (let intervalIdx = 0; intervalIdx < CN_SRS_INTERVAL_DAYS.length; intervalIdx++) {
 			for (const correct of [true, false]) {
 				const { dueAt } = computeNextReview({ intervalIdx, correct, now });
 				expect(formatReviewScheduleLabel(intervalIdx, correct, now)).toBe(

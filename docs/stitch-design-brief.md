@@ -71,7 +71,7 @@ Mỗi từ có **3 kênh kỹ năng đang hoạt động:**
 ### Giai đoạn SRS mỗi kênh (theo interval index)
 
 ```
-MCQ1 (idx 0) → MCQ2 (idx 1) → Recall gõ lại (idx 2) → Maintain (idx 3–5: 7/14/30 ngày)
+MCQ1 (idx 0) → MCQ2 (idx 1) → Recall gõ lại (idx 2) → Maintain (idx 3–7: 7/14/30/60/120 ngày)
 ```
 
 ### Hai trục độc lập — KHÔNG trộn lẫn trên UI

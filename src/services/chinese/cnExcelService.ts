@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import type { Prisma } from '@prisma/client';
 import { AppError } from '@/lib/appError';
-import { MAX_CN_TERMS_PER_SET, MAX_IMPORT_ROWS } from '@/config/constants';
+import { MAX_CN_TERMS_PER_SET, MAX_IMPORT_ROWS, clampSrsIntervalIdx } from '@/config/constants';
 import {
 	buildExcelWorkbookBuffer,
 	excelSerialNumberToDate,
@@ -93,7 +93,7 @@ function soundProgressFromRow(row: Row): {
 		|| row.pinyin_correct !== undefined || row.pinyinCorrect !== undefined;
 
 	if (!hasLegacy) {
-		return { soundCorrect, soundTotal, soundDueAt, soundIntervalIdx };
+		return { soundCorrect, soundTotal, soundDueAt, soundIntervalIdx: clampSrsIntervalIdx(soundIntervalIdx) };
 	}
 
 	const mergedCorrect = soundCorrect + listeningCorrect + pinyinCorrect;
@@ -112,7 +112,7 @@ function soundProgressFromRow(row: Row): {
 		soundCorrect: mergedCorrect,
 		soundTotal: mergedTotal,
 		soundDueAt: mergedDueAt,
-		soundIntervalIdx: mergedIntervalIdx,
+		soundIntervalIdx: clampSrsIntervalIdx(mergedIntervalIdx),
 	};
 }
 
@@ -894,7 +894,7 @@ async function importLegacyWorkbook(
 					wordId: word.id,
 					state: getField(row, 'state') as CnWordProgressState,
 					dueAt: asDate(row.due_at ?? row.dueAt) ?? new Date(),
-					intervalIdx: asInt(row.interval_idx ?? row.intervalIdx),
+					intervalIdx: clampSrsIntervalIdx(asInt(row.interval_idx ?? row.intervalIdx)),
 					lastReviewedAt: asDate(row.last_reviewed_at ?? row.lastReviewedAt),
 					meaningCorrect: asInt(row.meaning_correct ?? row.meaningCorrect),
 					meaningTotal: asInt(row.meaning_total ?? row.meaningTotal),
@@ -903,16 +903,16 @@ async function importLegacyWorkbook(
 					sentenceCorrect: asInt(row.sentence_correct ?? row.sentenceCorrect),
 					sentenceTotal: asInt(row.sentence_total ?? row.sentenceTotal),
 					meaningDueAt: asDate(row.meaning_due_at ?? row.meaningDueAt),
-					meaningIntervalIdx: asInt(row.meaning_interval_idx ?? row.meaningIntervalIdx),
+					meaningIntervalIdx: clampSrsIntervalIdx(asInt(row.meaning_interval_idx ?? row.meaningIntervalIdx)),
 					soundDueAt: soundProgress.soundDueAt,
 					soundIntervalIdx: soundProgress.soundIntervalIdx,
 					sentenceDueAt: asDate(row.sentence_due_at ?? row.sentenceDueAt),
-					sentenceIntervalIdx: asInt(row.sentence_interval_idx ?? row.sentenceIntervalIdx),
+					sentenceIntervalIdx: clampSrsIntervalIdx(asInt(row.sentence_interval_idx ?? row.sentenceIntervalIdx)),
 				},
 				update: {
 					state: getField(row, 'state') as CnWordProgressState,
 					dueAt: asDate(row.due_at ?? row.dueAt) ?? new Date(),
-					intervalIdx: asInt(row.interval_idx ?? row.intervalIdx),
+					intervalIdx: clampSrsIntervalIdx(asInt(row.interval_idx ?? row.intervalIdx)),
 					lastReviewedAt: asDate(row.last_reviewed_at ?? row.lastReviewedAt),
 					meaningCorrect: asInt(row.meaning_correct ?? row.meaningCorrect),
 					meaningTotal: asInt(row.meaning_total ?? row.meaningTotal),
@@ -921,11 +921,11 @@ async function importLegacyWorkbook(
 					sentenceCorrect: asInt(row.sentence_correct ?? row.sentenceCorrect),
 					sentenceTotal: asInt(row.sentence_total ?? row.sentenceTotal),
 					meaningDueAt: asDate(row.meaning_due_at ?? row.meaningDueAt),
-					meaningIntervalIdx: asInt(row.meaning_interval_idx ?? row.meaningIntervalIdx),
+					meaningIntervalIdx: clampSrsIntervalIdx(asInt(row.meaning_interval_idx ?? row.meaningIntervalIdx)),
 					soundDueAt: soundProgress.soundDueAt,
 					soundIntervalIdx: soundProgress.soundIntervalIdx,
 					sentenceDueAt: asDate(row.sentence_due_at ?? row.sentenceDueAt),
-					sentenceIntervalIdx: asInt(row.sentence_interval_idx ?? row.sentenceIntervalIdx),
+					sentenceIntervalIdx: clampSrsIntervalIdx(asInt(row.sentence_interval_idx ?? row.sentenceIntervalIdx)),
 				},
 			});
 		}

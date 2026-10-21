@@ -19,9 +19,9 @@ export const RATE_LIMIT_WINDOW_MS = 60_000;
 
 /**
  * SRS ladder per channel (days until next review after a correct answer at that index).
- * 0 = MCQ1, 1 = MCQ2, 2 = Recall typed, 3–5 = Maintain typed (7 / 14 / 30 days).
+ * 0 = MCQ1, 1 = MCQ2, 2 = Recall typed, 3–7 = Maintain typed (7 / 14 / 30 / 60 / 120 days).
  */
-export const CN_SRS_INTERVAL_DAYS = [1, 1, 3, 7, 14, 30] as const;
+export const CN_SRS_INTERVAL_DAYS = [1, 1, 3, 7, 14, 30, 60, 120] as const;
 
 export type CnSrsStage = 'mcq1' | 'mcq2' | 'recall' | 'maintain';
 
