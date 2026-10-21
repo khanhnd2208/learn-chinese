@@ -140,6 +140,7 @@ model CnWord {
   expertVerifiedFields String[] @default([])
   verifiedAt           DateTime?
   verifiedById         String?
+  createdByUserId      String?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
   chars        CnWordChar[]
@@ -148,6 +149,7 @@ model CnWord {
   patterns     CnSentencePattern[]
   setItems     CnWordSetItem[]
   progress        CnWordProgress[]
+  userOverrides   CnUserWordOverride[]
   answerLogs      CnAnswerLog[]
   infernoProgress CnInfernoProgress[]
   hhtProgress     CnHhtProgress[]
@@ -194,11 +196,31 @@ model CnExample {
   naturalnessStatus   String       @default("draft")
   unknownWordEstimate Int?
   source              String       @default("admin")
+  ownerUserId         String?
   word                CnWord       @relation(fields: [wordId], references: [id], onDelete: Cascade)
   sense               CnWordSense? @relation(fields: [senseId], references: [id], onDelete: SetNull)
   @@index([wordId])
   @@index([senseId])
   @@index([wordId, naturalnessStatus])
+  @@index([wordId, ownerUserId])
+}
+
+model CnUserWordOverride {
+  id           String   @id @default(cuid())
+  userId       String
+  wordId       String
+  pinyin       String?
+  hanViet      String?
+  meaningVi    String?
+  partOfSpeech String?
+  ghiChu       String?
+  mnemonicVi   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  word         CnWord   @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, wordId])
+  @@index([wordId])
 }
 
 model CnSentencePattern {
